@@ -77,7 +77,6 @@ describe('multi step form step schema: update', () => {
     });
 
     expect(stepSchema.value.step2.title).toBe('Step 2');
-    
 
     stepSchema.update(2, 'title', 'Step 2 Updated');
 

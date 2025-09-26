@@ -1,3 +1,4 @@
+import { match } from 'ts-pattern';
 import { changeCasing, type CasingType } from './casing';
 import { invariant, type Constrain, type Expand, type Updater } from './utils';
 import {
@@ -361,8 +362,50 @@ type Relaxed<T> =
     : // Otherwise widen scalars
       WidenSpecial<T>;
 
+type Quote<T extends string[]> = {
+  [K in keyof T]: T[K] extends string ? `'${T[K]}'` : never;
+};
+
+type AsType = (typeof AS_TYPES)[number];
+type AsTypeMap<
+  resolvedStep extends ResolvedStep<any>,
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
+> = {
+  // Exclude is needed due to all the Constrains
+  string: Exclude<
+    Join<
+      Constrain<
+        Quote<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
+        string[]
+      >,
+      ' | '
+    >,
+    ''
+  >;
+  number: Exclude<
+    Join<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
+    ''
+  >;
+  'array.string': UnionToTuple<`${stepNumbers}`>;
+};
+type AsFunctionReturn<
+  resolvedStep extends ResolvedStep<any>,
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>,
+  asType extends AsType
+> = AsTypeMap<resolvedStep, stepNumbers>[asType];
+type AsFunction<
+  resolvedStep extends ResolvedStep<any>,
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
+> = <asType extends AsType>(
+  asType: asType
+) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
+
 const DEFAULT_CASING: CasingType = 'title';
 const DEFAULT_FIELD_TYPE: FieldType = 'string';
+/**
+ * Available transformation types for the step numbers.
+ */
+const AS_TYPES = ['string', 'number', 'array.string'] as const;
 
 function createFieldLabel(
   label: string | false | undefined,
@@ -382,8 +425,15 @@ export class MultiStepFormStepSchema<
    */
   readonly original: InferStepOptions<step>;
   readonly value: resolvedStep;
-  readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   readonly validStepRegex = /^step\d+$/i;
+  steps: {
+    first: FirstStep<resolvedStep>;
+    last: LastStep<resolvedStep>;
+    value: ReadonlyArray<stepNumbers>;
+    as: AsFunction<resolvedStep, stepNumbers>;
+  };
+  private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
+  private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
 
   constructor(config: InferStepOptions<step>) {
@@ -392,7 +442,37 @@ export class MultiStepFormStepSchema<
     this.stepNumbers = Object.keys(this.value).map((key) =>
       parseInt(key.replace('step', ''))
     );
+    this.firstStep = this.first();
     this.lastStep = this.last();
+    this.steps = {
+      first: this.firstStep.step,
+      last: this.lastStep.step,
+      value: this.stepNumbers as unknown as ReadonlyArray<stepNumbers>,
+      as: (asType): any => {
+        invariant(
+          typeof asType === 'string',
+          `The type of the target transformation type must be a string, was ${typeof asType}`
+        );
+
+        if (asType === 'string') {
+          return this.stepNumbers.map((value) => `'${value}'`).join(' | ');
+        }
+
+        if (asType === 'number') {
+          return this.stepNumbers.join(' | ');
+        }
+
+        if (asType === 'array.string') {
+          return this.stepNumbers.map((value) => `${value}`);
+        }
+
+        throw new Error(
+          `Transformation type "${asType}" is not supported. Available transformations include: ${AS_TYPES.map(
+            (value) => `"${value}"`
+          ).join(', ')}`
+        );
+      },
+    };
   }
 
   private createStepFields(options: {
