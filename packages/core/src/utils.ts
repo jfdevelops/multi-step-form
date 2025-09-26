@@ -3,7 +3,7 @@ export type Constrain<T, TConstraint, TDefault = TConstraint> =
   | (T extends TConstraint ? T : never)
   | TDefault;
 export type Updater<TInput, TOutput = TInput> =
-  | TInput
+  | TOutput
   | ((input: TInput) => TOutput);
 
 function lazy(strings: TemplateStringsArray, ...values: any[]) {

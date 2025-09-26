@@ -101,11 +101,6 @@ export type Step<
     unknown
   >
 > = Record<ValidStepKey<step>, options>;
-
-export type MultiStepFormSchemaStore<in out Key extends string> = {
-  key?: Key;
-  store?: Storage;
-};
 type SetDefault<T, Defaults> = {
   // All the keys from T
   [K in keyof T]-?: K extends keyof Defaults
@@ -348,6 +343,23 @@ type StepData<
    */
   data: GetCurrentStep<T, Step>;
 };
+type WidenSpecial<T> = T extends CasingType
+  ? CasingType // e.g. "title" → "camel" | "snake" | "title"
+  : T extends FieldType
+  ? FieldType
+  : T;
+type Relaxed<T> =
+  // If it's an array, recurse into elements
+  T extends (infer U)[]
+    ? Relaxed<U>[]
+    : // If it's a function, leave alone
+    T extends (...args: any[]) => any
+    ? T
+    : // If it's an object (record), recurse into props
+    T extends object
+    ? { [K in keyof T]: Relaxed<T[K]> }
+    : // Otherwise widen scalars
+      WidenSpecial<T>;
 
 const DEFAULT_CASING: CasingType = 'title';
 const DEFAULT_FIELD_TYPE: FieldType = 'string';
@@ -360,17 +372,21 @@ function createFieldLabel(
   return label ?? changeCasing(fieldName, casingType);
 }
 
-export class MultiStepFormStepSchema<T extends Step> {
+export class MultiStepFormStepSchema<
+  step extends Step,
+  resolvedStep extends ResolvedStep<step>,
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
+> {
   /**
    * The original config before any validation or transformations have been applied.
    */
-  readonly original: InferStepOptions<T>;
-  readonly value: ResolvedStep<T>;
-  readonly lastStep: StepData<ResolvedStep<T>, LastStep<ResolvedStep<T>>>;
+  readonly original: InferStepOptions<step>;
+  readonly value: resolvedStep;
+  readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   readonly validStepRegex = /^step\d+$/i;
   private readonly stepNumbers: Array<number>;
 
-  constructor(config: InferStepOptions<T>) {
+  constructor(config: InferStepOptions<step>) {
     this.original = config;
     this.value = this.createStep(this.original);
     this.stepNumbers = Object.keys(this.value).map((key) =>
@@ -466,8 +482,8 @@ export class MultiStepFormStepSchema<T extends Step> {
     return resolvedFields;
   }
 
-  createStep(stepsConfig: InferStepOptions<T>) {
-    const resolvedSteps = {} as ResolvedStep<T>;
+  createStep(stepsConfig: InferStepOptions<step>) {
+    const resolvedSteps = {} as resolvedStep;
 
     invariant(!!stepsConfig, 'The steps config must be defined', TypeError);
     invariant(
@@ -487,7 +503,7 @@ export class MultiStepFormStepSchema<T extends Step> {
         `The key "${stepKey}" isn't formatted properly. Each key in the step config must be the following format: "step{number}"`
       );
 
-      const validStepKey = stepKey as keyof ResolvedStep<T>;
+      const validStepKey = stepKey as keyof ResolvedStep<step>;
       const {
         fields,
         title,
@@ -534,16 +550,11 @@ export class MultiStepFormStepSchema<T extends Step> {
    * Gets the step data associated with the target step number.
    * @returns The step data for the target step number.
    */
-  get<
-    Step extends ExtractStepFromKey<Constrain<keyof ResolvedStep<T>, string>>
-  >(options: { step: Step }) {
+  get<Step extends stepNumbers>(options: { step: Step }) {
     const { step } = options;
-    const stepKey = `step${step}` as const;
+    const stepKey = `step${step}` as keyof resolvedStep;
 
-    const data = this.value[stepKey as keyof ResolvedStep<T>] as GetCurrentStep<
-      ResolvedStep<T>,
-      Step
-    >;
+    const data = this.value[stepKey] as GetCurrentStep<resolvedStep, Step>;
 
     return { step, data };
   }
@@ -553,9 +564,7 @@ export class MultiStepFormStepSchema<T extends Step> {
    * @returns The data for the first step.
    */
   first() {
-    const firstStep = Math.min(...this.stepNumbers) as FirstStep<
-      ResolvedStep<T>
-    >;
+    const firstStep = Math.min(...this.stepNumbers) as FirstStep<resolvedStep>;
 
     return this.get({ step: firstStep });
   }
@@ -567,38 +576,38 @@ export class MultiStepFormStepSchema<T extends Step> {
   last() {
     const lastStep = Math.max(...this.stepNumbers);
 
-    return this.get<LastStep<ResolvedStep<T>>>({ step: lastStep as never });
+    return this.get<LastStep<resolvedStep>>({ step: lastStep as never });
   }
 
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  update<
-    Step extends ExtractStepFromKey<Constrain<keyof ResolvedStep<T>, string>>,
-    CurrentStepData extends GetCurrentStep<ResolvedStep<T>, Step>,
-    UpdatedData = CurrentStepData
-  >(step: Step, updater: Updater<CurrentStepData, UpdatedData>): void;
   /**
    * Update a specific field's data for the specified step.
    * @param step The step to update.
    * @param field The field to update.
    * @param updater The updated data for field.
    */
+  // NOTE: This overload is first so that `field` gets autocomplete
   update<
-    Step extends ExtractStepFromKey<Constrain<keyof ResolvedStep<T>, string>>,
-    CurrentStepData extends GetCurrentStep<ResolvedStep<T>, Step>,
+    TargetStep extends stepNumbers,
+    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
     Field extends keyof CurrentStepData,
-    UpdatedData = CurrentStepData[Field]
-  >(
-    step: Step,
-    field: Field,
-    updater: Updater<CurrentStepData[Field], UpdatedData>
-  ): void;
+    TUpdater extends Updater<
+      CurrentStepData[Field],
+      Relaxed<CurrentStepData[Field]>
+    >
+  >(step: TargetStep, field: Field, updater: TUpdater): void;
+  /**
+   * Update the data for a specified step.
+   * @param step The step to update.
+   * @param updater The updated data for the step.
+   */
   update<
-    Step extends ExtractStepFromKey<Constrain<keyof ResolvedStep<T>, string>>,
-    Field extends keyof GetCurrentStep<ResolvedStep<T>, Step>
+    Step extends stepNumbers,
+    CurrentStepData extends GetCurrentStep<resolvedStep, Step>,
+    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
+  >(step: Step, updater: TUpdater): void;
+  update<
+    Step extends stepNumbers,
+    Field extends keyof GetCurrentStep<resolvedStep, Step>
   >(
     step: Step,
     fieldOrUpdater: Field | object | Function,
@@ -618,7 +627,7 @@ export class MultiStepFormStepSchema<T extends Step> {
       )}"`
     );
 
-    const stepKey = `step${step}` as keyof ResolvedStep<T>;
+    const stepKey = `step${step}` as keyof resolvedStep;
 
     if (typeof fieldOrUpdater === 'string') {
       invariant(this.value[stepKey], `No data found for step ${step}`);
@@ -637,7 +646,7 @@ export class MultiStepFormStepSchema<T extends Step> {
       );
       const targetType =
         typeof this.value[stepKey][
-          fieldOrUpdater as keyof (keyof ResolvedStep<T>)
+          fieldOrUpdater as keyof (keyof ResolvedStep<step>)
         ];
       invariant(
         typeof updater === targetType,
@@ -651,7 +660,7 @@ export class MultiStepFormStepSchema<T extends Step> {
           typeof updater === 'function'
             ? updater(
                 this.value[stepKey][
-                  fieldOrUpdater as keyof (keyof ResolvedStep<T>)
+                  fieldOrUpdater as keyof (keyof resolvedStep)
                 ]
               )
             : updater,
