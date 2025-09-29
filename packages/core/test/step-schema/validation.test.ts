@@ -24,7 +24,7 @@ describe('multi step form step schema: field validation', () => {
       },
     });
 
-    expect(stepSchema.first()).toStrictEqual({
+    expect(stepSchema.first()).toMatchObject({
       step: 1,
       data: {
         title: 'Validated Step 1',

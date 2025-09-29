@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { MultiStepFormStepSchema } from '../../src';
 
 describe('multi step form step schema: steps', () => {

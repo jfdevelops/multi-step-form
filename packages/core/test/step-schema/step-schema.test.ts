@@ -15,7 +15,7 @@ describe('multi step form step schema', () => {
       },
     });
 
-    expect(stepSchema.value).toStrictEqual({
+    expect(stepSchema.value).toMatchObject({
       step1: {
         title: 'Step 1',
         nameTransformCasing: 'title',
@@ -55,7 +55,7 @@ describe('multi step form step schema', () => {
     });
     const step1 = stepSchema.first();
 
-    expect(step1).toStrictEqual({
+    expect(step1).toMatchObject({
       step: 1,
       data: {
         title: 'Step 1',
@@ -96,7 +96,7 @@ describe('multi step form step schema', () => {
     });
     const step2 = stepSchema.last();
 
-    expect(step2).toStrictEqual({
+    expect(step2).toMatchObject({
       step: 2,
       data: {
         title: 'Step 2',
@@ -146,7 +146,7 @@ describe('multi step form step schema', () => {
     });
     const step2 = stepSchema.get({ step: 2 });
 
-    expect(step2).toStrictEqual({
+    expect(step2).toMatchObject({
       step: 2,
       data: {
         title: 'Step 2',

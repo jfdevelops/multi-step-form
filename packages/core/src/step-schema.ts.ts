@@ -133,7 +133,8 @@ type GetDefaultCasingTransformation<
 > = Step[Key] extends { nameTransformCasing: infer casing extends CasingType }
   ? casing
   : DefaultCasing;
-export type ResolvedStep<
+
+type ResolvedStepBuilder<
   T extends Step,
   InferredSteps extends InferStepOptions<T> = InferStepOptions<T>
 > = Expand<{
@@ -170,6 +171,60 @@ export type ResolvedStep<
     }
   >;
 }>;
+export type UpdateStepFn<
+  TStep extends Step,
+  TResolvedStep extends ResolvedStepBuilder<TStep>,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TTargetStep extends TStepNumbers
+> = {
+  /**
+   * Update a specific field's data for the specified step.
+   * @param step The step to update.
+   * @param field The field to update.
+   * @param updater The updated data for field.
+   */
+  // NOTE: This overload is first so that `field` gets autocomplete
+  <
+    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
+    Field extends keyof CurrentStepData,
+    TUpdater extends Updater<
+      CurrentStepData[Field],
+      Relaxed<CurrentStepData[Field]>
+    >
+  >(
+    field: Field,
+    updater: TUpdater
+  ): void;
+  /**
+   * Update the data for a specified step.
+   * @param step The step to update.
+   * @param updater The updated data for the step.
+   */
+  <
+    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
+    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
+  >(
+    updater: TUpdater
+  ): void;
+};
+export type ResolvedStep<
+  T extends Step,
+  TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>,
+  TResolvedStep extends ResolvedStepBuilder<
+    T,
+    TInferredSteps
+  > = ResolvedStepBuilder<T, TInferredSteps>
+> = {
+  [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] & {
+    update: UpdateStepFn<
+      T,
+      // @ts-ignore
+      TResolvedStep,
+      StepNumbers<TResolvedStep>,
+      ExtractStepFromKey<Constrain<stepKey, string>>
+    >;
+  };
+};
 
 type ErrorMessage<Message extends string = string> = Message;
 type InvalidKeys<T, Pattern extends string> = {
@@ -344,6 +399,9 @@ type StepData<
    */
   data: GetCurrentStep<T, Step>;
 };
+type StepNumbers<TResolvedStep extends ResolvedStep<any>> = ExtractStepFromKey<
+  Constrain<keyof TResolvedStep, string>
+>;
 type WidenSpecial<T> = T extends CasingType
   ? CasingType // e.g. "title" → "camel" | "snake" | "title"
   : T extends FieldType
@@ -418,7 +476,7 @@ function createFieldLabel(
 export class MultiStepFormStepSchema<
   step extends Step,
   resolvedStep extends ResolvedStep<step>,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
+  stepNumbers extends StepNumbers<resolvedStep>
 > {
   /**
    * The original config before any validation or transformations have been applied.
@@ -439,6 +497,18 @@ export class MultiStepFormStepSchema<
   constructor(config: InferStepOptions<step>) {
     this.original = config;
     this.value = this.createStep(this.original);
+
+    // Add the update function to each step
+    for (const [stepKey, stepValue] of Object.entries(this.value)) {
+      const step = parseInt(stepKey.replace('step', '')) as stepNumbers;
+
+      this.value[stepKey as keyof resolvedStep] = {
+        // Cast here since we know that `this.value` is already validated
+        ...(stepValue as object),
+        update: this.createStepUpdaterFn(step),
+      } as any;
+    }
+
     this.stepNumbers = Object.keys(this.value).map((key) =>
       parseInt(key.replace('step', ''))
     );
@@ -659,39 +729,16 @@ export class MultiStepFormStepSchema<
     return this.get<LastStep<resolvedStep>>({ step: lastStep as never });
   }
 
-  /**
-   * Update a specific field's data for the specified step.
-   * @param step The step to update.
-   * @param field The field to update.
-   * @param updater The updated data for field.
-   */
-  // NOTE: This overload is first so that `field` gets autocomplete
-  update<
+  private createStepUpdaterFnImpl<
     TargetStep extends stepNumbers,
     CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
-    >
-  >(step: TargetStep, field: Field, updater: TUpdater): void;
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  update<
-    Step extends stepNumbers,
-    CurrentStepData extends GetCurrentStep<resolvedStep, Step>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(step: Step, updater: TUpdater): void;
-  update<
-    Step extends stepNumbers,
-    Field extends keyof GetCurrentStep<resolvedStep, Step>
+    Field extends keyof CurrentStepData
   >(
-    step: Step,
-    fieldOrUpdater: Field | object | Function,
-    updater?: object | Function
+    step: TargetStep,
+    fieldOrUpdater: Field | Updater<CurrentStepData, Relaxed<CurrentStepData>>,
+    updater:
+      | Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
+      | undefined
   ) {
     const steps = this.stepNumbers;
 
@@ -770,4 +817,84 @@ export class MultiStepFormStepSchema<
       );
     }
   }
+
+  private createStepUpdaterFn<TargetStep extends stepNumbers>(
+    step: TargetStep
+  ): <
+    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
+    Field extends keyof CurrentStepData,
+    TUpdater extends Updater<
+      CurrentStepData[Field],
+      Relaxed<CurrentStepData[Field]>
+    >
+  >(
+    field: Field,
+    updater: TUpdater
+  ) => void;
+  private createStepUpdaterFn<TargetStep extends stepNumbers>(
+    step: TargetStep
+  ): <
+    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
+    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
+  >(
+    updater: TUpdater
+  ) => void;
+  private createStepUpdaterFn<TargetStep extends stepNumbers>(
+    step: TargetStep
+  ) {
+    return <CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>>(
+      fieldOrUpdater:
+        | keyof CurrentStepData
+        | Updater<CurrentStepData, Relaxed<CurrentStepData>>,
+      updater: Updater<
+        CurrentStepData[keyof CurrentStepData],
+        Relaxed<CurrentStepData[keyof CurrentStepData]>
+      >
+    ) => {
+      this.createStepUpdaterFnImpl(
+        step,
+        fieldOrUpdater as never,
+        updater as never
+      );
+    };
+  }
+
+  /**
+   * Update a specific field's data for the specified step.
+   * @param step The step to update.
+   * @param field The field to update.
+   * @param updater The updated data for field.
+   */
+  // NOTE: This overload is first so that `field` gets autocomplete
+  update<
+    TargetStep extends stepNumbers,
+    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
+    Field extends keyof CurrentStepData,
+    TUpdater extends Updater<
+      CurrentStepData[Field],
+      Relaxed<CurrentStepData[Field]>
+    >
+  >(step: TargetStep, field: Field, updater: TUpdater): void;
+  /**
+   * Update the data for a specified step.
+   * @param step The step to update.
+   * @param updater The updated data for the step.
+   */
+  update<
+    Step extends stepNumbers,
+    CurrentStepData extends GetCurrentStep<resolvedStep, Step>,
+    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
+  >(step: Step, updater: TUpdater): void;
+  update<
+    Step extends stepNumbers,
+    CurrentStepData extends GetCurrentStep<resolvedStep, Step>,
+    Field extends keyof CurrentStepData
+  >(
+    step: Step,
+    fieldOrUpdater: Field | Updater<CurrentStepData, Relaxed<CurrentStepData>>,
+    updater?: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
+  ) {
+    this.createStepUpdaterFnImpl(step, fieldOrUpdater, updater);
+  }
+
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MultiStepFormStepSchema } from '../../src';
 
 describe('multi step form step schema: update', () => {
-  it('should update the target step', () => {
+  it("should update the target step using the classes' update method", () => {
     const stepSchema = new MultiStepFormStepSchema({
       step1: {
         fields: [
@@ -44,7 +44,7 @@ describe('multi step form step schema: update', () => {
     expect(stepSchema.value.step1.nameTransformCasing).toBe('camel');
   });
 
-  it('should update the specified field for the target step', () => {
+  it("should update target step using the step's update method", () => {
     const stepSchema = new MultiStepFormStepSchema({
       step1: {
         fields: [
@@ -78,7 +78,7 @@ describe('multi step form step schema: update', () => {
 
     expect(stepSchema.value.step2.title).toBe('Step 2');
 
-    stepSchema.update(2, 'title', 'Step 2 Updated');
+    stepSchema.value.step2.update('title', 'Step 2 Updated');
 
     expect(stepSchema.value.step2.title).toBe('Step 2 Updated');
   });
