@@ -1,16 +1,6 @@
-import { Expand } from './utils';
+import { Expand, invariant, quote } from './utils';
 
-export type CasingType =
-  | 'sentence'
-  | 'title'
-  | 'camel'
-  | 'lower'
-  | 'upper'
-  | 'pascal'
-  | 'snake'
-  | 'screaming-snake'
-  | 'kebab'
-  | 'flat';
+export type CasingType = (typeof CASING_TYPES)[number];
 export type ToLower<S extends string> = S extends `${infer F}${infer R}`
   ? `${Lowercase<F>}${ToLower<R>}`
   : S;
@@ -84,6 +74,19 @@ export type ChangeObjectCasing<
   [K in keyof T as K extends string ? ChangeCasing<K, TCasing> : K]: T[K];
 }>;
 
+export const CASING_TYPES = [
+  'sentence',
+  'title',
+  'camel',
+  'lower',
+  'upper',
+  'pascal',
+  'snake',
+  'screaming-snake',
+  'flat',
+  'kebab',
+] as const;
+
 /**
  * Changes the casing of a string according to the specified casing type.
  *
@@ -155,5 +158,33 @@ export function changeCasing<TValue extends string, TType extends CasingType>(
 
     default:
       return input;
+  }
+}
+
+export function isCasingValid(casingType: string): casingType is CasingType {
+  const isValid = CASING_TYPES.includes(casingType as CasingType);
+
+  invariant(isValid, () => {
+    const formatter = new Intl.ListFormat('en', {
+      style: 'long',
+      type: 'conjunction',
+    });
+
+    return `${casingType} is not a valid casing type. Valid types include ${formatter.format(
+      CASING_TYPES.map((word) => quote(word))
+    )}`;
+  });
+
+  return isValid;
+}
+
+export function setCasingType<TCasing extends CasingType>(
+  input: TCasing | undefined,
+  fallback: CasingType
+) {
+  if (input && isCasingValid(input)) {
+    return input;
+  } else {
+    return fallback;
   }
 }

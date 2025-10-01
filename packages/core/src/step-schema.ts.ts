@@ -1,4 +1,9 @@
-import { changeCasing, type CasingType } from './casing';
+import {
+  changeCasing,
+  isCasingValid,
+  setCasingType,
+  type CasingType,
+} from './casing';
 import {
   comparePartialArray,
   invariant,
@@ -9,6 +14,7 @@ import {
   type Max,
   type Min,
   type SetDefault,
+  type SetDefaultString,
   type UnionToTuple,
   type Updater,
 } from './utils';
@@ -34,14 +40,22 @@ export type FieldType =
   | 'dateTime'
   | `boolean.${BooleanFieldType}`;
 
-export type DefaultCasing = CreateDefaultString<CasingType, 'title'>;
-export type DefaultFieldType = CreateDefaultString<FieldType, 'string'>;
+export type DefaultCasing = typeof DEFAULT_CASING;
+export type DefaultFieldType = typeof DEFAULT_FIELD_TYPE;
+export type NameTransformCasingOptions<TCasing extends CasingType> = {
+  /**
+   * How the `name` should be transformed for the `label`.
+   *
+   * If omitted, the default will be whatever is set during {@linkcode MultiStepFormSchema} initialization.
+   */
+  nameTransformCasing?: Constrain<TCasing, CasingType>;
+};
 export type StepField<
-  in out Name extends string,
-  in out Type extends FieldType,
-  in out Casing extends CasingType,
-  in out DefaultValue
-> = {
+  Name extends string,
+  Type extends FieldType,
+  Casing extends CasingType,
+  DefaultValue
+> = NameTransformCasingOptions<Casing> & {
   /**
    * The name of the field.
    */
@@ -72,41 +86,36 @@ export type StepField<
    * be a label for this field.
    */
   label?: string | false;
-  /**
-   * How the `name` should be transformed for the `label`.
-   *
-   * If omitted, the default will be whatever is set during {@linkcode MultiStepFormSchema} initialization.
-   */
-  nameTransformCasing?: Casing;
 };
+
 export type StepOptions<
-  in out Casing extends CasingType = CasingType,
-  in out Field extends StepField<
+  Casing extends CasingType = CasingType,
+  Field extends StepField<string, FieldType, CasingType, unknown> = StepField<
     string,
     FieldType,
     CasingType,
     unknown
-  > = StepField<string, FieldType, CasingType, unknown>,
-  in out FieldValidator = unknown
-> = {
+  >,
+  FieldValidator = unknown
+> = NameTransformCasingOptions<Casing> & {
   title: string;
   description?: string;
   fields: Array<Field>;
-  nameTransformCasing?: Casing;
   /**
    * Validator for the fields.
    */
   validateFields?: Constrain<FieldValidator, AnyValidator, DefaultValidator>;
 };
 export type Step<
+  TCasing extends CasingType = CasingType,
   step extends number = number,
   options extends StepOptions<
-    CasingType,
-    StepField<string, FieldType, CasingType, unknown>,
+    TCasing,
+    StepField<string, FieldType, TCasing, unknown>,
     unknown
   > = StepOptions<
-    CasingType,
-    StepField<string, FieldType, CasingType, unknown>,
+    TCasing,
+    StepField<string, FieldType, TCasing, unknown>,
     unknown
   >
 > = Record<ValidStepKey<step>, options>;
@@ -127,10 +136,11 @@ type GetFieldNames<
 > = GetFieldsForStep<InferredSteps, Key>['name'];
 type GetDefaultCasingTransformation<
   Step extends InferStepOptions<any>,
-  Key extends keyof Step
+  Key extends keyof Step,
+  TDefault extends CasingType = DefaultCasing
 > = Step[Key] extends { nameTransformCasing: infer casing extends CasingType }
   ? casing
-  : DefaultCasing;
+  : TDefault;
 
 type ResolvedFields<
   TInferredSteps extends InferStepOptions<any>,
@@ -157,7 +167,8 @@ type ResolvedFields<
 
 type ResolvedStepBuilder<
   T extends Step,
-  TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>
+  TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>,
+  TDefaultCasing extends CasingType = DefaultCasing
 > = Expand<{
   [stepKey in keyof TInferredSteps]: Expand<
     SetDefault<
@@ -166,7 +177,8 @@ type ResolvedStepBuilder<
         type: DefaultFieldType;
         nameTransformCasing: GetDefaultCasingTransformation<
           TInferredSteps,
-          stepKey
+          stepKey,
+          TDefaultCasing
         >;
       }
     > & {
@@ -175,7 +187,7 @@ type ResolvedStepBuilder<
   >;
 }>;
 type CurriedUpdateStepFn<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TTargetStep extends TStepNumbers
 > = {
@@ -361,12 +373,14 @@ export type CreateStepHelperFn<
   ? StepSpecificHelperFn<TResolvedStep, TStepNumbers, TTargetStep>
   : GeneralHelperFn<TResolvedStep, TStepNumbers>;
 export type ResolvedStep<
-  T extends Step,
-  TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>,
+  TStep extends Step<TDefaultCasing>,
+  TInferredSteps extends InferStepOptions<TStep> = InferStepOptions<TStep>,
+  TDefaultCasing extends CasingType = DefaultCasing,
   TResolvedStep extends ResolvedStepBuilder<
-    T,
-    TInferredSteps
-  > = ResolvedStepBuilder<T, TInferredSteps>
+    TStep,
+    TInferredSteps,
+    TDefaultCasing
+  > = ResolvedStepBuilder<TStep, TInferredSteps, TDefaultCasing>
 > = {
   [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] & {
     update: UpdateStepFn<
@@ -385,7 +399,7 @@ export type ResolvedStep<
     >;
   };
 };
-export type AnyResolvedStep = ResolvedStep<any, any, any>;
+export type AnyResolvedStep = ResolvedStep<any, any, any, any>;
 
 type ValidStepKey<N extends number = number> = `step${N}`;
 type ExtractStepFromKey<T extends string> = T extends ValidStepKey<infer N>
@@ -436,9 +450,8 @@ type StepData<
    */
   data: GetCurrentStep<T, Step>;
 };
-type StepNumbers<TResolvedStep extends AnyResolvedStep> = ExtractStepFromKey<
-  Constrain<keyof TResolvedStep, string>
->;
+export type StepNumbers<TResolvedStep extends AnyResolvedStep> =
+  ExtractStepFromKey<Constrain<keyof TResolvedStep, string>>;
 type WidenSpecial<T> = T extends CasingType
   ? CasingType // e.g. "title" → "camel" | "snake" | "title"
   : T extends FieldType
@@ -463,7 +476,7 @@ type Quote<T extends string[]> = {
 
 type AsType = (typeof AS_TYPES)[number];
 type AsTypeMap<
-  resolvedStep extends ResolvedStep<any>,
+  resolvedStep extends AnyResolvedStep,
   stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
 > = {
   // Exclude is needed due to all the Constrains
@@ -484,7 +497,7 @@ type AsTypeMap<
   'array.string': UnionToTuple<`${stepNumbers}`>;
 };
 type AsFunctionReturn<
-  resolvedStep extends ResolvedStep<any>,
+  resolvedStep extends AnyResolvedStep,
   stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>,
   asType extends AsType
 > = AsTypeMap<resolvedStep, stepNumbers>[asType];
@@ -608,6 +621,12 @@ type HelperFnWithoutValidator<
 > = (
   input: HelperFnInputWithoutValidator<TResolvedStep, TSteps, TChosenSteps>
 ) => Response;
+export type MultiStepFormSchemaStepConfig<
+  TStep extends Step<TCasing>,
+  TCasing extends CasingType
+> = NameTransformCasingOptions<TCasing> & {
+  steps: InferStepOptions<TStep>;
+};
 
 export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
@@ -617,8 +636,9 @@ export interface MultiStepFormStepSchemaFunctions<
   createHelperFn: CreateStepHelperFn<TResolvedStep, TStepNumbers>;
 }
 
-const DEFAULT_CASING: CasingType = 'title';
-const DEFAULT_FIELD_TYPE: FieldType = 'string';
+export const DEFAULT_CASING: SetDefaultString<CasingType, 'title'> = 'title';
+export const DEFAULT_FIELD_TYPE: SetDefaultString<FieldType, 'string'> =
+  'string';
 /**
  * Available transformation types for the step numbers.
  */
@@ -633,9 +653,10 @@ function createFieldLabel(
 }
 
 export class MultiStepFormStepSchema<
-  step extends Step,
-  resolvedStep extends ResolvedStep<step>,
-  stepNumbers extends StepNumbers<resolvedStep>
+  step extends Step<casing>,
+  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
+  stepNumbers extends StepNumbers<resolvedStep>,
+  casing extends CasingType = DefaultCasing
 > implements MultiStepFormStepSchemaFunctions<resolvedStep, stepNumbers>
 {
   /**
@@ -650,14 +671,24 @@ export class MultiStepFormStepSchema<
     value: ReadonlyArray<stepNumbers>;
     as: AsFunction<resolvedStep, stepNumbers>;
   };
+  readonly defaultNameTransformationCasing: casing;
   // @ts-ignore
   // TODO fix error: Type instantiation is excessively deep and possibly infinite.
   private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
   private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
 
-  constructor(config: InferStepOptions<step>) {
-    this.original = config;
+  constructor(
+    config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>
+  ) {
+    const { steps, nameTransformCasing } = config;
+
+    this.defaultNameTransformationCasing = setCasingType(
+      nameTransformCasing,
+      DEFAULT_CASING
+    ) as casing;
+
+    this.original = steps;
     this.value = this.createStep(this.original);
 
     // Add the update function to each step
@@ -795,7 +826,7 @@ export class MultiStepFormStepSchema<
     return resolvedFields;
   }
 
-  createStep(stepsConfig: InferStepOptions<step>) {
+  private createStep(stepsConfig: InferStepOptions<step>) {
     const resolvedSteps = {} as resolvedStep;
 
     invariant(!!stepsConfig, 'The steps config must be defined', TypeError);

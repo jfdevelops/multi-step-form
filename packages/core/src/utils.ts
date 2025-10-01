@@ -22,6 +22,7 @@ export type SetDefault<T, Defaults> = {
   // Any defaults not in T get added
   [K in Exclude<keyof Defaults, keyof T>]-?: Defaults[K];
 };
+export type SetDefaultString<T extends string, Default extends T> = Default;
 export type Range = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type ClampTo0to10<N extends number> = N extends Range
   ? N
@@ -31,9 +32,10 @@ export type ClampTo0to10<N extends number> = N extends Range
   : `${N}` extends `-${string}`
   ? 0
   : 10;
-export type Tuple<N extends number, R extends any[] = []> = R['length'] extends N
-  ? R
-  : Tuple<N, [...R, any]>;
+export type Tuple<
+  N extends number,
+  R extends any[] = []
+> = R['length'] extends N ? R : Tuple<N, [...R, any]>;
 
 export type GreaterThan<A extends Range, B extends Range> = Tuple<A> extends [
   ...Tuple<B>,
@@ -142,4 +144,20 @@ export function comparePartialArray<T>(
 
 export function printErrors(errors: string[]) {
   return errors.map((e, i) => `❌ ${i + 1}. ${e}`).join('\n');
+}
+
+export function quote(str: string, quoteChar: '"' | "'" = '"') {
+  const startsWithQuote = str.startsWith(quoteChar);
+  const endsWithQuote = str.endsWith(quoteChar);
+
+  if (startsWithQuote && endsWithQuote) {
+    // Already wrapped correctly
+    return str;
+  }
+
+  // If it starts or ends with a quote but not both → strip those first
+  const trimmed = str.replace(/^['"]|['"]$/g, '');
+
+  // Then add new quotes consistently
+  return `${quoteChar}${trimmed}${quoteChar}`;
 }

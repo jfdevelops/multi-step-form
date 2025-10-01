@@ -1,1 +1,1 @@
-export { MultiStepFormStepSchema } from './step-schema.ts';
+export * from './step-schema.ts';
