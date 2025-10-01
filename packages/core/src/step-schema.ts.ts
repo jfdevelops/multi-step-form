@@ -92,10 +92,6 @@ export type StepOptions<
    * Validator for the fields.
    */
   validateFields?: Constrain<FieldValidator, AnyValidator, DefaultValidator>;
-  /**
-   * Helper functions for the current step.
-   */
-  functions?: Function;
 };
 export type Step<
   step extends number = number,
@@ -141,46 +137,50 @@ type GetDefaultCasingTransformation<
   ? casing
   : DefaultCasing;
 
-type ResolvedStepBuilder<
-  T extends Step,
-  InferredSteps extends InferStepOptions<T> = InferStepOptions<T>
-> = Expand<{
-  [stepKey in keyof InferredSteps]: Expand<
+type ResolvedFields<
+  TInferredSteps extends InferStepOptions<any>,
+  TKey extends keyof TInferredSteps
+> = {
+  [name in GetFieldNames<TInferredSteps, TKey>]: Expand<
+    // current field information for the `name`
     SetDefault<
-      Omit<InferredSteps[stepKey], 'fields' | 'validateFields'>,
+      Omit<
+        Extract<GetFieldsForStep<TInferredSteps, TKey>, { name: name }>,
+        'name'
+      >,
       {
         type: DefaultFieldType;
         nameTransformCasing: GetDefaultCasingTransformation<
-          InferredSteps,
+          TInferredSteps,
+          TKey
+        >;
+        label: string;
+      }
+    >
+  >;
+};
+
+type ResolvedStepBuilder<
+  T extends Step,
+  TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>
+> = Expand<{
+  [stepKey in keyof TInferredSteps]: Expand<
+    SetDefault<
+      Omit<TInferredSteps[stepKey], 'fields' | 'validateFields'>,
+      {
+        type: DefaultFieldType;
+        nameTransformCasing: GetDefaultCasingTransformation<
+          TInferredSteps,
           stepKey
         >;
       }
     > & {
-      fields: {
-        [name in GetFieldNames<InferredSteps, stepKey>]: Expand<
-          // current field information for the `name`
-          SetDefault<
-            Omit<
-              Extract<GetFieldsForStep<InferredSteps, stepKey>, { name: name }>,
-              'name'
-            >,
-            {
-              type: DefaultFieldType;
-              nameTransformCasing: GetDefaultCasingTransformation<
-                InferredSteps,
-                stepKey
-              >;
-              label: string;
-            }
-          >
-        >;
-      };
+      fields: Expand<ResolvedFields<TInferredSteps, stepKey>>;
     }
   >;
 }>;
-export type UpdateStepFn<
-  TStep extends Step,
-  TResolvedStep extends ResolvedStepBuilder<TStep>,
+type CurriedUpdateStepFn<
+  TResolvedStep extends ResolvedStep<any>,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TTargetStep extends TStepNumbers
 > = {
@@ -214,6 +214,157 @@ export type UpdateStepFn<
     updater: TUpdater
   ): void;
 };
+type RegularUpdateStepFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>
+> = {
+  /**
+   * Update a specific field's data for the specified step.
+   * @param step The step to update.
+   * @param field The field to update.
+   * @param updater The updated data for field.
+   */
+  // NOTE: This overload is first so that `field` gets autocomplete
+  <
+    TargetStep extends TStepNumbers,
+    CurrentStepData extends GetCurrentStep<TResolvedStep, TargetStep>,
+    Field extends keyof CurrentStepData,
+    TUpdater extends Updater<
+      CurrentStepData[Field],
+      Relaxed<CurrentStepData[Field]>
+    >
+  >(
+    step: TargetStep,
+    field: Field,
+    updater: TUpdater
+  ): void;
+  /**
+   * Update the data for a specified step.
+   * @param step The step to update.
+   * @param updater The updated data for the step.
+   */
+  <
+    TargetStep extends TStepNumbers,
+    CurrentStepData extends GetCurrentStep<TResolvedStep, TargetStep>,
+    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
+  >(
+    step: TargetStep,
+    updater: TUpdater
+  ): void;
+};
+export type UpdateStepFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TTargetStep extends TStepNumbers = TStepNumbers,
+  TUseCurried extends boolean = false
+> = TUseCurried extends true
+  ? CurriedUpdateStepFn<TResolvedStep, TStepNumbers, TTargetStep>
+  : RegularUpdateStepFn<TResolvedStep, TStepNumbers>;
+
+type StepSpecificHelperFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TTargetStep extends TStepNumbers
+> = {
+  /**
+   * Create a helper function with validated input.
+   */
+  <Validator, Response>(
+    options: Omit<
+      CreateHelperFunctionOptionsWithValidator<
+        TResolvedStep,
+        TStepNumbers,
+        [TTargetStep],
+        Validator
+      >,
+      'stepData'
+    >,
+    fn: HelperFnWithValidator<
+      TResolvedStep,
+      TStepNumbers,
+      [TTargetStep],
+      Validator,
+      Response
+    >
+  ): ValidatedCreatedHelperFn<
+    TResolvedStep,
+    TStepNumbers,
+    [TTargetStep],
+    Validator,
+    Response
+  >;
+  /**
+   * Create a helper function without input.
+   */
+  <Response>(
+    fn: HelperFnWithoutValidator<
+      TResolvedStep,
+      TStepNumbers,
+      [TTargetStep],
+      Response
+    >
+  ): NotValidatedCreatedHelperFn<Response>;
+};
+type GeneralHelperFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>
+> = {
+  /**
+   * Create a helper function with validated input.
+   */
+  <
+    const ChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
+    Validator,
+    Response
+  >(
+    options: CreateHelperFunctionOptionsWithValidator<
+      TResolvedStep,
+      TStepNumbers,
+      ChosenSteps,
+      Validator
+    >,
+    fn: HelperFnWithValidator<
+      TResolvedStep,
+      TStepNumbers,
+      ChosenSteps,
+      Validator,
+      Response
+    >
+  ): ValidatedCreatedHelperFn<
+    TResolvedStep,
+    TStepNumbers,
+    ChosenSteps,
+    Validator,
+    Response
+  >;
+  /**
+   * Create a helper function without input.
+   */
+  <
+    const ChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
+    Response
+  >(
+    options: CreateHelperFunctionOptionsWithoutValidator<
+      TResolvedStep,
+      TStepNumbers,
+      ChosenSteps
+    >,
+    fn: HelperFnWithoutValidator<
+      TResolvedStep,
+      TStepNumbers,
+      ChosenSteps,
+      Response
+    >
+  ): NotValidatedCreatedHelperFn<Response>;
+};
+export type CreateStepHelperFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TTargetStep extends TStepNumbers = TStepNumbers,
+  TForSpecificStep extends boolean = false
+> = TForSpecificStep extends true
+  ? StepSpecificHelperFn<TResolvedStep, TStepNumbers, TTargetStep>
+  : GeneralHelperFn<TResolvedStep, TStepNumbers>;
 export type ResolvedStep<
   T extends Step,
   TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>,
@@ -224,14 +375,22 @@ export type ResolvedStep<
 > = {
   [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] & {
     update: UpdateStepFn<
-      T,
       // @ts-ignore
       TResolvedStep,
       StepNumbers<TResolvedStep>,
-      ExtractStepFromKey<Constrain<stepKey, string>>
+      ExtractStepFromKey<Constrain<stepKey, string>>,
+      true
+    >;
+    createHelperFn: CreateStepHelperFn<
+      // @ts-ignore
+      TResolvedStep,
+      StepNumbers<TResolvedStep>,
+      ExtractStepFromKey<Constrain<stepKey, string>>,
+      true
     >;
   };
 };
+export type AnyResolvedStep = ResolvedStep<any, any, any>;
 
 type ErrorMessage<Message extends string = string> = Message;
 type InvalidKeys<T, Pattern extends string> = {
@@ -288,33 +447,6 @@ export type InferStepOptions<T> = T extends {
 type RequiredKeys<T> = {
   [K in keyof T]-?: {} extends { [P in K]: T[K] } ? never : K;
 }[keyof T];
-type RequiredProps<T> = Pick<T, RequiredKeys<T>>;
-// type InferStepOptions<T> = [T] extends [object]
-//   ? Exclude<keyof T, ValidStepKey> extends never
-//     ? {
-//         [key in keyof T]: T[key] extends StepOptions<
-//           infer _casing extends CasingType,
-//           infer _stepField extends StepField<
-//             string,
-//             FieldType,
-//             CasingType,
-//             unknown
-//           >,
-//           infer _fieldValidator
-//         >
-//           ? Exclude<keyof T[key], keyof StepOptions> extends never
-//             ? T[key]
-//             : ErrorMessage<`The following keys are invalid: [${Join<
-//                 UnionToTuple<Exclude<keyof T[key], keyof StepOptions>>,
-//                 ', '
-//               >}]`>
-//           : ErrorMessage<`Must be an object of type StepOptions`>;
-//       }
-//     : ErrorMessage<`Step config keys must follow the pattern: "step{number}". Invalid keys include: [${Join<
-//         UnionToTuple<Exclude<keyof T, ValidStepKey>>,
-//         ', '
-//       >}]`>
-//   : ErrorMessage<'Step config must be an object with valid keys (step{number})'>;
 type Range = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 type ClampTo0to10<N extends number> = N extends Range
   ? N
@@ -370,7 +502,7 @@ type UnionToTuple<T> = (
 ) extends (_: any) => infer W
   ? [...UnionToTuple<Exclude<T, W>>, W]
   : [];
-export type LastStep<T extends ResolvedStep<any>> = keyof T extends ValidStepKey
+export type LastStep<T extends AnyResolvedStep> = keyof T extends ValidStepKey
   ? Max<
       Constrain<
         UnionToTuple<ExtractStepFromKey<Constrain<keyof T, string>>>,
@@ -378,23 +510,22 @@ export type LastStep<T extends ResolvedStep<any>> = keyof T extends ValidStepKey
       >
     >
   : never;
-export type FirstStep<T extends ResolvedStep<any>> =
-  keyof T extends ValidStepKey
-    ? Min<
-        Constrain<
-          UnionToTuple<ExtractStepFromKey<Constrain<keyof T, string>>>,
-          number[]
-        >
+export type FirstStep<T extends AnyResolvedStep> = keyof T extends ValidStepKey
+  ? Min<
+      Constrain<
+        UnionToTuple<ExtractStepFromKey<Constrain<keyof T, string>>>,
+        number[]
       >
-    : never;
+    >
+  : never;
 type GetCurrentStep<
-  T extends ResolvedStep<any>,
+  T extends AnyResolvedStep,
   S extends ExtractStepFromKey<Constrain<keyof T, string>>
 > = ValidStepKey<S> extends Constrain<keyof T, string>
   ? T[ValidStepKey<S>]
   : never;
 type StepData<
-  T extends ResolvedStep<any>,
+  T extends AnyResolvedStep,
   Step extends ExtractStepFromKey<Constrain<keyof T, string>>
 > = {
   /**
@@ -406,7 +537,7 @@ type StepData<
    */
   data: GetCurrentStep<T, Step>;
 };
-type StepNumbers<TResolvedStep extends ResolvedStep<any>> = ExtractStepFromKey<
+type StepNumbers<TResolvedStep extends AnyResolvedStep> = ExtractStepFromKey<
   Constrain<keyof TResolvedStep, string>
 >;
 type WidenSpecial<T> = T extends CasingType
@@ -459,18 +590,18 @@ type AsFunctionReturn<
   asType extends AsType
 > = AsTypeMap<resolvedStep, stepNumbers>[asType];
 type AsFunction<
-  resolvedStep extends ResolvedStep<any>,
+  resolvedStep extends AnyResolvedStep,
   stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
 > = <asType extends AsType>(
   asType: asType
 ) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
 
 type HelperFnChosenSteps<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>
 > = 'all' | Array<TSteps>;
 type CreateHelperFunctionOptionsBase<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
 > = {
@@ -484,12 +615,12 @@ type CreateHelperFunctionOptionsBase<
   stepData: TChosenSteps;
 };
 type CreateHelperFunctionOptionsWithoutValidator<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
 > = CreateHelperFunctionOptionsBase<TResolvedStep, TStepNumbers, TChosenSteps>;
 type CreateHelperFunctionOptionsWithValidator<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
   TValidator
@@ -504,7 +635,7 @@ type CreateHelperFunctionOptionsWithValidator<
   validator: Constrain<TValidator, AnyValidator, DefaultValidator>;
 };
 type ValidatedCreatedHelperFn<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
   TValidator,
@@ -522,9 +653,9 @@ type ValidatedCreatedHelperFn<
     >
   >
 ) => TResponse;
-type UnvalidatedCreatedHelperFn<TResponse> = () => TResponse;
+type NotValidatedCreatedHelperFn<TResponse> = () => TResponse;
 type HelperFnCtx<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
 > = TChosenSteps extends 'all'
@@ -536,14 +667,14 @@ type HelperFnCtx<
     };
 
 type HelperFnInputBase<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
 > = {
   ctx: HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>;
 };
 type HelperFnInputWithValidator<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
   TValidator
@@ -551,13 +682,13 @@ type HelperFnInputWithValidator<
   data: ResolveValidatorOutput<TValidator>;
 };
 type HelperFnInputWithoutValidator<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
 > = HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps>;
 
 type HelperFnWithValidator<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
   TValidator,
@@ -571,13 +702,21 @@ type HelperFnWithValidator<
   >
 ) => Response;
 type HelperFnWithoutValidator<
-  TResolvedStep extends ResolvedStep<any>,
+  TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
   Response
 > = (
   input: HelperFnInputWithoutValidator<TResolvedStep, TSteps, TChosenSteps>
 ) => Response;
+
+export interface MultiStepFormStepSchemaFunctions<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>
+> {
+  update: UpdateStepFn<TResolvedStep, TStepNumbers>;
+  createHelperFn: CreateStepHelperFn<TResolvedStep, TStepNumbers>;
+}
 
 const DEFAULT_CASING: CasingType = 'title';
 const DEFAULT_FIELD_TYPE: FieldType = 'string';
@@ -598,7 +737,8 @@ export class MultiStepFormStepSchema<
   step extends Step,
   resolvedStep extends ResolvedStep<step>,
   stepNumbers extends StepNumbers<resolvedStep>
-> {
+> implements MultiStepFormStepSchemaFunctions<resolvedStep, stepNumbers>
+{
   /**
    * The original config before any validation or transformations have been applied.
    */
@@ -627,6 +767,7 @@ export class MultiStepFormStepSchema<
         // Cast here since we know that `this.value` is already validated
         ...(stepValue as object),
         update: this.createStepUpdaterFn(step),
+        createHelperFn: this.createStepHelperFn(step),
       } as any;
     }
 
@@ -941,25 +1082,7 @@ export class MultiStepFormStepSchema<
 
   private createStepUpdaterFn<TargetStep extends stepNumbers>(
     step: TargetStep
-  ): <
-    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
-    >
-  >(
-    field: Field,
-    updater: TUpdater
-  ) => void;
-  private createStepUpdaterFn<TargetStep extends stepNumbers>(
-    step: TargetStep
-  ): <
-    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(
-    updater: TUpdater
-  ) => void;
+  ): UpdateStepFn<resolvedStep, stepNumbers, TargetStep, true>;
   private createStepUpdaterFn<TargetStep extends stepNumbers>(
     step: TargetStep
   ) {
@@ -1018,10 +1141,173 @@ export class MultiStepFormStepSchema<
     this.createStepUpdaterFnImpl(step, fieldOrUpdater, updater);
   }
 
+  private createStepHelperCtx<
+    const ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+  >(stepData: ChosenSteps) {
+    const formatter = new Intl.ListFormat('en', {
+      style: 'long',
+      type: 'disjunction',
+    });
+
+    const baseErrorMessage = () => {
+      return `"stepData" must be set to an array of available step numbers (${formatter.format(
+        this.stepNumbers.map((value) => `${value}`)
+      )})`;
+    };
+
+    if (stepData === 'all') {
+      return this.stepNumbers.reduce((acc, curr) => {
+        const stepKey = `step${curr}` as keyof HelperFnCtx<
+          resolvedStep,
+          stepNumbers,
+          ChosenSteps
+        >;
+        acc[stepKey] = this.get({ step: curr as stepNumbers }).data as never;
+
+        return acc;
+      }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
+    }
+
+    if (Array.isArray(stepData)) {
+      invariant(
+        stepData.every((step) => this.stepNumbers.includes(step)),
+        () => {
+          const comparedResults = comparePartialArray(
+            stepData,
+            this.stepNumbers,
+            formatter
+          );
+
+          if (comparedResults.status === 'error') {
+            return `${baseErrorMessage()}. See errors:\n ${printErrors(
+              comparedResults.errors
+            )}`;
+          }
+
+          return baseErrorMessage();
+        }
+      );
+
+      return stepData.reduce((acc, curr) => {
+        const stepKey = `step${curr}` as keyof HelperFnCtx<
+          resolvedStep,
+          stepNumbers,
+          ChosenSteps
+        >;
+        acc[stepKey] = this.get({ step: curr }).data as never;
+
+        return acc;
+      }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
+    }
+
+    throw new Error(`${baseErrorMessage()} OR to "all"`);
+  }
+
+  private createStepHelperFnImpl<
+    const ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+  >(stepData: ChosenSteps) {
+    return <Validator, Response>(
+      optionsOrFunction:
+        | Omit<
+            CreateHelperFunctionOptionsWithValidator<
+              resolvedStep,
+              stepNumbers,
+              ChosenSteps,
+              Validator
+            >,
+            'stepData'
+          >
+        | Omit<
+            CreateHelperFunctionOptionsWithoutValidator<
+              resolvedStep,
+              stepNumbers,
+              ChosenSteps
+            >,
+            'stepData'
+          >
+        | HelperFnWithoutValidator<
+            resolvedStep,
+            stepNumbers,
+            ChosenSteps,
+            Response
+          >,
+      fn:
+        | HelperFnWithValidator<
+            resolvedStep,
+            stepNumbers,
+            ChosenSteps,
+            Validator,
+            Response
+          >
+        | HelperFnWithoutValidator<
+            resolvedStep,
+            stepNumbers,
+            ChosenSteps,
+            Response
+          >
+    ) => {
+      const ctx = this.createStepHelperCtx(stepData);
+
+      if (typeof optionsOrFunction === 'function') {
+        return () => optionsOrFunction({ ctx });
+      }
+
+      if (typeof optionsOrFunction === 'object') {
+        return (
+          input?: Expand<
+            Omit<
+              HelperFnInputWithValidator<
+                resolvedStep,
+                stepNumbers,
+                ChosenSteps,
+                Validator
+              >,
+              'ctx'
+            >
+          >
+        ) => {
+          if ('validator' in optionsOrFunction) {
+            invariant(
+              typeof input === 'object',
+              'An input is expected since you provided a validator'
+            );
+
+            runStandardValidation(
+              optionsOrFunction.validator as StandardSchemaValidator,
+              input.data
+            );
+
+            return fn({ ctx, ...input });
+          }
+
+          return (
+            fn as HelperFnWithoutValidator<
+              resolvedStep,
+              stepNumbers,
+              ChosenSteps,
+              Response
+            >
+          )({ ctx });
+        };
+      }
+
+      throw new Error(
+        `The first argument must be a function or an object, (was ${typeof optionsOrFunction})`
+      );
+    };
+  }
+
+  // private createStepHelperFn<TargetStep extends stepNumbers>(
+  //   step: TargetStep
+  // ): CreateStepHelperFn<resolvedStep, stepNumbers, TargetStep, true>;
+  private createStepHelperFn<TargetStep extends stepNumbers>(step: TargetStep) {
+    return this.createStepHelperFnImpl([step]);
+  }
+
   /**
    * Create a helper function with validated input.
    */
-  createHelperFunction<
+  createHelperFn<
     const ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>,
     Validator,
     Response
@@ -1049,7 +1335,7 @@ export class MultiStepFormStepSchema<
   /**
    * Create a helper function without input.
    */
-  createHelperFunction<
+  createHelperFn<
     const ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>,
     Response
   >(
@@ -1064,9 +1350,9 @@ export class MultiStepFormStepSchema<
       ChosenSteps,
       Response
     >
-  ): UnvalidatedCreatedHelperFn<Response>;
+  ): NotValidatedCreatedHelperFn<Response>;
   // Implementation
-  createHelperFunction<
+  createHelperFn<
     const ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>,
     Validator,
     Response
@@ -1098,99 +1384,8 @@ export class MultiStepFormStepSchema<
           Response
         >
   ) {
-    const { stepData } = options;
-    const formatter = new Intl.ListFormat('en', {
-      style: 'long',
-      type: 'disjunction',
-    });
-    let ctx = {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>;
+    const { stepData, ...rest } = options;
 
-    const baseErrorMessage = () => {
-      return `"stepData" must be set to an array of available step numbers (${formatter.format(
-        this.stepNumbers.map((value) => `${value}`)
-      )})`;
-    };
-
-    if (stepData === 'all') {
-      ctx = this.stepNumbers.reduce((acc, curr) => {
-        const stepKey = `step${curr}` as keyof HelperFnCtx<
-          resolvedStep,
-          stepNumbers,
-          ChosenSteps
-        >;
-        acc[stepKey] = this.get({ step: curr as stepNumbers }).data as never;
-
-        return acc;
-      }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
-    } else if (Array.isArray(stepData)) {
-      invariant(
-        stepData.every((step) => this.stepNumbers.includes(step)),
-        () => {
-          const comparedResults = comparePartialArray(
-            stepData,
-            this.stepNumbers,
-            formatter
-          );
-
-          if (comparedResults.status === 'error') {
-            return `${baseErrorMessage()}. See errors:\n ${printErrors(
-              comparedResults.errors
-            )}`;
-          }
-
-          return baseErrorMessage();
-        }
-      );
-
-      ctx = stepData.reduce((acc, curr) => {
-        const stepKey = `step${curr}` as keyof HelperFnCtx<
-          resolvedStep,
-          stepNumbers,
-          ChosenSteps
-        >;
-        acc[stepKey] = this.get({ step: curr }).data as never;
-
-        return acc;
-      }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
-    } else {
-      throw new Error(`${baseErrorMessage()} OR to "all"`);
-    }
-
-    return (
-      input?: Expand<
-        Omit<
-          HelperFnInputWithValidator<
-            resolvedStep,
-            stepNumbers,
-            ChosenSteps,
-            Validator
-          >,
-          'ctx'
-        >
-      >
-    ) => {
-      if ('validator' in options) {
-        invariant(
-          typeof input === 'object',
-          'An input is expected since you provided a validator'
-        );
-
-        runStandardValidation(
-          options.validator as StandardSchemaValidator,
-          input.data
-        );
-
-        return fn({ ctx, ...input });
-      }
-
-      return (
-        fn as HelperFnWithoutValidator<
-          resolvedStep,
-          stepNumbers,
-          ChosenSteps,
-          Response
-        >
-      )({ ctx });
-    };
+    return this.createStepHelperFnImpl(stepData)(rest, fn);
   }
 }

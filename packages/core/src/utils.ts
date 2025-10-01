@@ -1,4 +1,10 @@
-export type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
+export type Expand<T> = T extends object
+  ? T extends infer O
+    ? O extends Function
+      ? O
+      : { [K in keyof O]: O[K] }
+    : never
+  : T;
 export type Constrain<T, TConstraint, TDefault = TConstraint> =
   | (T extends TConstraint ? T : never)
   | TDefault;
