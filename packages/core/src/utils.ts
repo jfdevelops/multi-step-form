@@ -11,6 +11,81 @@ export type Constrain<T, TConstraint, TDefault = TConstraint> =
 export type Updater<TInput, TOutput = TInput> =
   | TOutput
   | ((input: TInput) => TOutput);
+export type SetDefault<T, Defaults> = {
+  // All the keys from T
+  [K in keyof T]-?: K extends keyof Defaults
+    ? undefined extends T[K]
+      ? Exclude<T[K], undefined> | Defaults[K] // optional -> upgraded with default
+      : T[K] // already required, don't touch
+    : T[K];
+} & {
+  // Any defaults not in T get added
+  [K in Exclude<keyof Defaults, keyof T>]-?: Defaults[K];
+};
+export type Range = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+export type ClampTo0to10<N extends number> = N extends Range
+  ? N
+  : // if higher than 10 → 10, if lower than 0 → 0
+  number extends N
+  ? never // catches the `number` type, not a literal
+  : `${N}` extends `-${string}`
+  ? 0
+  : 10;
+export type Tuple<N extends number, R extends any[] = []> = R['length'] extends N
+  ? R
+  : Tuple<N, [...R, any]>;
+
+export type GreaterThan<A extends Range, B extends Range> = Tuple<A> extends [
+  ...Tuple<B>,
+  ...infer _
+]
+  ? Tuple<B> extends [...Tuple<A>, ...infer _]
+    ? false
+    : true
+  : false;
+export type Max<T extends number[]> = T extends [
+  infer A extends number,
+  ...infer Rest extends number[]
+]
+  ? Rest['length'] extends 0
+    ? ClampTo0to10<A>
+    : Max<Rest> extends infer M extends Range
+    ? GreaterThan<ClampTo0to10<A>, M> extends true
+      ? ClampTo0to10<A>
+      : M
+    : never
+  : never;
+
+export type Min<T extends number[]> = T extends [
+  infer A extends number,
+  ...infer Rest extends number[]
+]
+  ? Rest['length'] extends 0
+    ? ClampTo0to10<A>
+    : Min<Rest> extends infer M extends Range
+    ? GreaterThan<ClampTo0to10<A>, M> extends true
+      ? M
+      : ClampTo0to10<A>
+    : never
+  : never;
+export type UnionToTuple<T> = (
+  (T extends any ? (t: T) => T : never) extends infer U
+    ? (U extends any ? (u: U) => any : never) extends (v: infer V) => any
+      ? V
+      : never
+    : never
+) extends (_: any) => infer W
+  ? [...UnionToTuple<Exclude<T, W>>, W]
+  : [];
+
+export type Join<T extends string[], D extends string> = T extends [
+  infer F extends string,
+  ...infer R extends string[]
+]
+  ? R['length'] extends 0
+    ? F
+    : `${F}${D}${Join<R, D>}`
+  : '';
 
 function lazy(strings: TemplateStringsArray, ...values: any[]) {
   return () => String.raw({ raw: strings }, ...values);
@@ -27,23 +102,6 @@ export function invariant<T>(
 
     throw new error(resolvedMessage);
   }
-}
-
-export function compareAsSets<T>(
-  a: T[],
-  b: T[]
-): { status: 'success' } | { status: 'error'; missing: T[]; extras: T[] } {
-  const setA = new Set(a);
-  const setB = new Set(b);
-
-  const missing = [...setA].filter((x) => !setB.has(x));
-  const extras = [...setB].filter((x) => !setA.has(x));
-
-  if (missing.length || extras.length) {
-    return { status: 'error', missing, extras };
-  }
-
-  return { status: 'success' };
 }
 
 export function comparePartialArray<T>(

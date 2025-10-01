@@ -5,6 +5,11 @@ import {
   printErrors,
   type Constrain,
   type Expand,
+  type Join,
+  type Max,
+  type Min,
+  type SetDefault,
+  type UnionToTuple,
   type Updater,
 } from './utils';
 import {
@@ -105,17 +110,7 @@ export type Step<
     unknown
   >
 > = Record<ValidStepKey<step>, options>;
-type SetDefault<T, Defaults> = {
-  // All the keys from T
-  [K in keyof T]-?: K extends keyof Defaults
-    ? undefined extends T[K]
-      ? Exclude<T[K], undefined> | Defaults[K] // optional -> upgraded with default
-      : T[K] // already required, don't touch
-    : T[K];
-} & {
-  // Any defaults not in T get added
-  [K in Exclude<keyof Defaults, keyof T>]-?: Defaults[K];
-};
+
 type GetFieldsForStep<
   Steps extends InferStepOptions<any>,
   Key extends keyof Steps
@@ -392,45 +387,6 @@ export type ResolvedStep<
 };
 export type AnyResolvedStep = ResolvedStep<any, any, any>;
 
-type ErrorMessage<Message extends string = string> = Message;
-type InvalidKeys<T, Pattern extends string> = {
-  [K in keyof T]: K extends Pattern ? never : K;
-}[keyof T];
-type UnionToIntersection<U> = (
-  U extends any ? (k: (x: U) => void) => void : never
-) extends (k: infer I) => void
-  ? I
-  : never;
-
-// Extract the "last" type from a union
-type LastOf<U> = UnionToIntersection<
-  U extends any ? (x: U) => void : never
-> extends (x: infer P) => void
-  ? P
-  : never;
-
-// Push union into a tuple (preserving order)
-type Push<U, T extends any[]> = [...T, U];
-type TuplifyUnion<U, T extends any[] = []> = [U] extends [never]
-  ? T
-  : TuplifyUnion<Exclude<U, LastOf<U>>, Push<LastOf<U>, T>>;
-
-// Join a tuple of strings with a delimiter
-type Join<T extends string[], D extends string> = T extends [
-  infer F extends string,
-  ...infer R extends string[]
-]
-  ? R['length'] extends 0
-    ? F
-    : `${F}${D}${Join<R, D>}`
-  : '';
-
-// Put it all together: Join a union of strings
-type JoinUnion<U extends string, D extends string> = Join<
-  Constrain<TuplifyUnion<U>, string[]>,
-  D
->;
-
 type ValidStepKey<N extends number = number> = `step${N}`;
 type ExtractStepFromKey<T extends string> = T extends ValidStepKey<infer N>
   ? N
@@ -444,64 +400,7 @@ export type InferStepOptions<T> = T extends {
 }
   ? T
   : Exclude<keyof T, ValidStepKey>;
-type RequiredKeys<T> = {
-  [K in keyof T]-?: {} extends { [P in K]: T[K] } ? never : K;
-}[keyof T];
-type Range = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-type ClampTo0to10<N extends number> = N extends Range
-  ? N
-  : // if higher than 10 → 10, if lower than 0 → 0
-  number extends N
-  ? never // catches the `number` type, not a literal
-  : `${N}` extends `-${string}`
-  ? 0
-  : 10;
-type Tuple<N extends number, R extends any[] = []> = R['length'] extends N
-  ? R
-  : Tuple<N, [...R, any]>;
 
-type GreaterThan<A extends Range, B extends Range> = Tuple<A> extends [
-  ...Tuple<B>,
-  ...infer _
-]
-  ? Tuple<B> extends [...Tuple<A>, ...infer _]
-    ? false
-    : true
-  : false;
-type Max<T extends number[]> = T extends [
-  infer A extends number,
-  ...infer Rest extends number[]
-]
-  ? Rest['length'] extends 0
-    ? ClampTo0to10<A>
-    : Max<Rest> extends infer M extends Range
-    ? GreaterThan<ClampTo0to10<A>, M> extends true
-      ? ClampTo0to10<A>
-      : M
-    : never
-  : never;
-
-type Min<T extends number[]> = T extends [
-  infer A extends number,
-  ...infer Rest extends number[]
-]
-  ? Rest['length'] extends 0
-    ? ClampTo0to10<A>
-    : Min<Rest> extends infer M extends Range
-    ? GreaterThan<ClampTo0to10<A>, M> extends true
-      ? M
-      : ClampTo0to10<A>
-    : never
-  : never;
-type UnionToTuple<T> = (
-  (T extends any ? (t: T) => T : never) extends infer U
-    ? (U extends any ? (u: U) => any : never) extends (v: infer V) => any
-      ? V
-      : never
-    : never
-) extends (_: any) => infer W
-  ? [...UnionToTuple<Exclude<T, W>>, W]
-  : [];
 export type LastStep<T extends AnyResolvedStep> = keyof T extends ValidStepKey
   ? Max<
       Constrain<
@@ -751,6 +650,8 @@ export class MultiStepFormStepSchema<
     value: ReadonlyArray<stepNumbers>;
     as: AsFunction<resolvedStep, stepNumbers>;
   };
+  // @ts-ignore
+  // TODO fix error: Type instantiation is excessively deep and possibly infinite.
   private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
   private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
@@ -1047,7 +948,7 @@ export class MultiStepFormStepSchema<
         ...this.value[stepKey],
         [fieldOrUpdater]:
           typeof updater === 'function'
-            ? updater(
+            ? (updater as Function)(
                 this.value[stepKey][
                   fieldOrUpdater as keyof (keyof resolvedStep)
                 ]
@@ -1060,7 +961,7 @@ export class MultiStepFormStepSchema<
     ) {
       const updatedData =
         typeof fieldOrUpdater === 'function'
-          ? fieldOrUpdater(this.value[stepKey])
+          ? fieldOrUpdater(this.value[stepKey] as CurrentStepData)
           : fieldOrUpdater;
 
       invariant(
@@ -1297,9 +1198,6 @@ export class MultiStepFormStepSchema<
     };
   }
 
-  // private createStepHelperFn<TargetStep extends stepNumbers>(
-  //   step: TargetStep
-  // ): CreateStepHelperFn<resolvedStep, stepNumbers, TargetStep, true>;
   private createStepHelperFn<TargetStep extends stepNumbers>(step: TargetStep) {
     return this.createStepHelperFnImpl([step]);
   }
