@@ -1,4 +1,5 @@
 import { changeCasing, setCasingType, type CasingType } from './casing';
+import { Subscribable } from './subscribable';
 import {
   comparePartialArray,
   invariant,
@@ -665,6 +666,26 @@ export interface MultiStepFormStepSchemaFunctions<
   update: UpdateStepFn<TResolvedStep, TStepNumbers>;
   createHelperFn: CreateStepHelperFn<TResolvedStep, TStepNumbers>;
 }
+export type MultiStepFormStepStepsConfig<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>
+> = {
+  first: FirstStep<TResolvedStep>;
+  last: LastStep<TResolvedStep>;
+  value: ReadonlyArray<TStepNumbers>;
+  as: AsFunction<TResolvedStep, TStepNumbers>;
+};
+export type MultiStepFormStepSchemaListener<
+  TStep extends Step<TCasing>,
+  TResolvedStep extends ResolvedStep<TStep, InferStepOptions<TStep>, TCasing>,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TCasing extends CasingType
+> = (data: {
+  original: InferStepOptions<TStep>;
+  value: TResolvedStep;
+  steps: MultiStepFormStepStepsConfig<TResolvedStep, TStepNumbers>;
+  defaultNameTransformationCasing: TCasing;
+}) => void;
 
 export const DEFAULT_CASING: SetDefaultString<CasingType, 'title'> = 'title';
 export const DEFAULT_FIELD_TYPE: SetDefaultString<FieldType, 'string'> =
@@ -822,6 +843,10 @@ export function createStep<
         validStepKey
       )}) is empty. Please add a field`
     );
+    invariant(
+      typeof fields === 'object',
+      `The "fields" property must be an object. Was ${typeof fields}`
+    );
 
     const resolvedFields = createStepFields({
       defaultCasing,
@@ -843,24 +868,22 @@ export function createStep<
 }
 
 export class MultiStepFormStepSchema<
-  step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-  stepNumbers extends StepNumbers<resolvedStep>,
-  casing extends CasingType = DefaultCasing
-> implements MultiStepFormStepSchemaFunctions<resolvedStep, stepNumbers>
+    step extends Step<casing>,
+    resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
+    stepNumbers extends StepNumbers<resolvedStep>,
+    casing extends CasingType = DefaultCasing
+  >
+  extends Subscribable<
+    MultiStepFormStepSchemaListener<step, resolvedStep, stepNumbers, casing>
+  >
+  implements MultiStepFormStepSchemaFunctions<resolvedStep, stepNumbers>
 {
   /**
    * The original config before any validation or transformations have been applied.
    */
   readonly original: InferStepOptions<step>;
-  readonly value: resolvedStep;
-  // readonly validStepRegex = /^step\d+$/i;
-  steps: {
-    first: FirstStep<resolvedStep>;
-    last: LastStep<resolvedStep>;
-    value: ReadonlyArray<stepNumbers>;
-    as: AsFunction<resolvedStep, stepNumbers>;
-  };
+  value: resolvedStep;
+  readonly steps: MultiStepFormStepStepsConfig<resolvedStep, stepNumbers>;
   readonly defaultNameTransformationCasing: casing;
   // @ts-ignore
   // TODO fix error: Type instantiation is excessively deep and possibly infinite.
@@ -871,6 +894,8 @@ export class MultiStepFormStepSchema<
   constructor(
     config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>
   ) {
+    super();
+
     const { steps, nameTransformCasing } = config;
 
     this.defaultNameTransformationCasing = setCasingType(
@@ -940,6 +965,21 @@ export class MultiStepFormStepSchema<
     invariant(/^\d+$/.test(extracted), `Invalid step format: "${input}"`);
 
     return parseInt(extracted, 10);
+  }
+
+  getSnapshot() {
+    return this;
+  }
+
+  protected notify() {
+    this.listeners.forEach((listener) => {
+      listener({
+        defaultNameTransformationCasing: this.defaultNameTransformationCasing,
+        original: this.original,
+        steps: this.steps,
+        value: this.value,
+      });
+    });
   }
 
   /**
@@ -1027,17 +1067,22 @@ export class MultiStepFormStepSchema<
         TypeError
       );
 
-      this.value[stepKey] = {
-        ...this.value[stepKey],
-        [fieldOrUpdater]:
-          typeof updater === 'function'
-            ? (updater as Function)(
-                this.value[stepKey][
-                  fieldOrUpdater as keyof (keyof resolvedStep)
-                ]
-              )
-            : updater,
+      this.value = {
+        ...this.value,
+        [stepKey]: {
+          ...this.value[stepKey],
+          [fieldOrUpdater]:
+            typeof updater === 'function'
+              ? (updater as Function)(
+                  this.value[stepKey][
+                    fieldOrUpdater as keyof (keyof resolvedStep)
+                  ]
+                )
+              : updater,
+        },
       };
+
+      this.notify();
     } else if (
       typeof fieldOrUpdater === 'object' ||
       typeof fieldOrUpdater === 'function'
@@ -1052,10 +1097,15 @@ export class MultiStepFormStepSchema<
         `The updated data must be an object, was ${typeof updatedData}`
       );
 
-      this.value[stepKey] = {
-        ...this.value[stepKey],
-        ...updatedData,
+      this.value = {
+        ...this.value,
+        [stepKey]: {
+          ...this.value[stepKey],
+          ...updatedData,
+        },
       };
+
+      this.notify();
     } else {
       throw new TypeError(
         `The second parameter must be one of the following: a specific field to update (string), an object with the updated data, or a function that returns the updated data. It was ${typeof fieldOrUpdater}`,
@@ -1369,35 +1419,35 @@ export class MultiStepFormStepSchema<
   ): CreatedHelperFnWithoutInput<Response>;
   // Implementation
   createHelperFn<
-    const ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>,
-    Validator,
-    Response
+    const chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>,
+    response,
+    validator = never
   >(
     options:
       | CreateHelperFunctionOptionsWithValidator<
           resolvedStep,
           stepNumbers,
-          ChosenSteps,
-          Validator
+          chosenSteps,
+          validator
         >
       | CreateHelperFunctionOptionsWithoutValidator<
           resolvedStep,
           stepNumbers,
-          ChosenSteps
+          chosenSteps
         >,
     fn:
       | HelperFnWithValidator<
           resolvedStep,
           stepNumbers,
-          ChosenSteps,
-          Validator,
-          Response
+          chosenSteps,
+          validator,
+          response
         >
       | HelperFnWithoutValidator<
           resolvedStep,
           stepNumbers,
-          ChosenSteps,
-          Response
+          chosenSteps,
+          response
         >
   ) {
     const { stepData, ...rest } = options;
