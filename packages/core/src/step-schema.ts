@@ -508,7 +508,7 @@ type AsFunction<
   asType: asType
 ) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
 
-type HelperFnChosenSteps<
+export type HelperFnChosenSteps<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>
 > =
@@ -517,7 +517,7 @@ type HelperFnChosenSteps<
   | RequireAtLeastOne<{
       [key in ValidStepKey<TSteps>]: true;
     }>;
-type CreateHelperFunctionOptionsBase<
+export type CreateHelperFunctionOptionsBase<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
@@ -597,7 +597,7 @@ type HelperFnCtx<
     : never
   : never;
 
-type HelperFnInputBase<
+export type HelperFnInputBase<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
@@ -1180,7 +1180,7 @@ export class MultiStepFormStepSchema<
     }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
   }
 
-  private createStepHelperCtx<
+  protected createStepHelperCtx<
     ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
   >(stepData: ChosenSteps) {
     const formatter = new Intl.ListFormat('en', {
