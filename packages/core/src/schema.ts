@@ -1,17 +1,17 @@
-import { setCasingType, type CasingType } from './casing.js';
 import {
-  DEFAULT_CASING,
-  MultiStepFormStepSchema,
-  type DefaultCasing,
-  type InferStepOptions,
-  type MultiStepFormSchemaStepConfig,
-  type ResolvedStep,
-  type Step,
-  type StepNumbers,
-} from './step-schema.js';
+  DefaultCasing,
+  InferStepOptions,
+  MultiStepFormSchemaStepConfig,
+  MultiStepFormStepHelper,
+  ResolvedStep,
+  Step,
+  StepNumbers,
+} from '@multi-step-form/shared-utils';
 import { MultiStepFormStorage } from './storage.js';
 import { Subscribable } from './subscribable.js';
-import type { Constrain } from './utils.js';
+import { CasingType, MultiStepFormStepSchema } from './step-schema.js';
+import { casing } from '@multi-step-form/casing';
+import type { types } from '@multi-step-form/compile-time-utils';
 export type MultiStepFormSchemaDefaults<
   TCasing extends CasingType,
   TStorageKey extends string
@@ -58,6 +58,12 @@ export class MultiStepFormSchema<
   casing extends CasingType,
   storageKey extends string
 > extends Subscribable<MultiStepFormSchemaListener<step, casing, storageKey>> {
+  protected readonly stepHelper: MultiStepFormStepHelper<
+    step,
+    resolvedStep,
+    stepNumbers,
+    casing
+  >;
   readonly storageKey: storageKey;
   readonly defaultNameTransformationCasing: casing;
   readonly stepSchema: MultiStepFormStepSchema<
@@ -72,7 +78,7 @@ export class MultiStepFormSchema<
     options: MultiStepFormSchemaOptions<
       step,
       // Allows full autocomplete
-      Constrain<casing, CasingType>,
+      types.Constrain<casing, CasingType>,
       storageKey
     >
   ) {
@@ -80,14 +86,18 @@ export class MultiStepFormSchema<
 
     const { steps, defaults } = options;
 
-    this.defaultNameTransformationCasing = setCasingType(
+    this.defaultNameTransformationCasing = casing.setCasingType(
       defaults?.nameTransformCasing,
-      DEFAULT_CASING
+      casing.DEFAULT_CASING
     ) as casing;
     this.stepSchema = new MultiStepFormStepSchema({
       steps,
       nameTransformCasing: this.defaultNameTransformationCasing,
     });
+    this.stepHelper = new MultiStepFormStepHelper(
+      this.stepSchema.value,
+      this.stepSchema.steps.value as Array<stepNumbers>
+    );
     // Cast to make TS happy. We want `storageKey` to show as `never`
     // if there is none provided
     this.storageKey = defaults?.storageKey as storageKey;
@@ -124,7 +134,7 @@ export function createMultiStepFormSchema<
   options: MultiStepFormSchemaOptions<
     step,
     // Allows full autocomplete
-    Constrain<casing, CasingType>,
+    types.Constrain<casing, CasingType>,
     storageKey
   >
 ) {

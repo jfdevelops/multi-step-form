@@ -1,655 +1,46 @@
-import { changeCasing, setCasingType, type CasingType } from './casing';
-import { Subscribable } from './subscribable';
+import { casing } from '@multi-step-form/casing';
+import type { types } from '@multi-step-form/compile-time-utils';
 import {
-  comparePartialArray,
   invariant,
-  printErrors,
-  type Constrain,
-  type Expand,
-  type Join,
-  type Max,
-  type Min,
-  type RequireAtLeastOne,
-  type SetDefault,
-  type SetDefaultString,
-  type UnionToTuple,
-  type Updater,
-} from './utils';
-import {
   runStandardValidation,
   type AnyValidator,
   type DefaultValidator,
-  type ResolveValidatorOutput,
   type StandardSchemaValidator,
-} from './validators';
+} from '@multi-step-form/runtime-utils';
+import {
+  DEFAULT_FIELD_TYPE,
+  MultiStepFormStepHelper,
+  step,
+  type AnyResolvedStep,
+  type AnyStepField,
+  type CreatedHelperFnWithInput,
+  type CreatedHelperFnWithoutInput,
+  type CreateHelperFunctionOptionsWithoutValidator,
+  type CreateHelperFunctionOptionsWithValidator,
+  type CreateStepHelperFn,
+  type DefaultCasing,
+  type ExtractStepFromKey,
+  type FirstStep,
+  type GetCurrentStep,
+  type HelperFnChosenSteps,
+  type HelperFnWithoutValidator,
+  type HelperFnWithValidator,
+  type InferStepOptions,
+  type Join,
+  type LastStep,
+  type MultiStepFormSchemaStepConfig,
+  type Relaxed,
+  type ResolvedStep,
+  type Step,
+  type StepData,
+  type StepNumbers,
+  type UnionToTuple,
+  type Updater,
+  type UpdateStepFn,
+} from '@multi-step-form/shared-utils';
+import { Subscribable } from './subscribable';
 
-export type StringFieldType = 'phone' | 'email' | 'time';
-export type NumberFieldType = 'counter';
-export type BooleanFieldType = 'switch';
-export type FieldType =
-  | 'string'
-  | `string.${StringFieldType}`
-  | 'number'
-  | `number.${NumberFieldType}`
-  | 'date'
-  | 'dateTime'
-  | `boolean.${BooleanFieldType}`;
-
-export type DefaultCasing = typeof DEFAULT_CASING;
-export type DefaultFieldType = typeof DEFAULT_FIELD_TYPE;
-export type NameTransformCasingOptions<TCasing extends CasingType> = {
-  /**
-   * How the `name` should be transformed for the `label`.
-   *
-   * If omitted, the default will be whatever is set during {@linkcode MultiStepFormSchema} initialization.
-   */
-  nameTransformCasing?: Constrain<TCasing, CasingType>;
-};
-export type StepFieldOptions<
-  Type extends FieldType,
-  Casing extends CasingType,
-  DefaultValue
-> = NameTransformCasingOptions<Casing> & {
-  defaultValue: DefaultValue;
-  /**
-   * The type of the field.
-   *
-   * @default 'string'
-   */
-  type?: Type;
-  // TODO add support for confirmation modal
-  // /**
-  //  * How the field should be displayed when on the confirmation modal.
-  //  *
-  //  * By default it will be the same as regular field config.
-  //  */
-  // onConfirmationConfig?: Omit<
-  //   StepField<Name, FieldType, unknown>,
-  //   'name' | 'onConfirmationConfig'
-  // >;
-  /**
-   * The text for the label.
-   *
-   * If omitted, it will default to the specified casing.
-   *
-   * If `false`, `label` will be `undefined`, meaning there won't
-   * be a label for this field.
-   */
-  label?: string | false;
-};
-export type AnyStepFieldOption = StepFieldOptions<
-  FieldType,
-  CasingType,
-  unknown
->;
-export type AnyStepField = Record<string, AnyStepFieldOption>;
-export type StepOptions<
-  Casing extends CasingType = CasingType,
-  // Field extends StepFieldOptions<
-  //   string,
-  //   FieldType,
-  //   CasingType,
-  //   unknown
-  // > = StepFieldOptions<string, FieldType, CasingType, unknown>,
-  TStepField extends AnyStepField = AnyStepField,
-  FieldValidator = unknown
-> = NameTransformCasingOptions<Casing> & {
-  title: string;
-  description?: string;
-  fields: TStepField;
-  // fields: Array<Field>;
-  /**
-   * Validator for the fields.
-   */
-  validateFields?: Constrain<FieldValidator, AnyValidator, DefaultValidator>;
-};
-export type Step<
-  TCasing extends CasingType = CasingType,
-  step extends number = number,
-  options extends StepOptions<
-    TCasing,
-    // StepFieldOptions<string, FieldType, TCasing, unknown>,
-    AnyStepField,
-    unknown
-  > = StepOptions<
-    TCasing,
-    AnyStepField,
-    // StepFieldOptions<string, FieldType, TCasing, unknown>,
-    unknown
-  >
-> = Record<ValidStepKey<step>, options>;
-
-type GetFieldsForStep<
-  Steps extends InferStepOptions<any>,
-  Key extends keyof Steps
-> = Steps[Key] extends {
-  fields: infer fields extends AnyStepField;
-}
-  ? fields
-  : never;
-type GetDefaultCasingTransformation<
-  Step extends InferStepOptions<any>,
-  Key extends keyof Step,
-  TDefault extends CasingType = DefaultCasing
-> = Step[Key] extends { nameTransformCasing: infer casing extends CasingType }
-  ? casing
-  : TDefault;
-
-type ResolvedFields<
-  TInferredSteps extends InferStepOptions<any>,
-  TKey extends keyof TInferredSteps,
-  TFields extends GetFieldsForStep<TInferredSteps, TKey> = GetFieldsForStep<
-    TInferredSteps,
-    TKey
-  >
-> = {
-  [name in keyof TFields]: Expand<
-    // current field information for the `name`
-    SetDefault<
-      TFields[name],
-      {
-        type: DefaultFieldType;
-        nameTransformCasing: GetDefaultCasingTransformation<
-          TInferredSteps,
-          TKey
-        >;
-        label: string;
-      }
-    >
-  >;
-};
-
-type ResolvedStepBuilder<
-  T extends Step,
-  TInferredSteps extends InferStepOptions<T> = InferStepOptions<T>,
-  TDefaultCasing extends CasingType = DefaultCasing
-> = Expand<{
-  [stepKey in keyof TInferredSteps]: Expand<
-    SetDefault<
-      Omit<TInferredSteps[stepKey], 'fields' | 'validateFields'>,
-      {
-        type: DefaultFieldType;
-        nameTransformCasing: GetDefaultCasingTransformation<
-          TInferredSteps,
-          stepKey,
-          TDefaultCasing
-        >;
-      }
-    > & {
-      fields: Expand<ResolvedFields<TInferredSteps, stepKey>>;
-    }
-  >;
-}>;
-type CurriedUpdateStepFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TTargetStep extends TStepNumbers
-> = {
-  /**
-   * Update a specific field's data for the specified step.
-   * @param step The step to update.
-   * @param field The field to update.
-   * @param updater The updated data for field.
-   */
-  // NOTE: This overload is first so that `field` gets autocomplete
-  <
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
-    >
-  >(
-    field: Field,
-    updater: TUpdater
-  ): void;
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  <
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(
-    updater: TUpdater
-  ): void;
-};
-type RegularUpdateStepFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>
-> = {
-  /**
-   * Update a specific field's data for the specified step.
-   * @param step The step to update.
-   * @param field The field to update.
-   * @param updater The updated data for field.
-   */
-  // NOTE: This overload is first so that `field` gets autocomplete
-  <
-    TargetStep extends TStepNumbers,
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
-    >
-  >(
-    step: TargetStep,
-    field: Field,
-    updater: TUpdater
-  ): void;
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  <
-    TargetStep extends TStepNumbers,
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TargetStep>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(
-    step: TargetStep,
-    updater: TUpdater
-  ): void;
-};
-export type UpdateStepFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TTargetStep extends TStepNumbers = TStepNumbers,
-  TUseCurried extends boolean = false
-> = TUseCurried extends true
-  ? CurriedUpdateStepFn<TResolvedStep, TStepNumbers, TTargetStep>
-  : RegularUpdateStepFn<TResolvedStep, TStepNumbers>;
-
-type StepSpecificHelperFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TTargetStep extends TStepNumbers
-> = {
-  /**
-   * Create a helper function with validated input.
-   */
-  <Validator, Response>(
-    options: Omit<
-      CreateHelperFunctionOptionsWithValidator<
-        TResolvedStep,
-        TStepNumbers,
-        [ValidStepKey<TTargetStep>],
-        Validator
-      >,
-      'stepData'
-    >,
-    fn: HelperFnWithValidator<
-      TResolvedStep,
-      TStepNumbers,
-      [ValidStepKey<TTargetStep>],
-      Validator,
-      Response
-    >
-  ): CreatedHelperFnWithInput<
-    TResolvedStep,
-    TStepNumbers,
-    [ValidStepKey<TTargetStep>],
-    Validator,
-    Response
-  >;
-  /**
-   * Create a helper function without input.
-   */
-  <Response>(
-    fn: HelperFnWithoutValidator<
-      TResolvedStep,
-      TStepNumbers,
-      [ValidStepKey<TTargetStep>],
-      Response
-    >
-  ): CreatedHelperFnWithoutInput<Response>;
-};
-type GeneralHelperFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>
-> = {
-  /**
-   * Create a helper function with validated input.
-   */
-  <
-    const ChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
-    Validator,
-    Response
-  >(
-    options: CreateHelperFunctionOptionsWithValidator<
-      TResolvedStep,
-      TStepNumbers,
-      ChosenSteps,
-      Validator
-    >,
-    fn: HelperFnWithValidator<
-      TResolvedStep,
-      TStepNumbers,
-      ChosenSteps,
-      Validator,
-      Response
-    >
-  ): CreatedHelperFnWithInput<
-    TResolvedStep,
-    TStepNumbers,
-    ChosenSteps,
-    Validator,
-    Response
-  >;
-  /**
-   * Create a helper function without input.
-   */
-  <
-    const ChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
-    Response
-  >(
-    options: CreateHelperFunctionOptionsWithoutValidator<
-      TResolvedStep,
-      TStepNumbers,
-      ChosenSteps
-    >,
-    fn: HelperFnWithoutValidator<
-      TResolvedStep,
-      TStepNumbers,
-      ChosenSteps,
-      Response
-    >
-  ): CreatedHelperFnWithoutInput<Response>;
-};
-export type CreateStepHelperFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TTargetStep extends TStepNumbers = TStepNumbers,
-  TForSpecificStep extends boolean = false
-> = TForSpecificStep extends true
-  ? StepSpecificHelperFn<TResolvedStep, TStepNumbers, TTargetStep>
-  : GeneralHelperFn<TResolvedStep, TStepNumbers>;
-export type ResolvedStep<
-  TStep extends Step<TDefaultCasing>,
-  TInferredSteps extends InferStepOptions<TStep> = InferStepOptions<TStep>,
-  TDefaultCasing extends CasingType = DefaultCasing,
-  TResolvedStep extends ResolvedStepBuilder<
-    TStep,
-    TInferredSteps,
-    TDefaultCasing
-  > = ResolvedStepBuilder<TStep, TInferredSteps, TDefaultCasing>
-> = {
-  [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] & {
-    update: UpdateStepFn<
-      // @ts-ignore
-      TResolvedStep,
-      StepNumbers<TResolvedStep>,
-      ExtractStepFromKey<Constrain<stepKey, string>>,
-      true
-    >;
-    createHelperFn: CreateStepHelperFn<
-      // @ts-ignore
-      TResolvedStep,
-      StepNumbers<TResolvedStep>,
-      ExtractStepFromKey<Constrain<stepKey, string>>,
-      true
-    >;
-  };
-};
-export type AnyResolvedStep = ResolvedStep<any, any, any, any>;
-
-type ValidStepKey<N extends number = number> = `step${N}`;
-type ExtractStepFromKey<T extends string> = T extends ValidStepKey<infer N>
-  ? N
-  : never;
-export type InferStepOptions<T> = T extends {
-  [K in keyof T extends ValidStepKey ? keyof T : never]: StepOptions<
-    infer _casing extends CasingType,
-    // infer _stepField extends StepFieldOptions<
-    //   string,
-    //   FieldType,
-    //   CasingType,
-    //   unknown
-    // >,
-    infer _stepField extends AnyStepField,
-    infer _fieldValidator
-  >;
-}
-  ? T
-  : Exclude<keyof T, ValidStepKey>;
-
-export type LastStep<T extends AnyResolvedStep> = keyof T extends ValidStepKey
-  ? Max<
-      Constrain<
-        UnionToTuple<ExtractStepFromKey<Constrain<keyof T, string>>>,
-        number[]
-      >
-    >
-  : never;
-export type FirstStep<T extends AnyResolvedStep> = keyof T extends ValidStepKey
-  ? Min<
-      Constrain<
-        UnionToTuple<ExtractStepFromKey<Constrain<keyof T, string>>>,
-        number[]
-      >
-    >
-  : never;
-type GetCurrentStep<
-  T extends AnyResolvedStep,
-  S extends ExtractStepFromKey<Constrain<keyof T, string>>
-> = ValidStepKey<S> extends Constrain<keyof T, string>
-  ? T[ValidStepKey<S>]
-  : never;
-type StepData<
-  T extends AnyResolvedStep,
-  Step extends ExtractStepFromKey<Constrain<keyof T, string>>
-> = {
-  /**
-   * The step number.
-   */
-  step: Step;
-  /**
-   * The step data.
-   */
-  data: GetCurrentStep<T, Step>;
-};
-export type StepNumbers<TResolvedStep extends AnyResolvedStep> =
-  ExtractStepFromKey<Constrain<keyof TResolvedStep, string>>;
-type WidenSpecial<T> = T extends CasingType
-  ? CasingType // e.g. "title" → "camel" | "snake" | "title"
-  : T extends FieldType
-  ? FieldType
-  : T;
-type Relaxed<T> =
-  // If it's an array, recurse into elements
-  T extends (infer U)[]
-    ? Relaxed<U>[]
-    : // If it's a function, leave alone
-    T extends (...args: any[]) => any
-    ? T
-    : // If it's an object (record), recurse into props
-    T extends object
-    ? { [K in keyof T]: Relaxed<T[K]> }
-    : // Otherwise widen scalars
-      WidenSpecial<T>;
-
-type Quote<T extends string[]> = {
-  [K in keyof T]: T[K] extends string ? `'${T[K]}'` : never;
-};
-
-type AsType = (typeof AS_TYPES)[number];
-type AsTypeMap<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
-> = {
-  // Exclude is needed due to all the Constrains
-  string: Exclude<
-    Join<
-      Constrain<
-        Quote<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
-        string[]
-      >,
-      ' | '
-    >,
-    ''
-  >;
-  number: Exclude<
-    Join<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
-    ''
-  >;
-  'array.string': UnionToTuple<`${stepNumbers}`>;
-};
-type AsFunctionReturn<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>,
-  asType extends AsType
-> = AsTypeMap<resolvedStep, stepNumbers>[asType];
-type AsFunction<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
-> = <asType extends AsType>(
-  asType: asType
-) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
-
-export type HelperFnChosenSteps<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>
-> =
-  | 'all'
-  | [ValidStepKey<TSteps>, ...ValidStepKey<TSteps>[]]
-  | RequireAtLeastOne<{
-      [key in ValidStepKey<TSteps>]: true;
-    }>;
-export type CreateHelperFunctionOptionsBase<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-> = {
-  /**
-   * The step data to use for the function. It can either be an array with the **available**
-   * step numbers or `'all'`.
-   *
-   * - If set to `'all'`, data from **all** the steps will be available.
-   * - If an array of the **available** step numbers is provided, only data from those steps will be available.
-   */
-  stepData: TChosenSteps;
-};
-type CreateHelperFunctionOptionsWithoutValidator<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
-> = CreateHelperFunctionOptionsBase<TResolvedStep, TStepNumbers, TChosenSteps>;
-type CreateHelperFunctionOptionsWithValidator<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
-  TValidator
-> = CreateHelperFunctionOptionsBase<
-  TResolvedStep,
-  TStepNumbers,
-  TChosenSteps
-> & {
-  /**
-   * A validator used to validate the params.
-   */
-  validator: Constrain<TValidator, AnyValidator, DefaultValidator>;
-};
-type CreatedHelperFnWithInput<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
-  TValidator,
-  TResponse
-> = (
-  input: Expand<
-    Omit<
-      HelperFnInputWithValidator<
-        TResolvedStep,
-        TStepNumbers,
-        TChosenSteps,
-        TValidator
-      >,
-      'ctx'
-    >
-  >
-) => TResponse;
-type CreatedHelperFnWithoutInput<TResponse> = () => TResponse;
-type HelperFnCtx<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-> = TChosenSteps extends 'all'
-  ? { [key in TSteps as `step${key}`]: GetCurrentStep<TResolvedStep, key> }
-  : TChosenSteps extends object
-  ? keyof TChosenSteps extends ValidStepKey<TSteps>
-    ? {
-        -readonly [key in keyof TChosenSteps]: GetCurrentStep<
-          TResolvedStep,
-          // @ts-ignore
-          ExtractStepFromKey<key>
-        >;
-      }
-    : TChosenSteps extends ValidStepKey<TSteps>[]
-    ? {
-        [key in TChosenSteps[number]]: GetCurrentStep<
-          TResolvedStep,
-          // @ts-ignore
-          ExtractStepFromKey<key>
-        >;
-      }
-    : never
-  : never;
-
-export type HelperFnInputBase<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-> = {
-  ctx: HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>;
-};
-type HelperFnInputWithValidator<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TValidator
-> = HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps> & {
-  data: ResolveValidatorOutput<TValidator>;
-};
-type HelperFnInputWithoutValidator<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-> = HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps>;
-
-type HelperFnWithValidator<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TValidator,
-  Response
-> = (
-  input: HelperFnInputWithValidator<
-    TResolvedStep,
-    TSteps,
-    TChosenSteps,
-    TValidator
-  >
-) => Response;
-type HelperFnWithoutValidator<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  Response
-> = (
-  input: HelperFnInputWithoutValidator<TResolvedStep, TSteps, TChosenSteps>
-) => Response;
-export type MultiStepFormSchemaStepConfig<
-  TStep extends Step<TCasing>,
-  TCasing extends CasingType
-  > = NameTransformCasingOptions<TCasing> & {
-  /**
-   * The steps that this multi step form will include.
-   */
-  steps: InferStepOptions<TStep>;
-};
-
+export type CasingType = casing.CasingType;
 export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>
@@ -657,6 +48,48 @@ export interface MultiStepFormStepSchemaFunctions<
   update: UpdateStepFn<TResolvedStep, TStepNumbers>;
   createHelperFn: CreateStepHelperFn<TResolvedStep, TStepNumbers>;
 }
+export type AsType = (typeof AS_TYPES)[number];
+type Quote<T extends string[]> = {
+  [K in keyof T]: T[K] extends string ? `'${T[K]}'` : never;
+};
+export type AsTypeMap<
+  resolvedStep extends AnyResolvedStep,
+  stepNumbers extends ExtractStepFromKey<
+    types.Constrain<keyof resolvedStep, string>
+  >
+> = {
+  // Exclude is needed due to all the Constrains
+  string: Exclude<
+    Join<
+      types.Constrain<
+        Quote<types.Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
+        string[]
+      >,
+      ' | '
+    >,
+    ''
+  >;
+  number: Exclude<
+    Join<types.Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
+    ''
+  >;
+  'array.string': UnionToTuple<`${stepNumbers}`>;
+};
+export type AsFunctionReturn<
+  resolvedStep extends AnyResolvedStep,
+  stepNumbers extends ExtractStepFromKey<
+    types.Constrain<keyof resolvedStep, string>
+  >,
+  asType extends AsType
+> = AsTypeMap<resolvedStep, stepNumbers>[asType];
+export type AsFunction<
+  resolvedStep extends AnyResolvedStep,
+  stepNumbers extends ExtractStepFromKey<
+    types.Constrain<keyof resolvedStep, string>
+  >
+> = <asType extends AsType>(
+  asType: asType
+) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
 export type MultiStepFormStepStepsConfig<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>
@@ -678,9 +111,6 @@ export type MultiStepFormStepSchemaListener<
   defaultNameTransformationCasing: TCasing;
 }) => void;
 
-export const DEFAULT_CASING: SetDefaultString<CasingType, 'title'> = 'title';
-export const DEFAULT_FIELD_TYPE: SetDefaultString<FieldType, 'string'> =
-  'string';
 /**
  * Available transformation types for the step numbers.
  */
@@ -692,13 +122,13 @@ function createFieldLabel(
   fieldName: string,
   casingType: CasingType
 ) {
-  return label ?? changeCasing(fieldName, casingType);
+  return label ?? casing.changeCasing(fieldName, casingType);
 }
 
 function createStepFields(options: {
   fields: AnyStepField;
   validateFields:
-    | Constrain<unknown, AnyValidator, DefaultValidator>
+    | types.Constrain<unknown, AnyValidator, DefaultValidator>
     | undefined;
   defaultCasing: CasingType;
 }) {
@@ -811,7 +241,7 @@ export function createStep<
     const {
       fields,
       title,
-      nameTransformCasing: defaultCasing = DEFAULT_CASING,
+      nameTransformCasing: defaultCasing = casing.DEFAULT_CASING,
       description,
       validateFields,
     } = stepValue;
@@ -874,28 +304,48 @@ export class MultiStepFormStepSchema<
    */
   readonly original: InferStepOptions<step>;
   value: resolvedStep;
+  /**
+   * Gets the step data for the target step.
+   */
+  get: ReturnType<typeof step.get<step, resolvedStep, stepNumbers, casing>>;
   readonly steps: MultiStepFormStepStepsConfig<resolvedStep, stepNumbers>;
   readonly defaultNameTransformationCasing: casing;
-  // @ts-ignore
-  // TODO fix error: Type instantiation is excessively deep and possibly infinite.
+  //@ts-ignore
   private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
   private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
+  private readonly stepHelper: MultiStepFormStepHelper<
+    step,
+    resolvedStep,
+    stepNumbers,
+    casing
+  >;
 
   constructor(
-    config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>
+    config: MultiStepFormSchemaStepConfig<
+      step,
+      types.Constrain<casing, CasingType>
+    >
   ) {
     super();
 
     const { steps, nameTransformCasing } = config;
 
-    this.defaultNameTransformationCasing = setCasingType(
+    this.defaultNameTransformationCasing = casing.setCasingType(
       nameTransformCasing,
-      DEFAULT_CASING
+      casing.DEFAULT_CASING
     ) as casing;
 
     this.original = steps;
     this.value = createStep<step, resolvedStep, casing>(this.original);
+    this.get = step.get<step, resolvedStep, stepNumbers, casing>(this.value);
+    this.stepNumbers = Object.keys(this.value).map((key) =>
+      parseInt(key.replace('step', ''))
+    );
+    this.stepHelper = new MultiStepFormStepHelper(
+      this.value,
+      this.stepNumbers as Array<stepNumbers>
+    );
 
     // Add the update function to each step
     for (const [stepKey, stepValue] of Object.entries(this.value)) {
@@ -909,9 +359,6 @@ export class MultiStepFormStepSchema<
       } as any;
     }
 
-    this.stepNumbers = Object.keys(this.value).map((key) =>
-      parseInt(key.replace('step', ''))
-    );
     this.firstStep = this.first();
     this.lastStep = this.last();
     this.steps = {
@@ -945,18 +392,18 @@ export class MultiStepFormStepSchema<
     };
   }
 
-  private extractNumberFromStep(input: string) {
-    invariant(
-      input.includes('step'),
-      "Can't extract a valid step number since"
-    );
+  // private extractNumberFromStep(input: string) {
+  //   invariant(
+  //     input.includes('step'),
+  //     "Can't extract a valid step number since"
+  //   );
 
-    const extracted = input.replace('step', '');
+  //   const extracted = input.replace('step', '');
 
-    invariant(/^\d+$/.test(extracted), `Invalid step format: "${input}"`);
+  //   invariant(/^\d+$/.test(extracted), `Invalid step format: "${input}"`);
 
-    return parseInt(extracted, 10);
-  }
+  //   return parseInt(extracted, 10);
+  // }
 
   getSnapshot() {
     return this;
@@ -971,19 +418,6 @@ export class MultiStepFormStepSchema<
         value: this.value,
       });
     });
-  }
-
-  /**
-   * Gets the step data associated with the target step number.
-   * @returns The step data for the target step number.
-   */
-  get<Step extends stepNumbers>(options: { step: Step }) {
-    const { step } = options;
-    const stepKey = `step${step}` as keyof resolvedStep;
-
-    const data = this.value[stepKey] as GetCurrentStep<resolvedStep, Step>;
-
-    return { step, data };
   }
 
   /**
@@ -1166,199 +600,8 @@ export class MultiStepFormStepSchema<
     this.createStepUpdaterFnImpl(step, fieldOrUpdater, updater);
   }
 
-  private createStepHelperCtxHelper<
-    ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(data: string[]) {
-    return data.reduce((acc, curr) => {
-      const stepNumber = this.extractNumberFromStep(curr);
-
-      acc[curr as keyof typeof acc] = this.get({
-        step: stepNumber as stepNumbers,
-      }).data as never;
-
-      return acc;
-    }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
-  }
-
-  protected createStepHelperCtx<
-    ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(stepData: ChosenSteps) {
-    const formatter = new Intl.ListFormat('en', {
-      style: 'long',
-      type: 'disjunction',
-    });
-    const validStepKeys = this.stepNumbers.map(
-      (value) => `step${value}` as keyof resolvedStep
-    );
-
-    const baseErrorMessage = () => {
-      return `"stepData" must be set to an array of available steps (${formatter.format(
-        validStepKeys as string[]
-      )})`;
-    };
-
-    if (stepData === 'all') {
-      return this.stepNumbers.reduce((acc, curr) => {
-        const stepKey = `step${curr}` as keyof HelperFnCtx<
-          resolvedStep,
-          stepNumbers,
-          ChosenSteps
-        >;
-        acc[stepKey] = this.get({ step: curr as stepNumbers }).data as never;
-
-        return acc;
-      }, {} as HelperFnCtx<resolvedStep, stepNumbers, ChosenSteps>);
-    }
-
-    if (Array.isArray(stepData)) {
-      invariant(
-        stepData.every((step) =>
-          validStepKeys.includes(step as keyof resolvedStep)
-        ),
-        () => {
-          const comparedResults = comparePartialArray(
-            stepData,
-            this.stepNumbers,
-            formatter
-          );
-
-          if (comparedResults.status === 'error') {
-            return `${baseErrorMessage()}. See errors:\n ${printErrors(
-              comparedResults.errors
-            )}`;
-          }
-
-          return baseErrorMessage();
-        }
-      );
-
-      return this.createStepHelperCtxHelper<ChosenSteps>(stepData);
-    }
-
-    if (typeof stepData === 'object') {
-      const keys = Object.keys(stepData);
-
-      invariant(
-        keys.every((key) => validStepKeys.includes(key as keyof resolvedStep)),
-        () => {
-          const comparedResults = comparePartialArray(
-            keys,
-            validStepKeys as string[],
-            formatter
-          );
-
-          if (comparedResults.status === 'error') {
-            return `${baseErrorMessage()}. See errors:\n ${printErrors(
-              comparedResults.errors
-            )}`;
-          }
-
-          return baseErrorMessage();
-        }
-      );
-
-      return this.createStepHelperCtxHelper<ChosenSteps>(keys);
-    }
-
-    throw new Error(`${baseErrorMessage()} OR to "all"`);
-  }
-
-  private createStepHelperFnImpl<
-    ChosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(stepData: ChosenSteps) {
-    return <Validator, Response>(
-      optionsOrFunction:
-        | Omit<
-            CreateHelperFunctionOptionsWithValidator<
-              resolvedStep,
-              stepNumbers,
-              ChosenSteps,
-              Validator
-            >,
-            'stepData'
-          >
-        | Omit<
-            CreateHelperFunctionOptionsWithoutValidator<
-              resolvedStep,
-              stepNumbers,
-              ChosenSteps
-            >,
-            'stepData'
-          >
-        | HelperFnWithoutValidator<
-            resolvedStep,
-            stepNumbers,
-            ChosenSteps,
-            Response
-          >,
-      fn:
-        | HelperFnWithValidator<
-            resolvedStep,
-            stepNumbers,
-            ChosenSteps,
-            Validator,
-            Response
-          >
-        | HelperFnWithoutValidator<
-            resolvedStep,
-            stepNumbers,
-            ChosenSteps,
-            Response
-          >
-    ) => {
-      const ctx = this.createStepHelperCtx(stepData);
-
-      if (typeof optionsOrFunction === 'function') {
-        return () => optionsOrFunction({ ctx });
-      }
-
-      if (typeof optionsOrFunction === 'object') {
-        return (
-          input?: Expand<
-            Omit<
-              HelperFnInputWithValidator<
-                resolvedStep,
-                stepNumbers,
-                ChosenSteps,
-                Validator
-              >,
-              'ctx'
-            >
-          >
-        ) => {
-          if ('validator' in optionsOrFunction) {
-            invariant(
-              typeof input === 'object',
-              'An input is expected since you provided a validator'
-            );
-
-            runStandardValidation(
-              optionsOrFunction.validator as StandardSchemaValidator,
-              input.data
-            );
-
-            return fn({ ctx, ...input });
-          }
-
-          return (
-            fn as HelperFnWithoutValidator<
-              resolvedStep,
-              stepNumbers,
-              ChosenSteps,
-              Response
-            >
-          )({ ctx });
-        };
-      }
-
-      throw new Error(
-        `The first argument must be a function or an object, (was ${typeof optionsOrFunction})`
-      );
-    };
-  }
-
   private createStepHelperFn<TargetStep extends stepNumbers>(step: TargetStep) {
-    return this.createStepHelperFnImpl([`step${step}`]);
+    return this.stepHelper.createStepHelperFnImpl([`step${step}`]);
   }
 
   /**
@@ -1443,6 +686,6 @@ export class MultiStepFormStepSchema<
   ) {
     const { stepData, ...rest } = options;
 
-    return this.createStepHelperFnImpl(stepData)(rest, fn);
+    return this.stepHelper.createStepHelperFnImpl(stepData)(rest, fn);
   }
 }

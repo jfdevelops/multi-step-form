@@ -1,7 +1,8 @@
 {
-  "name": "@multi-step-form/core",
+  "name": "@multi-step-form/shared-utils",
   "version": "0.0.1",
-  "description": "",
+  "description": "Utilities that are needed across packages",
+  "private": true,
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -23,10 +24,8 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "arktype": "^2.1.22",
-    "@multi-step-form/shared-utils": "workspace:*",
     "@multi-step-form/casing": "workspace:*",
-    "@multi-step-form/compile-time-utils": "workspace:*",
-    "@multi-step-form/runtime-utils": "workspace:*"
+    "@multi-step-form/runtime-utils": "workspace:*",
+    "@multi-step-form/compile-time-utils": "workspace:*"
   }
 }

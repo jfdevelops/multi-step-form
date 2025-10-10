@@ -1,0 +1,43 @@
+export { invariant } from './invariant';
+export { logger } from './logger';
+export * from './validator';
+
+export function comparePartialArray<T>(
+  compareArray: T[],
+  actualArray: T[],
+  formatter?: Intl.ListFormat
+): { status: 'success' } | { status: 'error'; errors: string[] } {
+  const errors: string[] = [];
+  const compareSet = new Set(compareArray);
+  const printedArray = formatter
+    ? formatter.format(compareArray.map((value) => `${value}`))
+    : `[${compareArray.join(', ')}]`;
+
+  // Check extras: elements in b that aren't in a
+  for (let i = 0; i < actualArray.length; i++) {
+    const value = actualArray[i];
+    if (!compareSet.has(value)) {
+      errors.push(
+        `Extra element at index ${i}: "${value}" is not in ${printedArray}`
+      );
+    }
+  }
+
+  // Check that at least one element from a is present in b
+  const hasAtLeastOne = actualArray.some((v) => compareSet.has(v));
+  if (!hasAtLeastOne) {
+    errors.push(
+      `Array must contain at least one valid element from ${printedArray}`
+    );
+  }
+
+  if (errors.length > 0) {
+    return { status: 'error', errors };
+  }
+
+  return { status: 'success' };
+}
+
+export function printErrors(errors: string[]) {
+  return errors.map((e, i) => `❌ ${i + 1}. ${e}`).join('\n');
+}
