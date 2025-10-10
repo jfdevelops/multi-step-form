@@ -25,6 +25,7 @@
     "vite-plugin-dts": "^4.5.4"
   },
   "dependencies": {
-    "@multi-step-form/core": "workspace:*"
+    "@multi-step-form/core": "workspace:*",
+    "@multi-step-form/shared-utils": "workspace:*"
   }
 }

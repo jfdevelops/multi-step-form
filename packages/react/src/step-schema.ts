@@ -27,13 +27,34 @@ export type CreateComponentCallback<
 export type CreatedMultiStepFormComponent<TProps> = TProps extends undefined
   ? () => ReactNode
   : (props: TProps) => ReactNode;
+export interface HelperFunctions<
+  TStep extends Step<TCasing>,
+  TResolvedStep extends ResolvedStep<TStep, InferStepOptions<TStep>, TCasing>,
+  TSteps extends StepNumbers<TResolvedStep>,
+  TCasing extends CasingType
+> {
+  createComponent<
+    chosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    props = undefined
+  >(
+    options: CreateHelperFunctionOptionsBase<
+      TResolvedStep,
+      TSteps,
+      chosenSteps
+    >,
+    fn: CreateComponentCallback<TResolvedStep, TSteps, chosenSteps, props>
+  ): CreatedMultiStepFormComponent<props>;
+}
 
 export class MultiStepFormStepSchema<
-  step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-  stepNumbers extends StepNumbers<resolvedStep>,
-  casing extends CasingType = DefaultCasing
-> extends MultiStepFormStepSchemaBase<step, resolvedStep, stepNumbers, casing> {
+    step extends Step<casing>,
+    resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
+    stepNumbers extends StepNumbers<resolvedStep>,
+    casing extends CasingType = DefaultCasing
+  >
+  extends MultiStepFormStepSchemaBase<step, resolvedStep, stepNumbers, casing>
+  implements HelperFunctions<step, resolvedStep, stepNumbers, casing>
+{
   constructor(
     config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>
   ) {
@@ -56,15 +77,4 @@ export class MultiStepFormStepSchema<
 
     return ((props?: props) => fn({ ctx }, props as any)) as any;
   }
-}
-
-export function createMultiStepFormSchema<
-  step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-  stepNumbers extends StepNumbers<resolvedStep>,
-  casing extends CasingType = DefaultCasing
->(config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>) {
-  return new MultiStepFormStepSchema<step, resolvedStep, stepNumbers, casing>(
-    config
-  );
 }
