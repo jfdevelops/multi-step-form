@@ -39,8 +39,8 @@ import {
   type UpdateStepFn,
 } from '@multi-step-form/shared-utils';
 import { Subscribable } from './subscribable';
+import type { CasingType } from './internals';
 
-export type CasingType = casing.CasingType;
 export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>
@@ -314,7 +314,7 @@ export class MultiStepFormStepSchema<
   private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
   private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
-  private readonly stepHelper: MultiStepFormStepHelper<
+  protected readonly stepHelper: MultiStepFormStepHelper<
     step,
     resolvedStep,
     stepNumbers,

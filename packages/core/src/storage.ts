@@ -1,6 +1,5 @@
-import { MultiStepFormLogger } from './logger';
-import { invariant, type Updater } from './utils';
-
+import { invariant, logger } from '@multi-step-form/runtime-utils';
+import type { Updater } from '@multi-step-form/shared-utils';
 export type StorageConfig<TKey extends string, TData> = {
   key: TKey;
   data: TData;
@@ -14,13 +13,15 @@ export class MultiStepFormStorage<key extends string, data> {
   readonly key: key;
   readonly store!: Storage;
   readonly data: data;
-  private readonly log: MultiStepFormLogger;
+  private readonly log: logger.MultiStepFormLogger;
   private readonly isWindowUndefined: boolean;
 
   constructor(config: StorageConfig<key, data>) {
     const { key, data, store } = config;
 
-    this.log = new MultiStepFormLogger({ prefix: 'MultiStepFormStorage' });
+    this.log = new logger.MultiStepFormLogger({
+      prefix: 'MultiStepFormStorage',
+    });
     this.key = key;
     this.data = data;
 
