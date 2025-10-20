@@ -8,18 +8,7 @@ import {
 } from '@multi-step-form/runtime-utils';
 
 type CasingType = casing.CasingType;
-export type StringFieldType = 'phone' | 'email' | 'time';
-export type NumberFieldType = 'counter';
-export type BooleanFieldType = 'switch';
-export type FieldType =
-  | 'string'
-  | `string.${StringFieldType}`
-  | 'number'
-  | `number.${NumberFieldType}`
-  | 'date'
-  | 'dateTime'
-  | `boolean.${BooleanFieldType}`;
-
+export type FieldType = (typeof FIELD_TYPES)[number];
 export type DefaultCasing = typeof casing.DEFAULT_CASING;
 export type DefaultFieldType = typeof DEFAULT_FIELD_TYPE;
 export type NameTransformCasingOptions<TCasing extends CasingType> = {
@@ -100,6 +89,7 @@ export type Step<
     unknown
   >
 > = Record<ValidStepKey<step>, options>;
+export type AnyStep = Step<any, any, any>;
 
 export type GetFieldsForStep<
   Steps extends InferStepOptions<any>,
@@ -673,6 +663,17 @@ export type MultiStepFormSchemaStepConfig<
   steps: InferStepOptions<TStep>;
 };
 
+export const FIELD_TYPES = [
+  'string',
+  'string.phone',
+  'string.email',
+  'string.time',
+  'number',
+  'number.counter',
+  'date',
+  'dateTime',
+  'boolean.switch',
+] as const;
 export const DEFAULT_FIELD_TYPE: types.SetDefaultString<FieldType, 'string'> =
   'string';
 
@@ -692,7 +693,7 @@ export namespace step {
 
     invariant(/^\d+$/.test(extracted), `Invalid step format: "${input}"`);
 
-    return parseInt(extracted, 10);
+    return Number.parseInt(extracted, 10);
   }
 
   /**

@@ -1,6 +1,6 @@
+import path, { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
-import { resolve } from 'path';
 
 export default defineConfig({
   build: {
@@ -12,6 +12,9 @@ export default defineConfig({
   },
   resolve: {
     preserveSymlinks: true,
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
   plugins: [dts()],
 });

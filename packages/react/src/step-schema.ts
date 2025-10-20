@@ -20,15 +20,22 @@ import type {
 } from '@multi-step-form/shared-utils';
 import type { ReactNode } from 'react';
 
+export type CreateFunction<TArgs extends any[], TReturn = void> = (
+  ...args: TArgs
+) => TReturn;
+
 export type CreateComponentCallback<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
   TProps
-> = (
-  input: HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps>,
-  props: TProps
-) => ReactNode;
+> = CreateFunction<
+  [
+    input: HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps>,
+    props: TProps
+  ],
+  ReactNode
+>;
 export type CreatedMultiStepFormComponent<TProps> = TProps extends undefined
   ? () => ReactNode
   : (props: TProps) => ReactNode;
@@ -138,7 +145,7 @@ export class MultiStepFormStepSchema<
   >(stepData: chosenStep) {
     const ctx = this.stepHelper.createCtx(stepData);
 
-    return function <props = undefined>(
+    return function <props>(
       fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenStep, props>
     ) {
       return ((props?: props) =>

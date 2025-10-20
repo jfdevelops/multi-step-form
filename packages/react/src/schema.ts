@@ -1,5 +1,6 @@
 import {
   MultiStepFormSchema as MultiStepFormSchemaBase,
+  type AnyMultiStepFormSchema,
   type MultiStepFormSchemaOptions,
 } from '@multi-step-form/core';
 import {
@@ -19,6 +20,10 @@ import type {
 } from '@multi-step-form/shared-utils';
 import type { types } from '@multi-step-form/compile-time-utils';
 import { casing } from '@multi-step-form/casing';
+
+type MutableArray<T> = T extends ReadonlyArray<infer U> ? U[] : T;
+export type GetMultiStepFormSteps<TSchema extends AnyMultiStepFormSchema> =
+  MutableArray<TSchema['stepSchema']['steps']['value']>[number];
 
 export class MultiStepFormSchema<
     step extends Step<casing>,

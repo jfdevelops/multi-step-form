@@ -9,10 +9,12 @@ import {
 } from '@multi-step-form/runtime-utils';
 import {
   DEFAULT_FIELD_TYPE,
+  FIELD_TYPES,
   MultiStepFormStepHelper,
   step,
   type AnyResolvedStep,
   type AnyStepField,
+  type AnyStepFieldOption,
   type CreatedHelperFnWithInput,
   type CreatedHelperFnWithoutInput,
   type CreateHelperFunctionOptionsWithoutValidator,
@@ -20,8 +22,10 @@ import {
   type CreateStepHelperFn,
   type DefaultCasing,
   type ExtractStepFromKey,
+  type FieldType,
   type FirstStep,
   type GetCurrentStep,
+  type GetFieldsForStep,
   type HelperFnChosenSteps,
   type HelperFnWithoutValidator,
   type HelperFnWithValidator,
@@ -30,10 +34,12 @@ import {
   type LastStep,
   type MultiStepFormSchemaStepConfig,
   type Relaxed,
+  type ResolvedFields,
   type ResolvedStep,
   type Step,
   type StepData,
   type StepNumbers,
+  type StepOptions,
   type UnionToTuple,
   type Updater,
   type UpdateStepFn,
@@ -74,6 +80,7 @@ export type AsTypeMap<
     ''
   >;
   'array.string': UnionToTuple<`${stepNumbers}`>;
+  'array.string.untyped': string[];
 };
 export type AsFunctionReturn<
   resolvedStep extends AnyResolvedStep,
@@ -98,6 +105,7 @@ export type MultiStepFormStepStepsConfig<
   last: LastStep<TResolvedStep>;
   value: ReadonlyArray<TStepNumbers>;
   as: AsFunction<TResolvedStep, TStepNumbers>;
+  isValidStepNumber: (stepNumber: number) => stepNumber is TStepNumbers;
 };
 export type MultiStepFormStepSchemaListener<
   TStep extends Step<TCasing>,
@@ -114,8 +122,38 @@ export type MultiStepFormStepSchemaListener<
 /**
  * Available transformation types for the step numbers.
  */
-const AS_TYPES = ['string', 'number', 'array.string'] as const;
+const AS_TYPES = [
+  'string',
+  'number',
+  'array.string',
+  'array.string.untyped',
+] as const;
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
+
+type ValueCheck<T> = (v: unknown) => v is T;
+
+type FieldChecks<T extends object> = {
+  [K in keyof T]: ValueCheck<T[K]>;
+};
+
+function assertObjectFields<T extends object>(
+  obj: unknown,
+  checks: FieldChecks<T>
+): obj is T {
+  if (typeof obj !== 'object' || obj === null) return false;
+
+  for (const key of Object.keys(checks) as (keyof T)[]) {
+    // Check that the property exists
+    if (!(key in obj)) return false;
+
+    // Now check the type
+    const checkFn = checks[key];
+    const value = (obj as any)[key];
+    if (!checkFn(value)) return false;
+  }
+
+  return true;
+}
 
 function createFieldLabel(
   label: string | false | undefined,
@@ -372,7 +410,7 @@ export class MultiStepFormStepSchema<
           return this.stepNumbers.join(' | ');
         }
 
-        if (asType === 'array.string') {
+        if (asType.includes('array.string')) {
           return this.stepNumbers.map((value) => `${value}`);
         }
 
@@ -382,6 +420,8 @@ export class MultiStepFormStepSchema<
           ).join(', ')}`
         );
       },
+      isValidStepNumber: (stepNumber): stepNumber is stepNumbers =>
+        this.stepNumbers.includes(stepNumber),
     };
   }
 
@@ -390,14 +430,14 @@ export class MultiStepFormStepSchema<
   }
 
   protected notify() {
-    this.listeners.forEach((listener) => {
+    for (const listener of this.listeners) {
       listener({
         defaultNameTransformationCasing: this.defaultNameTransformationCasing,
         original: this.original,
         steps: this.steps,
         value: this.value,
       });
-    });
+    }
   }
 
   protected enrichValues<
@@ -405,7 +445,7 @@ export class MultiStepFormStepSchema<
     additionalProps extends object
   >(values: values, additionalProps?: (step: number) => additionalProps) {
     for (const [key, stepValue] of Object.entries(values)) {
-      const step = parseInt(key.replace('step', '')) as stepNumbers;
+      const step = Number.parseInt(key.replace('step', '')) as stepNumbers;
 
       values = {
         ...values,
@@ -413,7 +453,7 @@ export class MultiStepFormStepSchema<
           ...(stepValue as object),
           update: this.createStepUpdaterFn(step),
           createHelperFn: this.createStepHelperFn(step),
-          ...(additionalProps?.(step) ?? {}),
+          ...additionalProps?.(step),
         },
       };
     }
@@ -688,5 +728,84 @@ export class MultiStepFormStepSchema<
     const { stepData, ...rest } = options;
 
     return this.stepHelper.createStepHelperFnImpl(stepData)(rest, fn);
+  }
+
+  /**
+   * Validates that a given object is the proper shape for step data.
+   * @param value
+   */
+  static hasData<
+    step extends Step<casing>,
+    resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
+    stepNumbers extends StepNumbers<resolvedStep>,
+    casing extends CasingType = DefaultCasing
+  >(
+    value: unknown,
+    options?: {
+      optionalKeysToCheck?: FieldChecks<
+        Pick<StepOptions, 'description' | 'validateFields'>
+      >;
+    }
+  ): value is GetCurrentStep<resolvedStep, stepNumbers> {
+    if (value === null || typeof value !== 'object') {
+      return false;
+    }
+
+    return assertObjectFields<
+      | GetCurrentStep<resolvedStep, stepNumbers>
+      | (Omit<StepOptions, 'fields'> & {
+          fields: types.Expand<
+            ResolvedFields<InferStepOptions<step>, keyof InferStepOptions<step>>
+          >;
+        })
+    >(value, {
+      title: (v) => typeof v === 'string',
+      fields: (
+        v
+      ): v is types.Expand<
+        ResolvedFields<InferStepOptions<step>, keyof InferStepOptions<step>>
+      > => {
+        if (v === null || typeof v !== 'object') {
+          return false;
+        }
+
+        for (const key of Object.keys(v)) {
+          if (typeof key !== 'string' || !(key in v)) {
+            return false;
+          }
+
+          const current = (v as Record<string, unknown>)[key];
+
+          if (current === null || typeof current !== 'object') {
+            return false;
+          }
+
+          const hasField = assertObjectFields<AnyStepFieldOption>(current, {
+            defaultValue: (v): v is {} => v !== 'undefined' && v !== null,
+            label: (v) =>
+              typeof v === 'string' || (typeof v === 'boolean' && !v),
+            nameTransformCasing: (v) =>
+              typeof v === 'string' && casing.isCasingValid(v),
+            type: (v): v is FieldType =>
+              typeof v === 'string' && FIELD_TYPES.includes(v),
+          });
+
+          if (!hasField) {
+            return false;
+          }
+        }
+
+        return true;
+      },
+      createHelperFn: (
+        v
+      ): v is GetCurrentStep<resolvedStep, stepNumbers>['createHelperFn'] =>
+        typeof v === 'function',
+      update: (v): v is GetCurrentStep<resolvedStep, stepNumbers>['update'] =>
+        typeof v === 'function',
+      nameTransformCasing: (v) =>
+        typeof v === 'string' && casing.isCasingValid(v),
+      ...options?.optionalKeysToCheck,
+    });
   }
 }

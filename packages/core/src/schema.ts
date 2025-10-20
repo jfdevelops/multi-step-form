@@ -1,3 +1,5 @@
+import { casing } from '@multi-step-form/casing';
+import type { types } from '@multi-step-form/compile-time-utils';
 import {
   DefaultCasing,
   InferStepOptions,
@@ -6,13 +8,12 @@ import {
   ResolvedStep,
   Step,
   StepNumbers,
+  type AnyStep
 } from '@multi-step-form/shared-utils';
+import type { CasingType } from './internals.js';
+import { MultiStepFormStepSchema } from './step-schema.js';
 import { MultiStepFormStorage } from './storage.js';
 import { Subscribable } from './subscribable.js';
-import { MultiStepFormStepSchema } from './step-schema.js';
-import { casing } from '@multi-step-form/casing';
-import type { types } from '@multi-step-form/compile-time-utils';
-import type { CasingType } from './internals.js';
 export type MultiStepFormSchemaDefaults<
   TCasing extends CasingType,
   TStorageKey extends string
@@ -49,6 +50,13 @@ export type MultiStepFormSchemaListener<
   steps: InferStepOptions<TStep>;
   defaults: MultiStepFormSchemaDefaults<TCasing, TStorageKey>;
 }) => void;
+export type AnyMultiStepFormSchema = MultiStepFormSchema<
+  AnyStep,
+  ResolvedStep<AnyStep>,
+  StepNumbers<ResolvedStep<AnyStep>>,
+  any,
+  any
+>;
 
 const DEFAULT_STORAGE_KEY = 'MultiStepForm';
 
