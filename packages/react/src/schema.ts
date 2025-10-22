@@ -49,6 +49,14 @@ export class MultiStepFormSchema<
       types.Constrain<casing, casing.CasingType>,
       storageKey
     >
+  );
+
+  constructor(
+    config: MultiStepFormSchemaOptions<
+      step,
+      types.Constrain<casing, casing.CasingType>,
+      storageKey
+    >
   ) {
     super(config);
 

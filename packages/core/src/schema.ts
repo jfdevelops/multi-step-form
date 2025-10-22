@@ -8,7 +8,7 @@ import {
   ResolvedStep,
   Step,
   StepNumbers,
-  type AnyStep
+  type AnyStep,
 } from '@multi-step-form/shared-utils';
 import type { CasingType } from './internals.js';
 import { MultiStepFormStepSchema } from './step-schema.js';
@@ -82,6 +82,7 @@ export class MultiStepFormSchema<
     casing
   >;
   storage: MultiStepFormStorage<storageKey, resolvedStep>;
+  private mountCount = 0;
 
   constructor(
     options: MultiStepFormSchemaOptions<
@@ -114,11 +115,42 @@ export class MultiStepFormSchema<
       key: (defaults?.storageKey ?? DEFAULT_STORAGE_KEY) as storageKey,
       data: this.stepSchema.value,
     });
+
+    this.stepSchema.subscribe(() => {
+      this.notify();
+    });
   }
 
   getSnapshot() {
     return this;
   }
+
+  mount() {
+    this.mountCount++;
+
+    if (this.mountCount === 1) {
+      this.onMount();
+    }
+
+    return () => {
+      this.unmount();
+    };
+  }
+
+  unmount() {
+    this.mountCount = Math.max(0, this.mountCount - 1);
+
+    if (this.mountCount === 0) {
+      this.onUnmount();
+    }
+  }
+
+  isMounted() {
+    return this.mountCount > 0;
+  }
+
+  protected onMount() {}
+  protected onUnmount() {}
 
   protected notify() {
     this.listeners.forEach((listener) => {

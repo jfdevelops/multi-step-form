@@ -677,6 +677,10 @@ export const FIELD_TYPES = [
 export const DEFAULT_FIELD_TYPE: types.SetDefaultString<FieldType, 'string'> =
   'string';
 
+export function isFieldType(value: unknown): value is FieldType {
+  return typeof value === 'string' && FIELD_TYPES.includes(value as FieldType);
+}
+
 export namespace step {
   /**
    * Gets the step number from an input string.

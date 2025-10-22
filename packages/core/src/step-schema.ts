@@ -9,7 +9,7 @@ import {
 } from '@multi-step-form/runtime-utils';
 import {
   DEFAULT_FIELD_TYPE,
-  FIELD_TYPES,
+  isFieldType,
   MultiStepFormStepHelper,
   step,
   type AnyResolvedStep,
@@ -22,10 +22,8 @@ import {
   type CreateStepHelperFn,
   type DefaultCasing,
   type ExtractStepFromKey,
-  type FieldType,
   type FirstStep,
   type GetCurrentStep,
-  type GetFieldsForStep,
   type HelperFnChosenSteps,
   type HelperFnWithoutValidator,
   type HelperFnWithValidator,
@@ -42,10 +40,10 @@ import {
   type StepOptions,
   type UnionToTuple,
   type Updater,
-  type UpdateStepFn,
+  type UpdateStepFn
 } from '@multi-step-form/shared-utils';
-import { Subscribable } from './subscribable';
 import type { CasingType } from './internals';
+import { Subscribable } from './subscribable';
 
 export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
@@ -786,8 +784,7 @@ export class MultiStepFormStepSchema<
               typeof v === 'string' || (typeof v === 'boolean' && !v),
             nameTransformCasing: (v) =>
               typeof v === 'string' && casing.isCasingValid(v),
-            type: (v): v is FieldType =>
-              typeof v === 'string' && FIELD_TYPES.includes(v),
+            type: isFieldType,
           });
 
           if (!hasField) {

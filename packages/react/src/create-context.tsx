@@ -1,6 +1,6 @@
 import { type casing } from '@multi-step-form/casing';
 import type { types } from '@multi-step-form/compile-time-utils';
-import type { MultiStepFormSchemaOptions } from '@multi-step-form/core';
+import { type MultiStepFormSchemaOptions } from '@multi-step-form/core';
 import { invariant } from '@multi-step-form/runtime-utils';
 import type {
   DefaultCasing,
@@ -12,7 +12,7 @@ import type {
 import {
   createContext,
   useContext,
-  useMemo,
+  useEffect,
   useState,
   useSyncExternalStore,
   type ComponentProps,
@@ -26,6 +26,7 @@ import {
   type CreateFunction,
   type ResolvedStep,
 } from './step-schema';
+import { MultiStepFormObserver } from './observable';
 
 export type UseMultiStepFormData<
   step extends Step<casing>,
@@ -248,7 +249,8 @@ export type CreateHOC<TContext, TProps> = (
   ctx: TContext,
   props: TProps
 ) => CreatedMultiStepFormComponent<TProps>;
-export type MultiStepFormContext<
+
+export type MultiStepFormContextResult<
   step extends Step<casing>,
   resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
   stepNumbers extends StepNumbers<resolvedStep>,
@@ -263,9 +265,8 @@ export type MultiStepFormContext<
   > = MultiStepFormSchema<step, resolvedStep, stepNumbers, casing, storageKey>
 > = {
   MultiStepFormContext: schema;
-  MultiStepFormProvider: (props: {
-    children: (data: schema) => ReactNode;
-  }) => JSX.Element;
+  MultiStepFormProvider: (props: { children: ReactNode }) => JSX.Element;
+  useMultiStepFormSchema: schema;
   useMultiStepFormData: UseMultiStepFormData<
     step,
     resolvedStep,
@@ -278,7 +279,7 @@ export type MultiStepFormContext<
    *
    * @returns The data for the given step number.
    */
-  useCurrentStep: <
+  useCurrentStepData: <
     stepNumber extends stepNumbers,
     props = undefined,
     isDataGuaranteed extends boolean = false
@@ -403,7 +404,13 @@ export function createMultiStepFormContext<
     casing,
     storageKey
   >
-): MultiStepFormContext<step, resolvedStep, stepNumbers, casing, storageKey>;
+): MultiStepFormContextResult<
+  step,
+  resolvedStep,
+  stepNumbers,
+  casing,
+  storageKey
+>;
 /**
  * Create multi step form context without a {@linkcode MultiStepFormSchema} instance.
  *
@@ -422,7 +429,13 @@ export function createMultiStepFormContext<
     types.Constrain<casing, casing.CasingType>,
     storageKey
   >
-): MultiStepFormContext<step, resolvedStep, stepNumbers, casing, storageKey> & {
+): MultiStepFormContextResult<
+  step,
+  resolvedStep,
+  stepNumbers,
+  casing,
+  storageKey
+> & {
   schema: MultiStepFormSchema<
     step,
     resolvedStep,
@@ -454,40 +467,27 @@ export function createMultiStepFormContext<
     casing,
     storageKey
   > = isInstance ? schemaOrOptions : createMultiStepFormSchema(schemaOrOptions);
-  const Context = createContext(schema);
+  const Context = createContext<MultiStepFormObserver<
+    step,
+    resolvedStep,
+    stepNumbers,
+    casing,
+    storageKey
+  > | null>(null);
 
-  function Provider({
-    children,
-  }: {
-    children: (
-      data: MultiStepFormSchema<
-        step,
-        resolvedStep,
-        stepNumbers,
-        casing,
-        storageKey
-      >
-    ) => ReactNode;
-  }) {
-    const [state, setState] = useState(schemaOrOptions);
-    const store = useMemo(() => {
-      const proxy = Object.assign(
-        Object.create(Object.getPrototypeOf(state)),
-        state
-      ) as MultiStepFormSchema<
-        step,
-        resolvedStep,
-        stepNumbers,
-        casing,
-        storageKey
-      >;
+  function Provider({ children }: { children: ReactNode }) {
+    const [observer] = useState(() => new MultiStepFormObserver({ schema }));
 
-      // TODO proxy.update
+    useEffect(() => {
+      const unmount = schema.mount();
 
-      return proxy;
-    }, [state]);
+      return () => {
+        unmount();
+        observer.destroy();
+      };
+    }, [observer]);
 
-    return <Context.Provider value={store}>{children(store)}</Context.Provider>;
+    return <Context.Provider value={observer}>{children}</Context.Provider>;
   }
 
   function throwIfInvalidStepNumber(
@@ -513,6 +513,25 @@ export function createMultiStepFormContext<
       )}`,
       TypeError
     );
+  }
+
+  function useMultiStepFormSchema() {
+    const observer = useContext(Context);
+
+    if (!observer) {
+      throw new Error(
+        'useMultiStepFormData must be used within MultiStepFormProvider'
+      );
+    }
+
+    const snapshot = useSyncExternalStore(
+      observer.subscribe,
+      () => observer.getSnapshot().getResult(),
+      () => observer.getSnapshot().getResult()
+    );
+
+    // need a new instance due to new functions that are needed
+    return snapshot;
   }
 
   function useMultiStepFormData(): MultiStepFormSchema<
@@ -549,19 +568,7 @@ export function createMultiStepFormContext<
           >
         ) => unknown)
   ) {
-    const observer = useContext(Context);
-
-    if (!observer) {
-      throw new Error(
-        'useMultiStepFormData must be used within MultiStepFormProvider'
-      );
-    }
-
-    const snapshot = useSyncExternalStore(
-      observer.subscribe,
-      () => observer.getSnapshot(),
-      () => observer.getSnapshot()
-    );
+    const snapshot = useMultiStepFormSchema();
 
     if (typeof optionsOrSelector === 'object') {
       const stepNumber = optionsOrSelector.stepNumber;
@@ -724,6 +731,7 @@ export function createMultiStepFormContext<
   return {
     MultiStepFormContext: Context,
     MultiStepFormProvider: Provider,
+    useMultiStepFormSchema,
     useMultiStepFormData,
     useCurrentStepData,
     useProgress,
