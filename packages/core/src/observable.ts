@@ -1,48 +1,47 @@
-import type {
-  Step,
-  ResolvedStep,
-  InferStepOptions,
-  StepNumbers,
-} from '@multi-step-form/shared-utils';
-import type { CasingType } from './internals';
 import type { MultiStepFormSchema } from './schema';
+import type {
+  ResolvedStep,
+  Step,
+  StepNumbers
+} from '@/steps/types';
 import { Subscribable } from './subscribable';
+import type { CasingType } from '@/utils/casing';
 
 export type ObserverListener<
   TStep extends Step<TCasing>,
-  TResolvedStep extends ResolvedStep<TStep, InferStepOptions<TStep>, TCasing>,
+  TResolvedStep extends ResolvedStep<TStep, TCasing>,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TCasing extends CasingType,
   TStorageKey extends string
 > = (
   schema: MultiStepFormSchema<
     TStep,
+    TCasing,
     TResolvedStep,
     TStepNumbers,
-    TCasing,
     TStorageKey
   >
 ) => void;
 
 export type ObserverOptions<
   TStep extends Step<TCasing>,
-  TResolvedStep extends ResolvedStep<TStep, InferStepOptions<TStep>, TCasing>,
+  TResolvedStep extends ResolvedStep<TStep, TCasing>,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TCasing extends CasingType,
   TStorageKey extends string
 > = {
   schema: MultiStepFormSchema<
     TStep,
+    TCasing,
     TResolvedStep,
     TStepNumbers,
-    TCasing,
     TStorageKey
   >;
 };
 
 export class MultiStepFormObserver<
   step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
+  resolvedStep extends ResolvedStep<step, casing>,
   stepNumbers extends StepNumbers<resolvedStep>,
   casing extends CasingType,
   storageKey extends string
@@ -51,9 +50,9 @@ export class MultiStepFormObserver<
 > {
   protected schema: MultiStepFormSchema<
     step,
+    casing,
     resolvedStep,
     stepNumbers,
-    casing,
     storageKey
   >;
   private unsubscribeFromSchema?: () => void;

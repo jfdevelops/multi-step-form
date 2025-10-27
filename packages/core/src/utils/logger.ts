@@ -1,5 +1,4 @@
-export namespace logger {
-  type LogLevel = 'info' | 'warn' | 'error';
+type LogLevel = 'info' | 'warn' | 'error';
   type MultiStepFormLoggerOptions = {
     prefix?: string;
     includeTimestamp?: boolean;
@@ -148,4 +147,3 @@ export namespace logger {
       }
     }
   }
-}

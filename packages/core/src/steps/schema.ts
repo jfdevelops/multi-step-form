@@ -1,49 +1,55 @@
-import { casing } from '@multi-step-form/casing';
-import type { types } from '@multi-step-form/compile-time-utils';
+import { Subscribable } from '../subscribable';
+import type {
+  AnyResolvedStep,
+  AnyStepField,
+  AnyStepFieldOption,
+  CreateHelperFunctionOptionsWithValidator,
+  CreateHelperFunctionOptionsWithoutValidator,
+  CreateStepHelperFn,
+  CreatedHelperFnWithInput,
+  CreatedHelperFnWithoutInput,
+  ExtractStepFromKey,
+  FirstStep,
+  GetCurrentStep,
+  HelperFnChosenSteps,
+  HelperFnWithValidator,
+  HelperFnWithoutValidator,
+  InferStepOptions,
+  Join,
+  LastStep,
+  MultiStepFormSchemaStepConfig,
+  Relaxed,
+  ResolvedFields,
+  ResolvedStep,
+  Step,
+  StepData,
+  StepNumbers,
+  StepOptions,
+  UnionToTuple,
+  UpdateStepFn,
+  Updater,
+} from './types';
 import {
-  invariant,
+  changeCasing,
+  DEFAULT_CASING,
+  isCasingValid,
+  setCasingType,
+  type CasingType,
+  type DefaultCasing,
+  DEFAULT_FIELD_TYPE,
+  type Constrain,
+  type Expand,
+  isFieldType,
+} from '@/utils';
+import { invariant } from '@/utils/invariant';
+import {
   runStandardValidation,
   type AnyValidator,
   type DefaultValidator,
   type StandardSchemaValidator,
-} from '@multi-step-form/runtime-utils';
-import {
-  DEFAULT_FIELD_TYPE,
-  isFieldType,
-  MultiStepFormStepHelper,
-  step,
-  type AnyResolvedStep,
-  type AnyStepField,
-  type AnyStepFieldOption,
-  type CreatedHelperFnWithInput,
-  type CreatedHelperFnWithoutInput,
-  type CreateHelperFunctionOptionsWithoutValidator,
-  type CreateHelperFunctionOptionsWithValidator,
-  type CreateStepHelperFn,
-  type DefaultCasing,
-  type ExtractStepFromKey,
-  type FirstStep,
-  type GetCurrentStep,
-  type HelperFnChosenSteps,
-  type HelperFnWithoutValidator,
-  type HelperFnWithValidator,
-  type InferStepOptions,
-  type Join,
-  type LastStep,
-  type MultiStepFormSchemaStepConfig,
-  type Relaxed,
-  type ResolvedFields,
-  type ResolvedStep,
-  type Step,
-  type StepData,
-  type StepNumbers,
-  type StepOptions,
-  type UnionToTuple,
-  type Updater,
-  type UpdateStepFn
-} from '@multi-step-form/shared-utils';
-import type { CasingType } from './internals';
-import { Subscribable } from './subscribable';
+} from '@/utils/validator';
+import { MultiStepFormStepHelper } from './helper';
+import { getStep, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
@@ -58,15 +64,13 @@ type Quote<T extends string[]> = {
 };
 export type AsTypeMap<
   resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<
-    types.Constrain<keyof resolvedStep, string>
-  >
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
 > = {
   // Exclude is needed due to all the Constrains
   string: Exclude<
     Join<
-      types.Constrain<
-        Quote<types.Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
+      Constrain<
+        Quote<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
         string[]
       >,
       ' | '
@@ -74,7 +78,7 @@ export type AsTypeMap<
     ''
   >;
   number: Exclude<
-    Join<types.Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
+    Join<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
     ''
   >;
   'array.string': UnionToTuple<`${stepNumbers}`>;
@@ -82,38 +86,40 @@ export type AsTypeMap<
 };
 export type AsFunctionReturn<
   resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<
-    types.Constrain<keyof resolvedStep, string>
-  >,
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>,
   asType extends AsType
 > = AsTypeMap<resolvedStep, stepNumbers>[asType];
 export type AsFunction<
   resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<
-    types.Constrain<keyof resolvedStep, string>
-  >
+  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
 > = <asType extends AsType>(
   asType: asType
 ) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
 export type MultiStepFormStepStepsConfig<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>
+  TStep extends Step<TCasing>,
+  TCasing extends CasingType,
+  TResolvedStep extends ResolvedStep<TStep, TCasing> = ResolvedStep<
+    TStep,
+    TCasing
+  >,
+  TStepNumbers extends StepNumbers<TResolvedStep> = StepNumbers<TResolvedStep>
 > = {
   first: FirstStep<TResolvedStep>;
   last: LastStep<TResolvedStep>;
   value: ReadonlyArray<TStepNumbers>;
   as: AsFunction<TResolvedStep, TStepNumbers>;
   isValidStepNumber: (stepNumber: number) => stepNumber is TStepNumbers;
+  isValidStepKey: (
+    value: string
+  ) => value is Constrain<keyof TResolvedStep, string>;
 };
 export type MultiStepFormStepSchemaListener<
   TStep extends Step<TCasing>,
-  TResolvedStep extends ResolvedStep<TStep, InferStepOptions<TStep>, TCasing>,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
   TCasing extends CasingType
 > = (data: {
   original: InferStepOptions<TStep>;
-  value: TResolvedStep;
-  steps: MultiStepFormStepStepsConfig<TResolvedStep, TStepNumbers>;
+  value: ResolvedStep<TStep, TCasing>;
+  steps: MultiStepFormStepStepsConfig<TStep, TCasing>;
   defaultNameTransformationCasing: TCasing;
 }) => void;
 
@@ -158,13 +164,13 @@ function createFieldLabel(
   fieldName: string,
   casingType: CasingType
 ) {
-  return label ?? casing.changeCasing(fieldName, casingType);
+  return label ?? changeCasing(fieldName, casingType);
 }
 
 function createStepFields(options: {
   fields: AnyStepField;
   validateFields:
-    | types.Constrain<unknown, AnyValidator, DefaultValidator>
+    | Constrain<unknown, AnyValidator, DefaultValidator>
     | undefined;
   defaultCasing: CasingType;
 }) {
@@ -250,10 +256,9 @@ function createStepFields(options: {
 
 export function createStep<
   step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
   casing extends CasingType = DefaultCasing
 >(stepsConfig: InferStepOptions<step>) {
-  const resolvedSteps = {} as resolvedStep;
+  const resolvedSteps = {} as ResolvedStep<step, casing>;
 
   invariant(!!stepsConfig, 'The steps config must be defined', TypeError);
   invariant(
@@ -273,11 +278,11 @@ export function createStep<
       `The key "${stepKey}" isn't formatted properly. Each key in the step config must be the following format: "step{number}"`
     );
 
-    const validStepKey = stepKey as keyof resolvedStep;
+    const validStepKey = stepKey as keyof typeof resolvedSteps;
     const {
       fields,
       title,
-      nameTransformCasing: defaultCasing = casing.DEFAULT_CASING,
+      nameTransformCasing: defaultCasing = DEFAULT_CASING,
       description,
       validateFields,
     } = stepValue;
@@ -326,13 +331,14 @@ export function createStep<
 
 export class MultiStepFormStepSchema<
     step extends Step<casing>,
-    resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-    stepNumbers extends StepNumbers<resolvedStep>,
-    casing extends CasingType = DefaultCasing
+    casing extends CasingType = DefaultCasing,
+    resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<
+      step,
+      casing
+    >,
+    stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
   >
-  extends Subscribable<
-    MultiStepFormStepSchemaListener<step, resolvedStep, stepNumbers, casing>
-  >
+  extends Subscribable<MultiStepFormStepSchemaListener<step, casing>>
   implements MultiStepFormStepSchemaFunctions<resolvedStep, stepNumbers>
 {
   /**
@@ -343,43 +349,29 @@ export class MultiStepFormStepSchema<
    * The resolved step values.
    */
   value: resolvedStep;
-  /**
-   * Gets the step data for the target step.
-   */
-  get: ReturnType<typeof step.get<step, resolvedStep, stepNumbers, casing>>;
-  readonly steps: MultiStepFormStepStepsConfig<resolvedStep, stepNumbers>;
+  readonly steps: MultiStepFormStepStepsConfig<step, casing>;
   readonly defaultNameTransformationCasing: casing;
   //@ts-ignore
   private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
   private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
-  protected readonly stepHelper: MultiStepFormStepHelper<
-    step,
-    resolvedStep,
-    stepNumbers,
-    casing
-  >;
+  protected readonly stepHelper: MultiStepFormStepHelper<step, casing>;
 
   constructor(
-    config: MultiStepFormSchemaStepConfig<
-      step,
-      types.Constrain<casing, CasingType>
-    >
+    config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>
   ) {
     super();
 
     const { steps, nameTransformCasing } = config;
 
-    this.defaultNameTransformationCasing = casing.setCasingType(
-      nameTransformCasing,
-      casing.DEFAULT_CASING
+    this.defaultNameTransformationCasing = setCasingType(
+      nameTransformCasing
     ) as casing;
 
     this.original = steps;
-    this.value = createStep<step, resolvedStep, casing>(this.original);
-    this.get = step.get<step, resolvedStep, stepNumbers, casing>(this.value);
+    this.value = createStep(this.original) as resolvedStep;
     this.stepNumbers = Object.keys(this.value).map((key) =>
-      parseInt(key.replace('step', ''))
+      Number.parseInt(key.replace('step', ''))
     );
     this.stepHelper = new MultiStepFormStepHelper(
       this.value,
@@ -420,6 +412,10 @@ export class MultiStepFormStepSchema<
       },
       isValidStepNumber: (stepNumber): stepNumber is stepNumbers =>
         this.stepNumbers.includes(stepNumber),
+      isValidStepKey: (
+        stepKey
+      ): stepKey is Constrain<keyof resolvedStep, string> =>
+        Object.keys(this.value).includes(stepKey),
     };
   }
 
@@ -457,6 +453,17 @@ export class MultiStepFormStepSchema<
     }
 
     return values;
+  }
+
+  /**
+   * Gets the data for a specific step.
+   * @param options The options for getting the step data.
+   * @returns The step data for the target step.
+   */
+  get<stepNumber extends stepNumbers>(
+    options: GetStepOptions<resolvedStep, stepNumbers, stepNumber>
+  ) {
+    return getStep(this.value)(options);
   }
 
   /**
@@ -725,7 +732,7 @@ export class MultiStepFormStepSchema<
   ) {
     const { stepData, ...rest } = options;
 
-    return this.stepHelper.createStepHelperFnImpl(stepData)(rest, fn);
+    return this.stepHelper.createStepHelperFnImpl(stepData as never)(rest, fn);
   }
 
   /**
@@ -734,7 +741,7 @@ export class MultiStepFormStepSchema<
    */
   static hasData<
     step extends Step<casing>,
-    resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
+    resolvedStep extends ResolvedStep<step, casing>,
     stepNumbers extends StepNumbers<resolvedStep>,
     casing extends CasingType = DefaultCasing
   >(
@@ -752,7 +759,7 @@ export class MultiStepFormStepSchema<
     return assertObjectFields<
       | GetCurrentStep<resolvedStep, stepNumbers>
       | (Omit<StepOptions, 'fields'> & {
-          fields: types.Expand<
+          fields: Expand<
             ResolvedFields<InferStepOptions<step>, keyof InferStepOptions<step>>
           >;
         })
@@ -760,7 +767,7 @@ export class MultiStepFormStepSchema<
       title: (v) => typeof v === 'string',
       fields: (
         v
-      ): v is types.Expand<
+      ): v is Expand<
         ResolvedFields<InferStepOptions<step>, keyof InferStepOptions<step>>
       > => {
         if (v === null || typeof v !== 'object') {
@@ -782,8 +789,7 @@ export class MultiStepFormStepSchema<
             defaultValue: (v): v is {} => v !== 'undefined' && v !== null,
             label: (v) =>
               typeof v === 'string' || (typeof v === 'boolean' && !v),
-            nameTransformCasing: (v) =>
-              typeof v === 'string' && casing.isCasingValid(v),
+            nameTransformCasing: isCasingValid,
             type: isFieldType,
           });
 
@@ -800,8 +806,7 @@ export class MultiStepFormStepSchema<
         typeof v === 'function',
       update: (v): v is GetCurrentStep<resolvedStep, stepNumbers>['update'] =>
         typeof v === 'function',
-      nameTransformCasing: (v) =>
-        typeof v === 'string' && casing.isCasingValid(v),
+      nameTransformCasing: isCasingValid,
       ...options?.optionalKeysToCheck,
     });
   }

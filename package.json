@@ -6,7 +6,8 @@
   "scripts": {
     "setup:all": "pnpm i && pnpm -r build",
     "setup:packages": "pnpm i && pnpm --filter './packages/*' -r build",
-    "watch": "pnpm -r run watch",
+    "reload": "pnpm build || pnpm i",
+    "watch": "pnpm -r --parallel run watch",
     "build": "pnpm -r build",
     "dev": "pnpm -r dev",
     "test": "pnpm -r test"

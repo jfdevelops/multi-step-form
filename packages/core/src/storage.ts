@@ -1,6 +1,9 @@
-import { invariant, logger } from '@multi-step-form/runtime-utils';
-import type { Updater } from '@multi-step-form/shared-utils';
-export type StorageConfig<TKey extends string, TData> = {
+import type { Updater } from '@/steps/types';
+import { invariant } from '@/utils/invariant';
+import { MultiStepFormLogger } from '@/utils/logger';
+
+export type DefaultStorageKey = typeof DEFAULT_STORAGE_KEY;
+export type StorageConfig<TData, TKey extends string> = {
   key: TKey;
   data: TData;
   store?: Storage;
@@ -8,19 +11,23 @@ export type StorageConfig<TKey extends string, TData> = {
 
 const WINDOW_UNDEFINED_MESSAGE =
   '"window" in undefined. No storage is available';
+export const DEFAULT_STORAGE_KEY = 'MultiStepForm';
 
-export class MultiStepFormStorage<key extends string, data> {
+export class MultiStepFormStorage<
+  data,
+  key extends string = DefaultStorageKey
+> {
   readonly key: key;
   readonly store!: Storage;
   readonly data: data;
-  private readonly log: logger.MultiStepFormLogger;
+  private readonly log: MultiStepFormLogger;
   private readonly isWindowUndefined: boolean;
 
-  constructor(config: StorageConfig<key, data>) {
+  constructor(config: StorageConfig<data, key>) {
     const { key, data, store } = config;
 
-    this.log = new logger.MultiStepFormLogger({
-      prefix: 'MultiStepFormStorage',
+    this.log = new MultiStepFormLogger({
+      prefix: DEFAULT_STORAGE_KEY,
     });
     this.key = key;
     this.data = data;

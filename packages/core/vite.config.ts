@@ -3,6 +3,7 @@
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
   plugins: [
@@ -10,6 +11,7 @@ export default defineConfig({
       include: ['src'],
       outDir: 'dist/types',
     }),
+    tsconfigPaths()
   ],
   build: {
     lib: {

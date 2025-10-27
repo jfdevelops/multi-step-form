@@ -1,32 +1,30 @@
-import type { casing } from '@multi-step-form/casing';
+import { comparePartialArray, printErrors } from '@/utils/helpers';
+import { invariant } from '@/utils/invariant';
+import type { Expand } from '@/utils/types';
 import {
-  type Step,
-  type ResolvedStep,
-  type InferStepOptions,
-  type StepNumbers,
-  type HelperFnChosenSteps,
-  step,
-  type HelperFnCtx,
-  type HelperFnWithoutValidator,
-  type HelperFnInputWithValidator,
-  type CreateHelperFunctionOptionsWithValidator,
-  type CreateHelperFunctionOptionsWithoutValidator,
-  type HelperFnWithValidator,
-} from './step';
-import {
-  comparePartialArray,
-  invariant,
-  printErrors,
   runStandardValidation,
   type StandardSchemaValidator,
-} from '@multi-step-form/runtime-utils';
-import type { types } from '@multi-step-form/compile-time-utils';
+} from '@/utils/validator';
+import type { CasingType } from '../utils/casing';
+import type {
+  CreateHelperFunctionOptionsWithoutValidator,
+  CreateHelperFunctionOptionsWithValidator,
+  HelperFnChosenSteps,
+  HelperFnCtx,
+  HelperFnInputWithValidator,
+  HelperFnWithoutValidator,
+  HelperFnWithValidator,
+  ResolvedStep,
+  Step,
+  StepNumbers,
+} from './types';
+import { extractNumber, getStep } from './utils';
 
 export class MultiStepFormStepHelper<
   step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-  stepNumbers extends StepNumbers<resolvedStep>,
-  casing extends casing.CasingType
+  casing extends CasingType,
+  resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<step, casing>,
+  stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
 > {
   private readonly values: resolvedStep;
   private readonly stepNumbers: Array<stepNumbers>;
@@ -43,9 +41,9 @@ export class MultiStepFormStepHelper<
     chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
   >(data: string[]) {
     return data.reduce((acc, curr) => {
-      const stepNumber = step.extractNumber(curr);
+      const stepNumber = extractNumber(curr);
 
-      acc[curr as keyof typeof acc] = step.get(this.values)({
+      acc[curr as keyof typeof acc] = getStep(this.values)({
         step: stepNumber as stepNumbers,
       }).data as never;
 
@@ -77,7 +75,8 @@ export class MultiStepFormStepHelper<
           stepNumbers,
           chosenSteps
         >;
-        acc[stepKey] = step.get(this.values)({
+
+        acc[stepKey] = getStep(this.values)({
           step: curr,
         }).data as never;
 
@@ -189,7 +188,7 @@ export class MultiStepFormStepHelper<
 
       if (typeof optionsOrFunction === 'object') {
         return (
-          input?: types.Expand<
+          input?: Expand<
             Omit<
               HelperFnInputWithValidator<
                 resolvedStep,
