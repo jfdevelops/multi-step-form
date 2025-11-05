@@ -1,5 +1,12 @@
 import { invariant } from '@/utils/invariant';
-import type { AnyResolvedStep, GetCurrentStep, StepNumbers } from './types';
+import type {
+  AnyResolvedStep,
+  GetCurrentStep,
+  HelperFnChosenSteps,
+  HelperFnCtx,
+  StepNumbers,
+} from './types';
+import { comparePartialArray, printErrors } from '@/utils/helpers';
 
 export type GetStepOptions<
   TResolvedStep extends AnyResolvedStep,
@@ -53,4 +60,141 @@ export function getStep<
 
     return { step, data };
   };
+}
+
+function createCtxHelper<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
+>(values: TResolvedStep, data: string[]) {
+  return data.reduce((acc, curr) => {
+    const stepNumber = extractNumber(curr);
+    const { data } = getStep(values)({
+      step: stepNumber as TStepNumbers,
+    });
+
+    for (const [key, value] of Object.entries(data)) {
+      // console.log({ [key]: value });
+      // Remove the functions from the data to comply with `StrippedResolvedStep`
+      if (typeof value === 'function' && key !== 'update') {
+        continue;
+      }
+
+      data[key as keyof typeof data] = value as never;
+    }
+
+    acc[curr as keyof typeof acc] = data as never;
+
+    return acc;
+  }, {} as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>);
+}
+
+export function createCtx<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
+>(values: TResolvedStep, stepData: TChosenSteps) {
+  const formatter = new Intl.ListFormat('en', {
+    style: 'long',
+    type: 'disjunction',
+  });
+  const validStepKeys = Object.keys(values);
+
+  const baseErrorMessage = () => {
+    return `"stepData" must be set to an array of available steps (${formatter.format(
+      validStepKeys
+    )})`;
+  };
+
+  if (stepData === 'all') {
+    let ctx = {} as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>;
+
+    for (const key of validStepKeys) {
+      ctx = {
+        ...ctx,
+        [key]: getStep(values)({
+          step: extractNumber(key) as never,
+        }),
+      };
+    }
+
+    return Object.fromEntries(
+      validStepKeys.map((key) => [
+        key,
+        getStep(values)({
+          step: extractNumber(key) as never,
+        }),
+      ])
+    ) as unknown as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>;
+
+    // return stepNumbers.reduce((acc, curr) => {
+    //   const stepKey = `step${curr}` as keyof HelperFnCtx<
+    //     TResolvedStep,
+    //     TStepNumbers,
+    //     TChosenSteps
+    //   >;
+
+    //   acc[stepKey] = getStep(values)({
+    //     step: curr,
+    //   }).data as never;
+
+    //   return acc;
+    // }, {} as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>);
+  }
+
+  if (Array.isArray(stepData)) {
+    invariant(
+      stepData.every((step) => validStepKeys.includes(step)),
+      () => {
+        const comparedResults = comparePartialArray(
+          stepData,
+          validStepKeys.map((key) => extractNumber(key)),
+          formatter
+        );
+
+        if (comparedResults.status === 'error') {
+          return `${baseErrorMessage()}. See errors:\n ${printErrors(
+            comparedResults.errors
+          )}`;
+        }
+
+        return baseErrorMessage();
+      }
+    );
+
+    return createCtxHelper<TResolvedStep, TStepNumbers, TChosenSteps>(
+      values,
+      stepData
+    );
+  }
+
+  if (typeof stepData === 'object') {
+    const keys = Object.keys(stepData);
+
+    invariant(
+      keys.every((key) => validStepKeys.includes(key)),
+      () => {
+        const comparedResults = comparePartialArray(
+          keys,
+          validStepKeys,
+          formatter
+        );
+
+        if (comparedResults.status === 'error') {
+          return `${baseErrorMessage()}. See errors:\n ${printErrors(
+            comparedResults.errors
+          )}`;
+        }
+
+        return baseErrorMessage();
+      }
+    );
+
+    return createCtxHelper<TResolvedStep, TStepNumbers, TChosenSteps>(
+      values,
+      keys
+    );
+  }
+
+  throw new Error(`${baseErrorMessage()} OR to "all"`);
 }

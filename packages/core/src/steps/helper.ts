@@ -42,10 +42,21 @@ export class MultiStepFormStepHelper<
   >(data: string[]) {
     return data.reduce((acc, curr) => {
       const stepNumber = extractNumber(curr);
-
-      acc[curr as keyof typeof acc] = getStep(this.values)({
+      const { data } = getStep(this.values)({
         step: stepNumber as stepNumbers,
-      }).data as never;
+      });
+
+      for (const [key, value] of Object.entries(data)) {
+        // console.log({ [key]: value });
+        // Remove the functions from the data to comply with `StrippedResolvedStep`
+        if (typeof value === 'function' && key !== 'update') {
+          continue;
+        }
+
+        data[key as keyof typeof data] = value as never;
+      }
+
+      acc[curr as keyof typeof acc] = data as never;
 
       return acc;
     }, {} as HelperFnCtx<resolvedStep, stepNumbers, chosenSteps>);

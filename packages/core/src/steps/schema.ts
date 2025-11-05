@@ -12,6 +12,7 @@ import type {
   FirstStep,
   GetCurrentStep,
   HelperFnChosenSteps,
+  HelperFnInputWithValidator,
   HelperFnWithValidator,
   HelperFnWithoutValidator,
   InferStepOptions,
@@ -49,7 +50,7 @@ import {
   type StandardSchemaValidator,
 } from '@/utils/validator';
 import { MultiStepFormStepHelper } from './helper';
-import { getStep, type GetStepOptions } from './utils';
+import { createCtx, getStep, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
@@ -355,7 +356,12 @@ export class MultiStepFormStepSchema<
   private readonly firstStep: StepData<resolvedStep, FirstStep<resolvedStep>>;
   private readonly lastStep: StepData<resolvedStep, LastStep<resolvedStep>>;
   private readonly stepNumbers: Array<number>;
-  protected readonly stepHelper: MultiStepFormStepHelper<step, casing>;
+  // protected readonly stepHelper: MultiStepFormStepHelper<
+  //   step,
+  //   casing,
+  //   resolvedStep,
+  //   stepNumbers
+  // >;
 
   constructor(
     config: MultiStepFormSchemaStepConfig<step, Constrain<casing, CasingType>>
@@ -369,16 +375,15 @@ export class MultiStepFormStepSchema<
     ) as casing;
 
     this.original = steps;
-    this.value = createStep(this.original) as resolvedStep;
+
+    this.value = this.enrichValues(createStep(this.original) as resolvedStep);
     this.stepNumbers = Object.keys(this.value).map((key) =>
       Number.parseInt(key.replace('step', ''))
     );
-    this.stepHelper = new MultiStepFormStepHelper(
-      this.value,
-      this.stepNumbers as Array<stepNumbers>
-    );
-
-    this.value = this.enrichValues(this.value);
+    // this.stepHelper = new MultiStepFormStepHelper(
+    //   this.value,
+    //   this.stepNumbers as Array<stepNumbers>
+    // );
 
     this.firstStep = this.first();
     this.lastStep = this.last();
@@ -528,13 +533,23 @@ export class MultiStepFormStepSchema<
           this.value[stepKey]
         ).join(', ')}`
       );
-      const targetType =
-        typeof this.value[stepKey][
-          fieldOrUpdater as keyof (keyof ResolvedStep<step>)
-        ];
       invariant(
-        typeof updater === targetType,
-        `The updater must be a "${targetType}", was "${typeof updater}"`,
+        typeof updater === 'object' || typeof updater === 'function',
+        () => {
+          let targetUpdaterTypeMsg = '';
+
+          if (typeof updater !== 'object') {
+            targetUpdaterTypeMsg = 'an object';
+          }
+
+          if (typeof updater !== 'function') {
+            targetUpdaterTypeMsg = 'a function';
+          }
+
+          return `[${String(
+            stepKey
+          )}-${fieldOrUpdater}]: The updater must be ${targetUpdaterTypeMsg}, was "${typeof updater}"`;
+        },
         TypeError
       );
 
@@ -646,8 +661,105 @@ export class MultiStepFormStepSchema<
     this.createStepUpdaterFnImpl(step, fieldOrUpdater, updater);
   }
 
+  private createStepHelperFnImpl<
+    chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+  >(stepData: chosenSteps) {
+    return <Validator, Response>(
+      optionsOrFunction:
+        | Omit<
+            CreateHelperFunctionOptionsWithValidator<
+              resolvedStep,
+              stepNumbers,
+              chosenSteps,
+              Validator
+            >,
+            'stepData'
+          >
+        | Omit<
+            CreateHelperFunctionOptionsWithoutValidator<
+              resolvedStep,
+              stepNumbers,
+              chosenSteps
+            >,
+            'stepData'
+          >
+        | HelperFnWithoutValidator<
+            resolvedStep,
+            stepNumbers,
+            chosenSteps,
+            Response
+          >,
+      fn:
+        | HelperFnWithValidator<
+            resolvedStep,
+            stepNumbers,
+            chosenSteps,
+            Validator,
+            Response
+          >
+        | HelperFnWithoutValidator<
+            resolvedStep,
+            stepNumbers,
+            chosenSteps,
+            Response
+          >
+    ) => {
+      const ctx = createCtx<resolvedStep, stepNumbers, chosenSteps>(
+        this.value,
+        stepData
+      );
+
+      if (typeof optionsOrFunction === 'function') {
+        return () => optionsOrFunction({ ctx });
+      }
+
+      if (typeof optionsOrFunction === 'object') {
+        return (
+          input?: Expand<
+            Omit<
+              HelperFnInputWithValidator<
+                resolvedStep,
+                stepNumbers,
+                chosenSteps,
+                Validator
+              >,
+              'ctx'
+            >
+          >
+        ) => {
+          if ('validator' in optionsOrFunction) {
+            invariant(
+              typeof input === 'object',
+              'An input is expected since you provided a validator'
+            );
+
+            runStandardValidation(
+              optionsOrFunction.validator as StandardSchemaValidator,
+              input.data
+            );
+
+            return fn({ ctx, ...input });
+          }
+
+          return (
+            fn as HelperFnWithoutValidator<
+              resolvedStep,
+              stepNumbers,
+              chosenSteps,
+              Response
+            >
+          )({ ctx });
+        };
+      }
+
+      throw new Error(
+        `The first argument must be a function or an object, (was ${typeof optionsOrFunction})`
+      );
+    };
+  }
+
   private createStepHelperFn<TargetStep extends stepNumbers>(step: TargetStep) {
-    return this.stepHelper.createStepHelperFnImpl([`step${step}`]);
+    return this.createStepHelperFnImpl([`step${step}`]);
   }
 
   /**
@@ -732,7 +844,7 @@ export class MultiStepFormStepSchema<
   ) {
     const { stepData, ...rest } = options;
 
-    return this.stepHelper.createStepHelperFnImpl(stepData as never)(rest, fn);
+    return this.createStepHelperFnImpl(stepData as never)(rest, fn);
   }
 
   /**

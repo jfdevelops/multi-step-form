@@ -366,13 +366,20 @@ export type ResolvedStep<
   [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] &
     StepSpecificHelperFns<TResolvedStep, stepKey>;
 };
+export type StrippedResolvedStep<T extends AnyResolvedStep> = {
+  [_ in keyof T as T[_] extends Function
+    ? _ extends 'update'
+      ? _
+      : never
+    : _]: T[_];
+};
 export type AnyResolvedStep = ResolvedStep<any, any, any>;
 
 export type ValidStepKey<N extends number = number> = `step${N}`;
-export type ExtractStepFromKey<T extends string> = T extends ValidStepKey<
-  infer N
->
-  ? N
+export type ExtractStepFromKey<T> = T extends string
+  ? T extends ValidStepKey<infer N>
+    ? N
+    : never
   : never;
 export type InferStepOptions<T> = T extends {
   [K in keyof T extends ValidStepKey ? keyof T : never]: StepOptions<
@@ -508,15 +515,28 @@ export type Join<T extends string[], D extends string> = T extends [
     : `${F}${D}${Join<R, D>}`
   : '';
 
+export namespace HelperFnChosenSteps {
+  export type defaultStringOption = 'all';
+  export type stringOption<T extends string> = defaultStringOption | T;
+  export type tupleNotation<T extends string> = [T, ...T[]];
+  export type objectNotation<T extends string> = RequireAtLeastOne<{
+    [_ in T]: true;
+  }>;
+  export type build<
+    TValue extends string,
+    TStringOptions = defaultStringOption
+  > = TStringOptions | tupleNotation<TValue> | objectNotation<TValue>;
+  export type main<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>
+  > = build<ValidStepKey<TSteps>>;
+}
+
 export type HelperFnChosenSteps<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>
-> =
-  | 'all'
-  | [ValidStepKey<TSteps>, ...ValidStepKey<TSteps>[]]
-  | RequireAtLeastOne<{
-      [key in ValidStepKey<TSteps>]: true;
-    }>;
+> = HelperFnChosenSteps.main<TResolvedStep, TSteps>;
+
 export type CreateHelperFunctionOptionsBase<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
@@ -576,34 +596,42 @@ export type HelperFnCtx<
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
 > = TChosenSteps extends 'all'
-  ? { [key in TSteps as `step${key}`]: GetCurrentStep<TResolvedStep, key> }
+  ? {
+      [key in TSteps as `step${key}`]: StrippedResolvedStep<
+        GetCurrentStep<TResolvedStep, key>
+      >;
+    }
   : TChosenSteps extends object
   ? keyof TChosenSteps extends ValidStepKey<TSteps>
     ? {
-        -readonly [key in keyof TChosenSteps]: GetCurrentStep<
-          TResolvedStep,
-          // @ts-ignore
-          ExtractStepFromKey<key>
+        -readonly [key in keyof TChosenSteps]: StrippedResolvedStep<
+          GetCurrentStep<
+            TResolvedStep,
+            // @ts-ignore
+            ExtractStepFromKey<key>
+          >
         >;
       }
     : TChosenSteps extends ValidStepKey<TSteps>[]
     ? {
-        [key in TChosenSteps[number]]: GetCurrentStep<
-          TResolvedStep,
-          // @ts-ignore
-          ExtractStepFromKey<key>
+        [key in TChosenSteps[number]]: StrippedResolvedStep<
+          GetCurrentStep<
+            TResolvedStep,
+            // @ts-ignore
+            ExtractStepFromKey<key>
+          >
         >;
       }
     : never
   : never;
 
-export type HelperFnInputBase<
+export interface HelperFnInputBase<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-> = {
+> {
   ctx: HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>;
-};
+}
 export type HelperFnInputWithValidator<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,

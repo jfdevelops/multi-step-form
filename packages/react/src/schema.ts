@@ -1,70 +1,123 @@
 import {
-  MultiStepFormSchema as MultiStepFormSchemaBase,
-  type AnyMultiStepFormSchema,
-  type MultiStepFormSchemaOptions,
+  type CasingType,
+  type Constrain,
+  type CreateHelperFunctionOptionsBase,
+  DEFAULT_CASING,
+  type DefaultCasing,
+  type DefaultStorageKey,
+  type HelperFnChosenSteps,
+  type HelperFnCtx,
+  type MultiStepFormSchemaOptions as MultiStepFormSchemaBaseOptions,
+  MultiStepFormSchema as MultiStepFormSchemaCore,
+  type ResolvedStep as ResolvedStepCore,
+  type Step,
+  type StepNumbers,
 } from '@multi-step-form/core';
+import type { ComponentPropsWithRef } from 'react';
+import { MultiStepFormSchemaConfig } from './form-config';
 import {
-  CreateComponentCallback,
-  CreatedMultiStepFormComponent,
-  HelperFunctions,
+  type CreateComponentCallback,
+  type CreatedMultiStepFormComponent,
+  type HelperFunctions,
   MultiStepFormStepSchema,
   type ResolvedStep,
 } from './step-schema';
-import type {
-  CreateHelperFunctionOptionsBase,
-  DefaultCasing,
-  HelperFnChosenSteps,
-  InferStepOptions,
-  Step,
-  StepNumbers,
-} from '@multi-step-form/shared-utils';
-import type { types } from '@multi-step-form/compile-time-utils';
-import { casing } from '@multi-step-form/casing';
 
-type MutableArray<T> = T extends ReadonlyArray<infer U> ? U[] : T;
-export type GetMultiStepFormSteps<TSchema extends AnyMultiStepFormSchema> =
-  MutableArray<TSchema['stepSchema']['steps']['value']>[number];
+// export type AnyMultiStepFormSchema = MultiStepFormSchema<any, any, any>;
+export type AnyMultiStepFormSchema = { [x: string]: any };
+
+// Helper inference types for `AnyMultiStepFormSchema`
+export namespace MultiStepFormSchema {
+  /**
+   * Infer the resolved step from a {@linkcode MultiStepFormSchema}.
+   */
+  export type resolvedStep<T extends AnyMultiStepFormSchema> =
+    T['stepSchema']['value'];
+  /**
+   * Infer the {@linkcode MultiStepFormSchema}'s step numbers.
+   */
+  export type stepNumbers<T extends AnyMultiStepFormSchema> = StepNumbers<
+    resolvedStep<T>
+  >;
+  /**
+   * Get the data for a specific step from a {@linkcode MultiStepFormSchema}.
+   */
+  export type getData<
+    T extends AnyMultiStepFormSchema,
+    TTarget extends keyof resolvedStep<T>
+  > = resolvedStep<T>[TTarget];
+}
+
+export interface MultiStepFormSchemaOptions<
+  TStep extends Step<TCasing>,
+  TCasing extends CasingType,
+  TStorageKey extends string,
+  TFormAlias extends string,
+  TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
+  TFormProps extends object,
+  TResolvedStep extends ResolvedStep<TStep, TCasing> = ResolvedStep<
+    TStep,
+    TCasing
+  >
+> extends MultiStepFormSchemaBaseOptions<TStep, TCasing, TStorageKey>,
+    MultiStepFormSchemaConfig.Form<
+      TResolvedStep,
+      TFormAlias,
+      TFormEnabledFor,
+      TFormProps
+    > {}
 
 export class MultiStepFormSchema<
     step extends Step<casing>,
-    resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-    stepNumbers extends StepNumbers<resolvedStep>,
-    casing extends casing.CasingType,
-    storageKey extends string
+    casing extends CasingType = DefaultCasing,
+    storageKey extends string = DefaultStorageKey,
+    formAlias extends string = MultiStepFormSchemaConfig.defaultFormAlias,
+    formEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<resolvedStep> = MultiStepFormSchemaConfig.defaultEnabledFor,
+    formProps extends object = ComponentPropsWithRef<'form'>,
+    resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<
+      step,
+      casing
+    >,
+    stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
   >
-  extends MultiStepFormSchemaBase<
+  extends MultiStepFormSchemaCore<
     step,
-    resolvedStep,
-    stepNumbers,
     casing,
+    ResolvedStepCore<step, casing>,
+    StepNumbers<ResolvedStepCore<step, casing>>,
     storageKey
   >
-  implements HelperFunctions<step, resolvedStep, stepNumbers, casing>
+  implements HelperFunctions<resolvedStep, stepNumbers>
 {
-  stepSchema: MultiStepFormStepSchema<step, resolvedStep, stepNumbers, casing>;
+  stepSchema: MultiStepFormStepSchema<
+    step,
+    casing,
+    formAlias,
+    formEnabledFor,
+    formProps
+  >;
 
   constructor(
     config: MultiStepFormSchemaOptions<
       step,
-      types.Constrain<casing, casing.CasingType>,
-      storageKey
-    >
-  );
-
-  constructor(
-    config: MultiStepFormSchemaOptions<
-      step,
-      types.Constrain<casing, casing.CasingType>,
-      storageKey
+      Constrain<casing, CasingType>,
+      storageKey,
+      formAlias,
+      formEnabledFor,
+      formProps
     >
   ) {
-    super(config);
+    const { nameTransformCasing = DEFAULT_CASING, storage, ...rest } = config;
 
-    // @ts-ignore
+    super({
+      nameTransformCasing,
+      storage,
+      ...rest,
+    });
+
     this.stepSchema = new MultiStepFormStepSchema({
-      steps: config.steps,
-      nameTransformCasing:
-        config.defaults?.nameTransformCasing ?? casing.DEFAULT_CASING,
+      nameTransformCasing,
+      ...rest,
     });
   }
 
@@ -80,7 +133,12 @@ export class MultiStepFormSchema<
     fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenSteps, props>
   ): CreatedMultiStepFormComponent<props> {
     const { stepData } = options;
-    const ctx = this.stepHelper.createCtx(stepData);
+    const ctx = this.stepHelper.createCtx(
+      stepData as HelperFnChosenSteps<
+        ResolvedStepCore<step, casing>,
+        StepNumbers<ResolvedStepCore<step, casing>>
+      >
+    ) as HelperFnCtx<resolvedStep, stepNumbers, chosenSteps>;
 
     return ((props?: props) => fn({ ctx }, props as any)) as any;
   }
@@ -88,22 +146,31 @@ export class MultiStepFormSchema<
 
 export function createMultiStepFormSchema<
   step extends Step<casing>,
-  resolvedStep extends ResolvedStep<step, InferStepOptions<step>, casing>,
-  stepNumbers extends StepNumbers<resolvedStep>,
-  casing extends casing.CasingType = DefaultCasing,
-  storageKey extends string = 'MultiStepForm'
+  casing extends CasingType = DefaultCasing,
+  storageKey extends string = DefaultStorageKey,
+  formAlias extends string = MultiStepFormSchemaConfig.defaultFormAlias,
+  formEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<resolvedStep> = MultiStepFormSchemaConfig.defaultEnabledFor,
+  formProps extends object = ComponentPropsWithRef<'form'>,
+  resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<step, casing>,
+  stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
 >(
   options: MultiStepFormSchemaOptions<
     step,
-    types.Constrain<casing, casing.CasingType>,
-    storageKey
+    Constrain<casing, CasingType>,
+    storageKey,
+    formAlias,
+    formEnabledFor,
+    formProps
   >
 ) {
   return new MultiStepFormSchema<
     step,
-    resolvedStep,
-    stepNumbers,
     casing,
-    storageKey
+    storageKey,
+    formAlias,
+    formEnabledFor,
+    formProps,
+    resolvedStep,
+    stepNumbers
   >(options);
 }
