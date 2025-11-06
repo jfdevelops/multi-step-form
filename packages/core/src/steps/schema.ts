@@ -600,10 +600,10 @@ export class MultiStepFormStepSchema<
     }
   }
 
-  private createStepUpdaterFn<TargetStep extends stepNumbers>(
+  protected createStepUpdaterFn<TargetStep extends stepNumbers>(
     step: TargetStep
   ): UpdateStepFn<resolvedStep, stepNumbers, TargetStep, true>;
-  private createStepUpdaterFn<TargetStep extends stepNumbers>(
+  protected createStepUpdaterFn<TargetStep extends stepNumbers>(
     step: TargetStep
   ) {
     return <CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>>(

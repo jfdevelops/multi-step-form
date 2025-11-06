@@ -530,6 +530,18 @@ export namespace HelperFnChosenSteps {
     TResolvedStep extends AnyResolvedStep,
     TSteps extends StepNumbers<TResolvedStep>
   > = build<ValidStepKey<TSteps>>;
+  export type extractStepNumber<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<
+      TResolvedStep,
+      TSteps
+    > = HelperFnChosenSteps<TResolvedStep, TSteps>
+  > = TChosenSteps extends tupleNotation<ValidStepKey<TSteps>>
+    ? keyof { [step in TChosenSteps[number] as ExtractStepFromKey<step>]: step }
+    : TChosenSteps extends objectNotation<ValidStepKey<TSteps>>
+    ? ExtractStepFromKey<keyof TChosenSteps>
+    : TSteps;
 }
 
 export type HelperFnChosenSteps<

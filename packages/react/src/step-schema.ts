@@ -1,22 +1,27 @@
 import {
+  type AnyStepField,
   type CasingType,
   type Constrain,
   createCtx,
   type CreateHelperFunctionOptionsBase,
   createStep,
   type DefaultCasing,
+  type GetCurrentStep,
   type HelperFnChosenSteps,
-  type HelperFnCtx,
   type HelperFnInputBase,
+  invariant,
   type MultiStepFormSchemaStepConfig as MultiStepFormSchemaStepBaseConfig,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
+  type Relaxed,
   type ResolvedStep as ResolvedCoreStep,
   type Step,
   type StepNumbers,
   type StrippedResolvedStep,
+  type Updater,
   type ValidStepKey,
 } from '@multi-step-form/core';
 import type { ComponentPropsWithRef, ReactNode } from 'react';
+import { createField, type Field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 
 export interface MultiStepFormSchemaStepConfig<
@@ -73,6 +78,113 @@ export type CreateComponentFn<
   fn: CreateComponentCallback<TResolvedStep, TStepNumbers, chosenSteps, props>
 ) => CreatedMultiStepFormComponent<props>;
 
+export namespace StepSpecificComponent {
+  // The logic for getting the formCtx only works for step specific `createComponent`
+  // (i.e: step1.createComponent(...)) as of now. Reason is because I can't think of a good API for integrating the form
+  // ctx into the main `createComponent` since multiple steps can be chosen. In that case
+  // how would the logic work for when the form component should be defined in the callback?
+  // Ideas:
+  //  - Make the main `createComponent` return a function that accepts the current step
+  export type formComponent<
+    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TFormAlias extends string,
+    TFormProps extends object,
+    TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>
+  > = TFormEnabledFor extends MultiStepFormSchemaConfig.defaultEnabledFor
+    ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
+    : TFormEnabledFor extends HelperFnChosenSteps.tupleNotation<
+        ValidStepKey<TSteps>
+      >
+    ? TFormEnabledFor[number] extends keyof TResolvedStep
+      ? TChosenSteps extends HelperFnChosenSteps.tupleNotation<
+          ValidStepKey<TSteps>
+        >
+        ? TChosenSteps[number] extends keyof TResolvedStep
+          ? TChosenSteps[number] extends TFormEnabledFor[number]
+            ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
+            : {}
+          : {}
+        : {}
+      : {}
+    : keyof TFormEnabledFor extends keyof TResolvedStep
+    ? TChosenSteps extends HelperFnChosenSteps.tupleNotation<
+        ValidStepKey<TSteps>
+      >
+      ? TChosenSteps[number] extends keyof TResolvedStep
+        ? TChosenSteps[number] extends keyof TFormEnabledFor
+          ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
+          : {}
+        : {}
+      : {}
+    : {};
+  export type onInputChange<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends TStepNumbers
+  > = <
+    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
+    Field extends keyof CurrentStepData
+  >(
+    field: Field,
+    updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
+  ) => void;
+  export interface Input<
+    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  > extends HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps> {
+    /**
+     * A useful wrapper around `update` to update the specific field.
+     * @param field The field to update.
+     * @param updater The new value for the specified field.
+     */
+    onInputChange: <
+      CurrentStepData extends GetCurrentStep<
+        TResolvedStep,
+        // @ts-ignore Type checking works properly, type doesn't match
+        HelperFnChosenSteps.extractStepNumber<
+          TResolvedStep,
+          TSteps,
+          TChosenSteps
+        >
+      >,
+      Field extends keyof CurrentStepData
+    >(
+      field: Field,
+      updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
+    ) => void;
+    Field: Field.component<
+      TResolvedStep,
+      TSteps,
+      // @ts-ignore Type checking works properly, type doesn't match
+      HelperFnChosenSteps.extractStepNumber<TResolvedStep, TSteps, TChosenSteps>
+    >;
+  }
+
+  export type callback<
+    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TProps,
+    TFormAlias extends string,
+    TFormProps extends object,
+    TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>
+  > = CreateComponent<
+    Input<TResolvedStep, TSteps, TChosenSteps> &
+      formComponent<
+        TResolvedStep,
+        TSteps,
+        TChosenSteps,
+        TFormAlias,
+        TFormProps,
+        TFormEnabledFor
+      >,
+    TProps
+  >;
+}
+
 export type CreateStepSpecificComponentCallback<
   TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
   TSteps extends StepNumbers<TResolvedStep>,
@@ -81,42 +193,14 @@ export type CreateStepSpecificComponentCallback<
   TFormAlias extends string,
   TFormProps extends object,
   TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>
-> = CreateComponent<
-  HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps> &
-    // The logic for getting the formCtx only works for step specific `createComponent`
-    // (i.e: step1.createComponent(...)) as of now. Reason is because I can't think of a good API for integrating the form
-    // ctx into the main `createComponent` since multiple steps can be chosen. In that case
-    // how would the logic work for when the form component should be defined in the callback?
-    // Ideas:
-    //  - Make the main `createComponent` return a function that accepts the current step
-    (TFormEnabledFor extends MultiStepFormSchemaConfig.defaultEnabledFor
-      ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
-      : TFormEnabledFor extends HelperFnChosenSteps.tupleNotation<
-          ValidStepKey<TSteps>
-        >
-      ? TFormEnabledFor[number] extends keyof TResolvedStep
-        ? TChosenSteps extends HelperFnChosenSteps.tupleNotation<
-            ValidStepKey<TSteps>
-          >
-          ? TChosenSteps[number] extends keyof TResolvedStep
-            ? TChosenSteps[number] extends TFormEnabledFor[number]
-              ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
-              : {}
-            : {}
-          : {}
-        : {}
-      : keyof TFormEnabledFor extends keyof TResolvedStep
-      ? TChosenSteps extends HelperFnChosenSteps.tupleNotation<
-          ValidStepKey<TSteps>
-        >
-        ? TChosenSteps[number] extends keyof TResolvedStep
-          ? TChosenSteps[number] extends keyof TFormEnabledFor
-            ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
-            : {}
-          : {}
-        : {}
-      : {}),
-  TProps
+> = StepSpecificComponent.callback<
+  TResolvedStep,
+  TSteps,
+  TChosenSteps,
+  TProps,
+  TFormAlias,
+  TFormProps,
+  TFormEnabledFor
 >;
 export interface StepSpecificCreateComponentFn<
   TResolvedStep extends AnyResolvedStep,
@@ -348,7 +432,79 @@ export class MultiStepFormStepSchema<
             } = form;
             const enabledFor = rest.enabledForSteps ?? 'all';
 
-            let input = { ctx };
+            // Safe cast here since the step specific `createComponent` will always have
+            // `stepData` as a tuple
+            const [step] =
+              stepData as HelperFnChosenSteps.tupleNotation<`step${stepNumbers}`>;
+
+            invariant(
+              this.steps.isValidStepKey(step),
+              `[createComponent]: the target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
+            );
+
+            const stepNumber = Number.parseInt(step.replace('step', ''));
+
+            invariant(
+              !Number.isNaN(stepNumber),
+              `[${step}:"createComponent"]: an error occurred while extracting the number`
+            );
+            const current = this.value[step as keyof resolvedStep];
+
+            // These checks are mostly for type safety. `current` should _always_ be in the proper format.
+            // On the off chance that it's not, we have the checks here to help, but these checks are basically
+            // just for type safety.
+            invariant(
+              'fields' in current,
+              `[${step}:createComponent]: unable to find the "fields" for the current step`
+            );
+            invariant(
+              typeof current.fields === 'object',
+              `[${step}:createComponent]: the "fields" property must be an object, was ${typeof current.fields}`
+            );
+
+            const Field = createField((name) => {
+              invariant(typeof name === 'string', () => {
+                const formatter = new Intl.ListFormat('en', {
+                  style: 'long',
+                  type: 'disjunction',
+                });
+
+                return `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include ${formatter.format(
+                  Object.keys(current.fields as Record<string, unknown>)
+                )}`;
+              });
+              invariant(
+                name in (current.fields as object),
+                `[${step}:Field]: the field "${name}" doesn't exist for the current step`
+              );
+              const { fields, update } = current;
+              const { defaultValue, label, nameTransformCasing, type } = (
+                fields as AnyStepField
+              )[name];
+
+              return {
+                defaultValue,
+                label,
+                nameTransformCasing,
+                type,
+                onInputChange: (value: unknown) =>
+                  update('fields', (prev) => ({
+                    ...prev,
+                    [name]: {
+                      ...prev[name],
+                      defaultValue: value,
+                    },
+                  })),
+              };
+            });
+
+            let input = {
+              ctx,
+              onInputChange: this.createStepUpdaterFn(
+                stepNumber as stepNumbers
+              ),
+              Field,
+            };
 
             if (
               MultiStepFormSchemaConfig.isFormAvailable(
