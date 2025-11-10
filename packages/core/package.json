@@ -1,5 +1,5 @@
 {
-  "name": "@multi-step-form/core",
+  "name": "@jfdevelops/multi-step-form",
   "version": "1.0.0-alpha.1",
   "description": "",
   "type": "module",
@@ -23,7 +23,7 @@
     "test": "vitest"
   },
   "keywords": [],
-  "author": "",
+  "author": "Joey Finkel",
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
