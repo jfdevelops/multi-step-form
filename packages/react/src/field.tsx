@@ -1,6 +1,7 @@
 import type {
   AnyResolvedStep,
   StepNumbers,
+  Updater,
   ValidStepKey,
 } from '@multi-step-form/core';
 import type { ReactNode } from 'react';
@@ -18,10 +19,14 @@ export namespace Field {
     TField extends keyof TFields
   > = getFields<TResolvedStep, TTargetStep>[TField] & {
     /**
+     * The name of the field.
+     */
+    name: TField;
+    /**
      * A useful wrapper around `update` to update the specific field.
      * @param value The new value for the field.
      */
-    onInputChange: (value: TFields[TField]['defaultValue']) => void;
+    onInputChange: (value: Updater<TFields[TField]['defaultValue']>) => void;
   };
   export type props<
     TResolvedStep extends AnyResolvedStep,
