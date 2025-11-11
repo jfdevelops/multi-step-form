@@ -139,7 +139,7 @@ importers:
   packages/react:
     dependencies:
       '@jfdevelops/multi-step-form':
-        specifier: workspace:~
+        specifier: workspace:*
         version: link:../core
       use-sync-external-store:
         specifier: ^1.6.0
