@@ -1,7 +1,7 @@
 {
   "name": "@jfdevelops/multi-step-form",
-  "version": "0.0.1",
-  "description": "A type-safe multi step form solution.",
+  "version": "1.0.0-alpha.1",
+  "description": "An opinionated type safe solution to creating multi step forms.",
   "type": "module",
   "scripts": {
     "setup:all": "pnpm i && pnpm -r build",
