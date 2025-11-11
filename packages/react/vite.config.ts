@@ -1,7 +1,9 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
-import dts from 'vite-plugin-dts'
+/// <reference types="vitest/config" />
+
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+import { defineConfig } from 'vite';
+import dts from 'vite-plugin-dts';
 
 export default defineConfig({
   plugins: [
@@ -30,4 +32,4 @@ export default defineConfig({
     sourcemap: true,
     emptyOutDir: true,
   },
-})
+});

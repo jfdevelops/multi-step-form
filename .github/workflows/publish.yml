@@ -1,0 +1,53 @@
+name: Build and Publish Packages
+
+on:
+  push:
+    tags:
+      - "v*" # Only trigger when a version tag (like v1.0.0) is pushed
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Node.js and pnpm
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      # 3️⃣ Install dependencies (using workspace lockfile)
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 4️⃣ Run root-level test command
+      - name: Run tests
+        run: pnpm run test:packages
+
+      # 5️⃣ Run root-level build command
+      - name: Build packages
+        run: pnpm run build:packages
+
+      # 6️⃣ Publish each package separately
+      - name: Publish packages
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Publish /packages/core
+          cd packages/core
+          pnpm publish --access public --no-git-checks
+
+          # Publish /packages/react
+          cd ../react
+          pnpm publish --access public --no-git-checks

@@ -548,25 +548,25 @@ export class MultiStepFormStepSchema<
           this.value[stepKey]
         ).join(', ')}`
       );
-      invariant(
-        typeof updater === 'object' || typeof updater === 'function',
-        () => {
-          let targetUpdaterTypeMsg = '';
+      // invariant(
+      //   typeof updater === 'object' || typeof updater === 'function',
+      //   () => {
+      //     let targetUpdaterTypeMsg = '';
 
-          if (typeof updater !== 'object') {
-            targetUpdaterTypeMsg = 'an object';
-          }
+      //     if (typeof updater !== 'object') {
+      //       targetUpdaterTypeMsg = 'an object';
+      //     }
 
-          if (typeof updater !== 'function') {
-            targetUpdaterTypeMsg = 'a function';
-          }
+      //     if (typeof updater !== 'function') {
+      //       targetUpdaterTypeMsg = 'a function';
+      //     }
 
-          return `[${String(
-            stepKey
-          )}-${fieldOrUpdater}]: The updater must be ${targetUpdaterTypeMsg}, was "${typeof updater}"`;
-        },
-        TypeError
-      );
+      //     return `[${String(
+      //       stepKey
+      //     )}-${fieldOrUpdater}]: The updater must be ${targetUpdaterTypeMsg}, was "${typeof updater}"`;
+      //   },
+      //   TypeError
+      // );
 
       this.value = {
         ...this.value,
