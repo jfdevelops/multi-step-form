@@ -36,7 +36,7 @@ jobs:
 
       # 5️⃣ Run root-level build command
       - name: Build packages
-        run: pnpm run build:packages
+        run: pnpm run build
 
       # 6️⃣ Publish each package separately
       - name: Publish packages
