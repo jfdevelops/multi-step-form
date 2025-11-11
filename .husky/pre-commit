@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running tests before commit..."
+pnpm run test:packages
+
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed — aborting commit."
+  exit 1
+fi
+
+echo "🏗️  Building packages..."
+pnpm run build:packages
+
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed — aborting commit."
+  exit 1
+fi
+
+echo "✅ Tests and build succeeded — proceeding with commit."
