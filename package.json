@@ -1,5 +1,5 @@
 {
-  "name": "multi-step-form",
+  "name": "@jfdevelops/multi-step-form",
   "version": "0.0.1",
   "description": "A type-safe multi step form solution.",
   "type": "module",
