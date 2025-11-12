@@ -85,7 +85,6 @@ export class MultiStepFormStorage<
     }
   }
 
-
   remove() {
     this.throwOnEmptyStore();
     this.store.removeItem(this.key);

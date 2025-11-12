@@ -726,7 +726,7 @@ export class MultiStepFormStepSchema<
       const ctx = createCtx<resolvedStep, stepNumbers, chosenSteps>(
         this.value,
         stepData
-      );
+      ) as never;
 
       if (typeof optionsOrFunction === 'function') {
         return () => optionsOrFunction({ ctx });

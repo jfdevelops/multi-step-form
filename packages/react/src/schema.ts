@@ -1,17 +1,17 @@
 import {
   type CasingType,
   type Constrain,
+  createCtx,
   type CreateHelperFunctionOptionsBase,
   DEFAULT_CASING,
   type DefaultCasing,
   type DefaultStorageKey,
   type HelperFnChosenSteps,
-  type HelperFnCtx,
   type MultiStepFormSchemaOptions as MultiStepFormSchemaBaseOptions,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   type ResolvedStep as ResolvedStepCore,
   type Step,
-  type StepNumbers,
+  type StepNumbers
 } from '@jfdevelops/multi-step-form';
 import type { ComponentPropsWithRef } from 'react';
 import { MultiStepFormSchemaConfig } from './form-config';
@@ -141,12 +141,10 @@ export class MultiStepFormSchema<
     fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenSteps, props>
   ): CreatedMultiStepFormComponent<props> {
     const { stepData } = options;
-    const ctx = this.stepHelper.createCtx(
-      stepData as HelperFnChosenSteps<
-        ResolvedStepCore<step, casing>,
-        StepNumbers<ResolvedStepCore<step, casing>>
-      >
-    ) as HelperFnCtx<resolvedStep, stepNumbers, chosenSteps>;
+    const ctx = createCtx<resolvedStep, stepNumbers, chosenSteps>(
+      this.stepSchema.value as never,
+      stepData
+    ) as never;
 
     return ((props?: props) => fn({ ctx }, props as any)) as any;
   }
