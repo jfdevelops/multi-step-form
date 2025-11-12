@@ -1,0 +1,9 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@jfdevelops/multi-step-form": "1.0.0-alpha.2",
+    "@jfdevelops/react-multi-step-form": "1.0.0-alpha.2"
+  },
+  "changesets": []
+}
