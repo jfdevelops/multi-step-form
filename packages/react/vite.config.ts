@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 
 import react from '@vitejs/plugin-react';
+import { playwright } from '@vitest/browser-playwright';
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
@@ -31,5 +32,13 @@ export default defineConfig({
     },
     sourcemap: true,
     emptyOutDir: true,
+  },
+  test: {
+    environment: 'jsdom',
+    browser: {
+      enabled: true,
+      provider: playwright(),
+      instances: [{ browser: 'chromium' }],
+    },
   },
 });

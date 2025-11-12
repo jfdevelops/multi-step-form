@@ -1,5 +1,4 @@
 import {
-  MultiStepFormStepHelper,
   MultiStepFormStepSchema,
   type MultiStepFormSchemaStepConfig,
   type ResolvedStep,
@@ -37,9 +36,14 @@ export class MultiStepFormSchema<
   stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>,
   storageKey extends string = DefaultStorageKey
 > extends Subscribable<MultiStepFormSchemaListener<step, casing, storageKey>> {
-  protected readonly stepHelper: MultiStepFormStepHelper<step, casing>;
   readonly defaultNameTransformationCasing: casing;
-  readonly stepSchema: MultiStepFormStepSchema<step, casing>;
+  readonly stepSchema: MultiStepFormStepSchema<
+    step,
+    casing,
+    resolvedStep,
+    stepNumbers,
+    storageKey
+  >;
   storage: MultiStepFormStorage<resolvedStep, storageKey>;
   private mountCount = 0;
 
@@ -63,10 +67,6 @@ export class MultiStepFormSchema<
       steps,
       nameTransformCasing: this.defaultNameTransformationCasing,
     });
-    this.stepHelper = new MultiStepFormStepHelper(
-      this.stepSchema.value,
-      this.stepSchema.steps.value as Array<stepNumbers>
-    );
     this.storage = new MultiStepFormStorage<resolvedStep, storageKey>({
       key: (storage?.key ?? DEFAULT_STORAGE_KEY) as storageKey,
       data: this.stepSchema.value as never,

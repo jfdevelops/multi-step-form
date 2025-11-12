@@ -14,6 +14,7 @@ import {
   type HelperFnCtx,
   type HelperFnInputBase,
   invariant,
+  MultiStepFormLogger,
   type MultiStepFormSchemaStepConfig as MultiStepFormSchemaStepBaseConfig,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
   type Relaxed,
@@ -138,8 +139,15 @@ export namespace StepSpecificComponent {
   export interface Input<
     TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
     TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-  > extends HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps> {
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TAdditionalCtx
+  > extends HelperFnInputBase<
+      TResolvedStep,
+      TSteps,
+      TChosenSteps,
+      never,
+      TAdditionalCtx
+    > {
     /**
      * A useful wrapper around `update` to update the specific field.
      * @param field The field to update.
@@ -176,9 +184,10 @@ export namespace StepSpecificComponent {
     TFormAlias extends string,
     TFormProps extends object,
     TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-    TAdditionalInput extends object = {}
+    TAdditionalInput extends object,
+    TAdditionalCtx
   > = CreateComponent<
-    Input<TResolvedStep, TSteps, TChosenSteps> &
+    Input<TResolvedStep, TSteps, TChosenSteps, TAdditionalCtx> &
       formComponent<
         TResolvedStep,
         TSteps,
@@ -231,8 +240,13 @@ export namespace StepSpecificComponent {
     TSteps extends StepNumbers<TResolvedStep>,
     TTargetStep extends HelperFnChosenSteps<TResolvedStep, TSteps>,
     TFormInstanceAlias extends string,
-    TFormInstance
+    TFormInstance,
+    TCtx
   > = {
+    /**
+     * If set to `true`, you'll be able to open the {@linkcode console} to view logs.
+     */
+    debug?: boolean;
     useFormInstance?: formInstanceOptions<
       TFormInstanceAlias,
       HelperFnInputBase<TResolvedStep, TSteps, TTargetStep> & {
@@ -245,6 +259,19 @@ export namespace StepSpecificComponent {
       },
       TFormInstance
     >;
+    /**
+     * A function to select the data that will be available in the `fn`'s ctx.
+     * @param input The available input to create the context with.
+     * @returns The created ctx.
+     */
+    ctxData?: (
+      input: HelperFnInputBase<
+        TResolvedStep,
+        TSteps,
+        'all',
+        HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TTargetStep>
+      >
+    ) => TCtx;
   };
 }
 
@@ -256,7 +283,8 @@ export type CreateStepSpecificComponentCallback<
   TFormAlias extends string,
   TFormProps extends object,
   TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-  TAdditionalInput extends object = {}
+  TAdditionalInput extends object = {},
+  TAdditionalCtx = {}
 > = StepSpecificComponent.callback<
   TResolvedStep,
   TSteps,
@@ -265,7 +293,8 @@ export type CreateStepSpecificComponentCallback<
   TFormAlias,
   TFormProps,
   TFormEnabledFor,
-  TAdditionalInput
+  TAdditionalInput,
+  TAdditionalCtx
 >;
 
 export type ExtractedDefaultValues<
@@ -313,6 +342,7 @@ export interface StepSpecificCreateComponentFn<
    */
   <
     formInstance,
+    additionalCtx,
     formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
     props = undefined
   >(
@@ -321,7 +351,8 @@ export interface StepSpecificCreateComponentFn<
       TSteps,
       TTargetStep,
       formInstanceAlias,
-      formInstance
+      formInstance,
+      additionalCtx
     >,
     fn: CreateStepSpecificComponentCallback<
       TResolvedStep,
@@ -331,7 +362,8 @@ export interface StepSpecificCreateComponentFn<
       TFormAlias,
       TFormProps,
       TFormEnabledFor,
-      { [_ in formInstanceAlias]: formInstance }
+      { [_ in formInstanceAlias]: formInstance },
+      additionalCtx
     >
   ): CreatedMultiStepFormComponent<props>;
 }
@@ -531,7 +563,7 @@ export class MultiStepFormStepSchema<
       formEnabledFor,
       formProps
     >,
-    ctx: HelperFnCtx<resolvedStep, stepNumbers, chosenStep>,
+    input: HelperFnInputBase<resolvedStep, stepNumbers, chosenStep>,
     extraInput = {}
   ) {
     return <props>(fn: Function) =>
@@ -576,6 +608,7 @@ export class MultiStepFormStepSchema<
         }
 
         const { defaultId, form } = config;
+        const { ctx } = input;
 
         if (form) {
           const {
@@ -714,6 +747,7 @@ export class MultiStepFormStepSchema<
     const createStepSpecificComponentImpl =
       this.createStepSpecificComponentImpl.bind(this);
     const createDefaultValues = this.createDefaultValues.bind(this);
+    const resolvedValues = this.value;
 
     function impl<props = undefined>(
       fn: CreateStepSpecificComponentCallback<
@@ -729,14 +763,16 @@ export class MultiStepFormStepSchema<
     function impl<
       formInstance,
       formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-      props = undefined
+      props = undefined,
+      additionalCtx = {}
     >(
       options: StepSpecificComponent.options<
         resolvedStep,
         stepNumbers,
         chosenStep,
         formInstanceAlias,
-        formInstance
+        formInstance,
+        additionalCtx
       >,
       fn: CreateStepSpecificComponentCallback<
         resolvedStep,
@@ -752,7 +788,8 @@ export class MultiStepFormStepSchema<
     function impl<
       formInstance,
       formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-      props = undefined
+      props = undefined,
+      additionalCtx = {}
     >(
       optionsOrFn:
         | StepSpecificComponent.options<
@@ -760,7 +797,8 @@ export class MultiStepFormStepSchema<
             stepNumbers,
             chosenStep,
             formInstanceAlias,
-            formInstance
+            formInstance,
+            additionalCtx
           >
         | CreateStepSpecificComponentCallback<
             resolvedStep,
@@ -782,6 +820,12 @@ export class MultiStepFormStepSchema<
         { [_ in formInstanceAlias]: formInstance }
       >
     ) {
+      function createResolvedCtx(additionalCtx: unknown) {
+        return (
+          additionalCtx ? { ctx: { ...ctx, ...additionalCtx } } : { ctx }
+        ) as HelperFnInputBase<resolvedStep, stepNumbers, chosenStep>;
+      }
+
       function createStepSpecificComponent() {
         invariant(
           typeof optionsOrFn === 'function',
@@ -791,23 +835,38 @@ export class MultiStepFormStepSchema<
         return createStepSpecificComponentImpl(
           stepData,
           config,
-          ctx
+          createResolvedCtx(undefined)
         )(optionsOrFn);
       }
 
       if (typeof optionsOrFn === 'object') {
-        const { useFormInstance } = optionsOrFn;
+        const { useFormInstance, ctxData, debug } = optionsOrFn;
+        const currentStepKey = (
+          stepData as HelperFnChosenSteps.tupleNotation<
+            ValidStepKey<stepNumbers>
+          >
+        )[0] as keyof resolvedStep;
+        const logger = new MultiStepFormLogger({
+          debug,
+          prefix(prefix) {
+            return `${prefix}-${String(currentStepKey)}-createComponent`;
+          },
+        });
+
+        logger.info('First argument is an object');
+
+        const { [currentStepKey]: _, ...values } = resolvedValues;
+
+        invariant(
+          typeof fn === 'function',
+          'The second argument must be a function'
+        );
 
         if (useFormInstance) {
           const {
             render,
             alias = StepSpecificComponent.DEFAULT_FORM_INSTANCE_ALIAS,
           } = useFormInstance;
-
-          invariant(
-            typeof fn === 'function',
-            'The second argument must be a function'
-          );
 
           // Safe cast here since the step specific `createComponent` will always have
           // `stepData` as a tuple
@@ -817,13 +876,53 @@ export class MultiStepFormStepSchema<
           // Store the render function and inputs to call it at component level
           // This ensures hooks are called in a valid React context
           const defaultValues = createDefaultValues(step) as never;
-          const renderInput = { ctx, defaultValues };
+          const resolvedCtx = ctxData
+            ? {
+                ...ctx,
+                ...ctxData({ ctx: values } as never),
+              }
+            : ctx;
+          const renderInput = { ctx: resolvedCtx, defaultValues };
 
-          return createStepSpecificComponentImpl(stepData, config, ctx, {
-            [alias]: () => render(renderInput),
+          return createStepSpecificComponentImpl(
+            stepData,
+            config,
+            resolvedCtx as never,
+            {
+              [alias]: () => render(renderInput as never),
+            }
+          )(fn);
+        }
+
+        if (ctxData) {
+          logger.info('Option "ctxData" is defined');
+          invariant(
+            typeof ctxData === 'function',
+            'Option "ctxData" must be a function'
+          );
+
+          const additionalCtx = ctxData({ ctx: values } as never);
+
+          logger.info(
+            `Addition context is: ${JSON.stringify(additionalCtx, null, 2)}`
+          );
+
+          const resolvedCtx = {
+            ...ctx,
+            ...additionalCtx,
+          };
+
+          logger.info(
+            `Resolved context is: ${JSON.stringify(resolvedCtx, null, 2)}`
+          );
+
+          return createStepSpecificComponentImpl(stepData, config, {
+            ctx: resolvedCtx as never,
           })(fn);
         }
 
+        // Empty options object. Can throw here 🤷‍♂️
+        // Maybe add "global" - top level config - option to tune fine grained errors.
         return createStepSpecificComponent();
       }
 
@@ -881,10 +980,7 @@ export class MultiStepFormStepSchema<
 
     return <props>(fn: Function) =>
       ((props?: props) =>
-        fn(
-          { ctx } as any,
-          props as any
-        )) as CreatedMultiStepFormComponent<props>;
+        fn(ctx, props as any)) as CreatedMultiStepFormComponent<props>;
   }
 
   private createComponentForStep<
