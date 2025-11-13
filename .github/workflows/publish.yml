@@ -34,6 +34,7 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
+        working-directory: /packages/react
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run tests
