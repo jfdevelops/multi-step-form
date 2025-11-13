@@ -3,7 +3,7 @@ name: Build and Publish Packages
 on:
   push:
     tags:
-      - "v*" # Only trigger when a version tag (like v1.0.0) is pushed
+      - 'v*' # Only trigger when a version tag (like v1.0.0) is pushed
 
 jobs:
   build-and-publish:
@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: "https://registry.npmjs.org/"
+          registry-url: 'https://registry.npmjs.org/'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -30,15 +30,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 4️⃣ Run root-level test command
-      - name: Run tests
-        run: pnpm run test:packages
+      # 4️⃣ Install Playwright browsers for Vitest browser mode
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
 
-      # 5️⃣ Run root-level build command
+      # 5️⃣ Run root-level test command
+      - name: Run tests
+        run: pnpm run test:packages -- --reporter=verbose --reporter=github-actions
+
+      # 6️⃣ Run root-level build command
       - name: Build packages
         run: pnpm run build:packages
 
-      # 6️⃣ Publish each package separately
+      # 7️⃣ Publish each package separately
       - name: Publish packages
         if: startsWith(github.ref, 'refs/tags/v')
         env:
