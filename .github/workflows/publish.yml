@@ -37,13 +37,21 @@ jobs:
         working-directory: packages/react
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run tests
+      - name: Run tests (core)
         env:
           CI: true
-        run: pnpm run test:packages --browser.headless=true --reporter=verbose --reporter=github-actions
+        run: pnpm run test:core
 
-      - name: Build packages
-        run: pnpm run build:packages
+      - name: Build (core)
+        run: pnpm run build:core
+
+      - name: Run tests (react)
+        env:
+          CI: true
+        run: pnpm run test:react --browser.headless=true --reporter=verbose --reporter=github-actions
+
+      - name: Build (react)
+        run: pnpm run build:react
 
       - name: Publish packages
         if: startsWith(github.ref, 'refs/tags/v')

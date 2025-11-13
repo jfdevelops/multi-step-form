@@ -15,6 +15,8 @@
     "dev": "pnpm -r dev",
     "test": "pnpm -r test",
     "test:packages": "pnpm -r --filter \"@jfdevelops/*\" test",
+    "test:core": "pnpm -r --filter=@jfdevelops/multi-step-form test",
+    "test:react": "pnpm -r --filter=@jfdevelops/react-multi-step-form test",
     "prepare": "husky"
   },
   "keywords": [],
