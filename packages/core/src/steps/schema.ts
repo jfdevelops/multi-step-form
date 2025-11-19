@@ -16,7 +16,11 @@ import {
   type Expand,
   type Join,
 } from '@/utils';
-import { comparePartialArray, printErrors } from '@/utils/helpers';
+import {
+  comparePartialArray,
+  printErrors,
+  typedObjectKeys,
+} from '@/utils/helpers';
 import { invariant } from '@/utils/invariant';
 import { path } from '@/utils/path';
 import {
@@ -26,7 +30,7 @@ import {
   type StandardSchemaValidator,
 } from '@/utils/validator';
 import { Subscribable } from '../subscribable';
-import type {
+import {
   AnyResolvedStep,
   AnyStepField,
   AnyStepFieldOption,
@@ -56,6 +60,8 @@ import type {
   UnionToTuple,
   UpdateFn,
   ValidStepKey,
+  helperFnUpdateFn,
+  type HelperFnUpdateFn,
 } from './types';
 import {
   createCtx,
@@ -509,6 +515,62 @@ export class MultiStepFormStepSchema<
     this.notify();
   }
 
+  private createHelperFnInputUpdate<
+    chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+  >(chosenSteps: chosenSteps) {
+    if (HelperFnChosenSteps.isAll(chosenSteps)) {
+      const stepSpecificUpdateFn = typedObjectKeys<
+        resolvedStep,
+        ValidStepKey<stepNumbers>
+      >(this.value).reduce((acc, key) => {
+        acc[key] = this.createStepUpdaterFn(key);
+
+        return acc;
+      }, {} as helperFnUpdateFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
+      const update = Object.assign(
+        this.update,
+        stepSpecificUpdateFn
+      ) as HelperFnUpdateFn<resolvedStep, stepNumbers, chosenSteps>;
+
+      return update;
+    }
+
+    const validKeys = Object.keys(this.value);
+
+    if (HelperFnChosenSteps.isTuple<stepNumbers>(chosenSteps, validKeys)) {
+      const stepSpecificUpdateFn = chosenSteps.reduce((acc, step) => {
+        acc[step] = this.createStepUpdaterFn(step);
+
+        return acc;
+      }, {} as helperFnUpdateFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
+      const update = Object.assign(
+        this.update,
+        stepSpecificUpdateFn
+      ) as HelperFnUpdateFn<resolvedStep, stepNumbers, chosenSteps>;
+
+      return update;
+    }
+
+    if (HelperFnChosenSteps.isObject<stepNumbers>(chosenSteps, validKeys)) {
+      const stepSpecificUpdateFn = typedObjectKeys<
+        HelperFnChosenSteps.objectNotation<`step${stepNumbers}`>,
+        ValidStepKey<stepNumbers>
+      >(chosenSteps).reduce((acc, key) => {
+        acc[key] = this.createStepUpdaterFn(key);
+
+        return acc;
+      }, {} as helperFnUpdateFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
+      const update = Object.assign(
+        this.update,
+        stepSpecificUpdateFn
+      ) as HelperFnUpdateFn<resolvedStep, stepNumbers, chosenSteps>;
+
+      return update;
+    }
+
+    throw new TypeError(`[update]: ${HelperFnChosenSteps.CATCH_ALL_MESSAGE}`);
+  }
+
   private createStepUpdaterFnImpl<
     targetStep extends ValidStepKey<stepNumbers>,
     fields extends UpdateFn.chosenFields<currentStep>,
@@ -562,6 +624,7 @@ export class MultiStepFormStepSchema<
 
     const updated = functionalUpdate(updater, {
       ctx: ctx as never,
+      update: this.createHelperFnInputUpdate([targetStep]),
     });
 
     // TODO validate `updater` - will have to be done in each case (I think)
@@ -783,7 +846,11 @@ export class MultiStepFormStepSchema<
       ) as never;
 
       if (typeof optionsOrFunction === 'function') {
-        return () => optionsOrFunction({ ctx });
+        return () =>
+          optionsOrFunction({
+            ctx,
+            update: this.createHelperFnInputUpdate(stepData),
+          });
       }
 
       if (typeof optionsOrFunction === 'object') {
@@ -819,7 +886,11 @@ export class MultiStepFormStepSchema<
               };
             }
 
-            return fn({ ctx: resolvedCtx as never, ...input });
+            return fn({
+              ctx: resolvedCtx as never,
+              update: this.createHelperFnInputUpdate(stepData),
+              ...input,
+            });
           }
 
           return (
@@ -830,7 +901,7 @@ export class MultiStepFormStepSchema<
               additionalCtx,
               response
             >
-          )({ ctx });
+          )({ ctx, update: this.createHelperFnInputUpdate(stepData) });
         };
       }
 

@@ -1,12 +1,13 @@
 import type { StorageConfig } from '@/storage';
-import type {
-  CasingType,
-  Constrain,
-  DefaultCasing,
-  DefaultFieldType,
-  Expand,
-  FieldType,
-  objectHelpers,
+import {
+  invariant,
+  type CasingType,
+  type Constrain,
+  type DefaultCasing,
+  type DefaultFieldType,
+  type Expand,
+  type FieldType,
+  type objectHelpers,
 } from '@/utils';
 import type { DeepKeys, path } from '@/utils/path';
 import type {
@@ -649,6 +650,49 @@ export namespace HelperFnChosenSteps {
     : TChosenSteps extends objectNotation<ValidStepKey<TSteps>>
     ? keyof TChosenSteps
     : never;
+
+  export const CATCH_ALL_MESSAGE =
+    'The chosen steps must either be set to on of the following: "all", an array of steps (["step1", "step2", ...]), or an object containing the steps to chose ({ step1: true, step2: true, ...})';
+
+  export function isAll(value: unknown): value is defaultStringOption {
+    return Boolean(value && typeof value === 'string' && value === 'all');
+  }
+
+  export function isTuple<T extends number>(
+    value: unknown,
+    validValues?: Array<unknown>
+  ): value is tupleNotation<ValidStepKey<T>> {
+    if (!Array.isArray(value)) {
+      return false;
+    }
+
+    if (validValues) {
+      return value.every((key) => validValues.includes(key));
+    }
+
+    return true;
+  }
+
+  export function isObject<T extends number>(
+    value: unknown,
+    validKeys?: Array<unknown>
+  ): value is objectNotation<ValidStepKey<T>> {
+    if (!value) {
+      return false;
+    }
+
+    const keys = Object.keys(value);
+
+    if (keys.length === 0) {
+      return false;
+    }
+
+    if (validKeys && !keys.every((key) => validKeys.includes(key))) {
+      return false;
+    }
+
+    return Object.entries(value).every(([_, v]) => v === true);
+  }
 }
 
 export type HelperFnChosenSteps<
@@ -687,11 +731,14 @@ export interface CtxDataSelector<
    * @returns The created ctx.
    */
   ctxData?: (
-    input: HelperFnInputBase<
-      TResolvedStep,
-      TStepNumbers,
-      'all',
-      HelperFnChosenSteps.resolve<TResolvedStep, TStepNumbers, TChosenSteps>
+    input: Pick<
+      HelperFnInputBase<
+        TResolvedStep,
+        TStepNumbers,
+        'all',
+        HelperFnChosenSteps.resolve<TResolvedStep, TStepNumbers, TChosenSteps>
+      >,
+      'ctx'
     >
   ) => TAdditionalCtx;
 }
@@ -787,6 +834,34 @@ export type HelperFnCtx<
     : never
   : never;
 
+export type helperFnUpdateFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TSteps extends ValidStepKey<TStepNumbers>
+> = {
+  [step in TSteps]: UpdateFn.stepSpecific<TResolvedStep, TStepNumbers, step>;
+};
+export type HelperFnUpdateFn<
+  TResolvedStep extends AnyResolvedStep,
+  TSteps extends StepNumbers<TResolvedStep>,
+  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+> = UpdateFn.general<TResolvedStep, TSteps> &
+  (TChosenSteps extends HelperFnChosenSteps.defaultStringOption
+    ? helperFnUpdateFn<TResolvedStep, TSteps, ValidStepKey<TSteps>>
+    : TChosenSteps extends HelperFnChosenSteps.tupleNotation<
+        ValidStepKey<TSteps>
+      >
+    ? helperFnUpdateFn<TResolvedStep, TSteps, TChosenSteps[number]>
+    : TChosenSteps extends HelperFnChosenSteps.objectNotation<
+        ValidStepKey<TSteps>
+      >
+    ? {
+        [step in keyof TChosenSteps]: step extends ValidStepKey<TSteps>
+          ? helperFnUpdateFn<TResolvedStep, TSteps, step>[step]
+          : {};
+      }
+    : {});
+
 export interface HelperFnInputBase<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
@@ -798,10 +873,18 @@ export interface HelperFnInputBase<
   > = never,
   TAdditionalCtx extends Record<string, unknown> = {}
 > {
+  /**
+   * The multi-step form step context.
+   */
+  // TODO determine if this should be renamed to `steps` since it only has the step data
   ctx: Expand<
     HelperFnCtx<TResolvedStep, TSteps, TChosenSteps, TOmitSteps> &
       TAdditionalCtx
   >;
+  /**
+   * A function to update parts of the multi-step form schema.
+   */
+  update: HelperFnUpdateFn<TResolvedStep, TSteps, TChosenSteps>;
 }
 export type HelperFnInputWithValidator<
   TResolvedStep extends AnyResolvedStep,

@@ -41,3 +41,7 @@ export function printErrors<T>(
   const defaultMapper = (e: unknown, i: number) => `❌ ${i + 1}. ${e}`;
   return errors.map((e, i) => mapper?.(e, i) ?? defaultMapper(e, i)).join('\n');
 }
+
+export function typedObjectKeys<T extends Record<string, unknown>, TOverrideKey = keyof T>(value: T) {
+  return Object.keys(value) as Array<TOverrideKey>;
+}
