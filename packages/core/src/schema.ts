@@ -145,24 +145,3 @@ export function createMultiStepFormSchema<
     storageKey
   >(options);
 }
-
-const schema = createMultiStepFormSchema({
-  steps: {
-    step1: {
-      title: 'Step 1',
-      fields: {
-        test: {
-          defaultValue: '',
-        },
-      },
-    },
-    step2: {
-      title: 'Step 2',
-      fields: {
-        bar: {
-          defaultValue: 0,
-        },
-      },
-    },
-  },
-});

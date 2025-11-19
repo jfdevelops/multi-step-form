@@ -37,8 +37,16 @@ export default defineConfig({
     environment: 'jsdom',
     browser: {
       enabled: true,
-      provider: playwright(),
-      instances: [{ browser: 'chromium' }],
+      provider: playwright({
+        launchOptions: {
+          args: ['--window-size=1280,720', '--window-position=100,100'],
+        },
+      }),
+      instances: [
+        {
+          browser: 'chromium',
+        },
+      ],
     },
   },
 });

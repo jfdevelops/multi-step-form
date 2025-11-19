@@ -14,8 +14,11 @@ import {
   type Constrain,
   type DefaultCasing,
   type Expand,
+  type Join,
 } from '@/utils';
+import { comparePartialArray, printErrors } from '@/utils/helpers';
 import { invariant } from '@/utils/invariant';
+import { path } from '@/utils/path';
 import {
   runStandardValidation,
   type AnyValidator,
@@ -42,10 +45,8 @@ import type {
   HelperFnWithValidator,
   HelperFnWithoutValidator,
   InferStepOptions,
-  Join,
   LastStep,
   MultiStepFormSchemaStepConfig,
-  Relaxed,
   ResolvedFields,
   ResolvedStep,
   Step,
@@ -53,8 +54,7 @@ import type {
   StepNumbers,
   StepOptions,
   UnionToTuple,
-  UpdateStepFn,
-  Updater,
+  UpdateFn,
   ValidStepKey,
 } from './types';
 import {
@@ -68,7 +68,7 @@ export interface MultiStepFormStepSchemaFunctions<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>
 > {
-  update: UpdateStepFn<TResolvedStep, TStepNumbers>;
+  update: UpdateFn.general<TResolvedStep, TStepNumbers>;
   createHelperFn: CreateStepHelperFn<TResolvedStep, TStepNumbers>;
 }
 export type AsType = (typeof AS_TYPES)[number];
@@ -463,7 +463,7 @@ export class MultiStepFormStepSchema<
         ...values,
         [key as keyof resolvedStep]: {
           ...(stepValue as object),
-          update: this.createStepUpdaterFn(step),
+          update: this.createStepUpdaterFn(key as ValidStepKey<stepNumbers>),
           createHelperFn: this.createStepHelperFn(step),
           ...additionalProps?.(step),
         },
@@ -510,78 +510,104 @@ export class MultiStepFormStepSchema<
   }
 
   private createStepUpdaterFnImpl<
-    TargetStep extends stepNumbers,
-    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
-    Field extends keyof CurrentStepData
+    targetStep extends ValidStepKey<stepNumbers>,
+    fields extends UpdateFn.chosenFields<currentStep>,
+    additionalCtx extends Record<string, unknown>,
+    currentStep extends UpdateFn.resolvedStep<
+      resolvedStep,
+      stepNumbers,
+      targetStep
+    >
   >(
-    step: TargetStep,
-    fieldOrUpdater: Field | Updater<CurrentStepData, Relaxed<CurrentStepData>>,
-    updater:
-      | Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
-      | undefined
+    options: UpdateFn.options<
+      resolvedStep,
+      stepNumbers,
+      targetStep,
+      fields,
+      additionalCtx,
+      currentStep
+    >
   ) {
-    const steps = this.stepNumbers;
+    const { targetStep, updater, ctxData, fields = 'all' } = options;
 
     invariant(
-      typeof step === 'number',
-      `Type of step must be a number, was ${typeof step}`,
-      TypeError
-    );
-    invariant(
-      steps.includes(step),
-      `The target step ${step} is not valid. Valid steps include "${steps.join(
-        ', '
-      )}"`
+      this.steps.isValidStepKey(targetStep),
+      `[update]: The target step ${targetStep} isn't a valid step. Please select a valid step`
     );
 
-    const stepKey = `step${step}` as keyof resolvedStep;
+    const { [targetStep]: currentStep, ...values } = this.value;
 
-    if (typeof fieldOrUpdater === 'string') {
-      invariant(this.value[stepKey], `No data found for step ${step}`);
+    let ctx = createCtx(this.value, [targetStep]);
+
+    // Build the `ctx` first
+    if (ctxData) {
+      invariant(
+        typeof ctxData === 'function',
+        '[update]: "ctxData" must be a function'
+      );
+
+      const additionalCtx = ctxData({ ctx: values as never });
 
       invariant(
-        typeof this.value[stepKey] === 'object',
-        `The values for step ${step} is not an object, was ${typeof this.value[
-          stepKey
-        ]}`
+        typeof additionalCtx === 'object' &&
+          Object.keys(additionalCtx).length > 0,
+        '[update]: "ctxData" must return an object with keys'
       );
+
+      ctx = {
+        ...ctx,
+        ...additionalCtx,
+      };
+    }
+
+    const updated = functionalUpdate(updater, {
+      ctx: ctx as never,
+    });
+
+    // TODO validate `updater` - will have to be done in each case (I think)
+
+    // default case: updating all fields for the current step
+    if (!fields) {
       invariant(
-        fieldOrUpdater in this.value[stepKey],
-        `The field ${fieldOrUpdater} is not a valid field. Valid fields include ${Object.keys(
-          this.value[stepKey]
-        ).join(', ')}`
+        typeof updated === 'object',
+        '[update]: "updater" must be an object or a function that returns an object'
       );
-      // invariant(
-      //   typeof updater === 'object' || typeof updater === 'function',
-      //   () => {
-      //     let targetUpdaterTypeMsg = '';
 
-      //     if (typeof updater !== 'object') {
-      //       targetUpdaterTypeMsg = 'an object';
-      //     }
+      const stepKeys = Object.keys(this.value);
+      const updaterResultKeys = Object.keys(updated as Record<string, unknown>);
 
-      //     if (typeof updater !== 'function') {
-      //       targetUpdaterTypeMsg = 'a function';
-      //     }
+      invariant(updaterResultKeys.length === stepKeys.length, () => {
+        const missingKeys = stepKeys.filter(
+          (key) => !updaterResultKeys.includes(key)
+        );
+        const formatter = new Intl.ListFormat('en', {
+          style: 'long',
+          type: 'conjunction',
+        });
 
-      //     return `[${String(
-      //       stepKey
-      //     )}-${fieldOrUpdater}]: The updater must be ${targetUpdaterTypeMsg}, was "${typeof updater}"`;
-      //   },
-      //   TypeError
-      // );
+        return `[update]: "updater" is missing keys ${formatter.format(
+          missingKeys
+        )}`;
+      });
+      const paths = path.createDeep(this.value);
+
+      const { mismatches, ok } = path.equalsAtPaths(
+        this.value,
+        paths,
+        updated as never
+      );
+
+      invariant(
+        ok && mismatches.length === 0,
+        `[update]: found value mismatches in ${path.printMismatches({
+          mismatches,
+          ok,
+        })}`
+      );
 
       this.value = {
         ...this.value,
-        [stepKey]: {
-          ...this.value[stepKey],
-          [fieldOrUpdater]: functionalUpdate(
-            updater,
-            this.value[stepKey][
-              fieldOrUpdater as keyof (keyof resolvedStep)
-            ] as CurrentStepData[Field]
-          ),
-        },
+        [targetStep]: path.updateAt(this.value, paths, updated as never),
       };
 
       this.handlePostUpdate();
@@ -589,26 +615,82 @@ export class MultiStepFormStepSchema<
       return;
     }
 
-    if (
-      typeof fieldOrUpdater === 'object' ||
-      typeof fieldOrUpdater === 'function'
-    ) {
-      const updatedData = functionalUpdate(
-        fieldOrUpdater,
-        this.value[stepKey] as CurrentStepData
+    const currentStepDeepKeys = path.createDeep(currentStep);
+
+    if (Array.isArray(fields)) {
+      const compareResult = comparePartialArray(currentStepDeepKeys, fields);
+
+      invariant(
+        compareResult.status === 'success',
+        `[update]: Found errors with the provided fields\n${
+          compareResult.status === 'error'
+            ? printErrors(compareResult.errors)
+            : ''
+        }`
+      );
+
+      const { mismatches, ok } = path.equalsAtPaths(
+        currentStep,
+        fields,
+        updated as never
       );
 
       invariant(
-        typeof updatedData === 'object',
-        `The updated data must be an object, was ${typeof updatedData}`
+        ok && mismatches.length === 0,
+        `[update]: found value mismatches in ${path.printMismatches({
+          ok,
+          mismatches,
+        })}`
       );
 
       this.value = {
         ...this.value,
-        [stepKey]: {
-          ...this.value[stepKey],
-          ...updatedData,
-        },
+        [targetStep]: path.updateAt(currentStep, fields, updated as never),
+      };
+
+      this.handlePostUpdate();
+
+      return;
+    }
+
+    if (typeof fields === 'object' && Object.keys(fields).length > 0) {
+      const keys = path.createDeep(fields);
+      const compareResult = comparePartialArray(
+        currentStepDeepKeys,
+        keys as never
+      );
+
+      invariant(
+        compareResult.status === 'success',
+        `[update]: Found errors with the provided fields\n${
+          compareResult.status === 'error'
+            ? printErrors(compareResult.errors)
+            : ''
+        }`
+      );
+
+      // TODO validate all values (deepest) are `true`
+      const { mismatches, ok } = path.equalsAtPaths(
+        currentStep,
+        keys as never,
+        updated as never
+      );
+
+      invariant(
+        ok && mismatches.length === 0,
+        `[update]: found value mismatches in ${path.printMismatches({
+          ok,
+          mismatches,
+        })}`
+      );
+
+      this.value = {
+        ...this.value,
+        [targetStep]: path.updateAt(
+          currentStep,
+          keys as never,
+          updated as never
+        ),
       };
 
       this.handlePostUpdate();
@@ -617,70 +699,35 @@ export class MultiStepFormStepSchema<
     }
 
     throw new TypeError(
-      `The second parameter must be one of the following: a specific field to update (string), an object with the updated data, or a function that returns the updated data. It was ${typeof fieldOrUpdater}`,
-      { cause: fieldOrUpdater }
+      `[update]: property "fields" must be set to one of the following: "all", an array of deep paths to update, or an object of paths. Was ${typeof updater}`,
+      { cause: updater }
     );
   }
 
-  protected createStepUpdaterFn<TargetStep extends stepNumbers>(
-    step: TargetStep
-  ): UpdateStepFn<resolvedStep, stepNumbers, TargetStep, true>;
-  protected createStepUpdaterFn<TargetStep extends stepNumbers>(
-    step: TargetStep
-  ) {
-    return <CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>>(
-      fieldOrUpdater:
-        | keyof CurrentStepData
-        | Updater<CurrentStepData, Relaxed<CurrentStepData>>,
-      updater: Updater<
-        CurrentStepData[keyof CurrentStepData],
-        Relaxed<CurrentStepData[keyof CurrentStepData]>
-      >
-    ) => {
-      this.createStepUpdaterFnImpl(
-        step,
-        fieldOrUpdater as never,
-        updater as never
-      );
+  protected createStepUpdaterFn<targetStep extends ValidStepKey<stepNumbers>>(
+    targetStep: targetStep
+  ): UpdateFn.stepSpecific<resolvedStep, stepNumbers, targetStep> {
+    return (options) => {
+      this.createStepUpdaterFnImpl({ targetStep, ...options });
     };
   }
 
-  /**
-   * Update a specific field's data for the specified step.
-   * @param step The step to update.
-   * @param field The field to update.
-   * @param updater The updated data for field.
-   */
-  // NOTE: This overload is first so that `field` gets autocomplete
   update<
-    TargetStep extends stepNumbers,
-    CurrentStepData extends GetCurrentStep<resolvedStep, TargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
-    >
-  >(step: TargetStep, field: Field, updater: TUpdater): void;
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  update<
-    Step extends stepNumbers,
-    CurrentStepData extends GetCurrentStep<resolvedStep, Step>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(step: Step, updater: TUpdater): void;
-  update<
-    Step extends stepNumbers,
-    CurrentStepData extends GetCurrentStep<resolvedStep, Step>,
-    Field extends keyof CurrentStepData
+    targetStep extends ValidStepKey<stepNumbers>,
+    field extends UpdateFn.chosenFields<
+      UpdateFn.resolvedStep<resolvedStep, stepNumbers, targetStep>
+    > = 'all',
+    additionalCtx extends Record<string, unknown> = {}
   >(
-    step: Step,
-    fieldOrUpdater: Field | Updater<CurrentStepData, Relaxed<CurrentStepData>>,
-    updater?: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
+    options: UpdateFn.options<
+      resolvedStep,
+      stepNumbers,
+      targetStep,
+      field,
+      additionalCtx
+    >
   ) {
-    this.createStepUpdaterFnImpl(step, fieldOrUpdater, updater);
+    this.createStepUpdaterFnImpl(options);
   }
 
   private createStepHelperFnImpl<
@@ -960,8 +1007,8 @@ export class MultiStepFormStepSchema<
         v
       ): v is GetCurrentStep<resolvedStep, stepNumbers>['createHelperFn'] =>
         typeof v === 'function',
-      update: (v): v is GetCurrentStep<resolvedStep, stepNumbers>['update'] =>
-        typeof v === 'function',
+      // update: (v): v is GetCurrentStep<resolvedStep, stepNumbers>['update'] =>
+      //   typeof v === 'function',
       nameTransformCasing: isCasingValid,
       ...options?.optionalKeysToCheck,
     });

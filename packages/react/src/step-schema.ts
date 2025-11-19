@@ -22,6 +22,7 @@ import {
   type Step,
   type StepNumbers,
   type StrippedResolvedStep,
+  type UpdateFn,
   type Updater,
   type ValidStepKey,
 } from '@jfdevelops/multi-step-form';
@@ -140,7 +141,16 @@ export namespace StepSpecificComponent {
     TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
     TSteps extends StepNumbers<TResolvedStep>,
     TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TAdditionalCtx extends Record<string, unknown>
+    TAdditionalCtx extends Record<string, unknown>,
+    TStepNumber extends HelperFnChosenSteps.extractStepNumber<
+      TResolvedStep,
+      TSteps,
+      TChosenSteps
+    > = HelperFnChosenSteps.extractStepNumber<
+      TResolvedStep,
+      TSteps,
+      TChosenSteps
+    >
   > extends HelperFnInputBase<
       TResolvedStep,
       TSteps,
@@ -150,24 +160,25 @@ export namespace StepSpecificComponent {
     > {
     /**
      * A useful wrapper around `update` to update the specific field.
-     * @param field The field to update.
-     * @param updater The new value for the specified field.
      */
-    onInputChange: <
-      CurrentStepData extends GetCurrentStep<
-        TResolvedStep,
-        // @ts-ignore Type checking works properly, type doesn't match
-        HelperFnChosenSteps.extractStepNumber<
-          TResolvedStep,
-          TSteps,
-          TChosenSteps
-        >
-      >,
-      Field extends keyof CurrentStepData
-    >(
-      field: Field,
-      updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
-    ) => void;
+    onInputChange: TStepNumber extends TSteps
+      ? UpdateFn.stepSpecific<TResolvedStep, TSteps, ValidStepKey<TStepNumber>>
+      : never;
+    // onInputChange: <
+    //   CurrentStepData extends GetCurrentStep<
+    //     TResolvedStep,
+    //     // @ts-ignore Type checking works properly, type doesn't match
+    //     HelperFnChosenSteps.extractStepNumber<
+    //       TResolvedStep,
+    //       TSteps,
+    //       TChosenSteps
+    //     >
+    //   >,
+    //   Field extends keyof CurrentStepData
+    // >(
+    //   field: Field,
+    //   updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
+    // ) => void;
     Field: Field.component<
       TResolvedStep,
       TSteps,
@@ -187,16 +198,18 @@ export namespace StepSpecificComponent {
     TAdditionalInput extends object,
     TAdditionalCtx extends Record<string, unknown>
   > = CreateComponent<
-    Input<TResolvedStep, TSteps, TChosenSteps, TAdditionalCtx> &
-      formComponent<
-        TResolvedStep,
-        TSteps,
-        TChosenSteps,
-        TFormAlias,
-        TFormProps,
-        TFormEnabledFor
-      > &
-      TAdditionalInput,
+    Expand<
+      Input<TResolvedStep, TSteps, TChosenSteps, TAdditionalCtx> &
+        formComponent<
+          TResolvedStep,
+          TSteps,
+          TChosenSteps,
+          TFormAlias,
+          TFormProps,
+          TFormEnabledFor
+        > &
+        TAdditionalInput
+    >,
     TProps
   >;
   export const DEFAULT_FORM_INSTANCE_ALIAS = 'form';
@@ -610,6 +623,90 @@ export class MultiStepFormStepSchema<
         const { defaultId, form } = config;
         const { ctx } = input;
 
+        // Safe cast here since the step specific `createComponent` will always have
+        // `stepData` as a tuple
+        const [step] =
+          stepData as HelperFnChosenSteps.tupleNotation<`step${stepNumbers}`>;
+
+        invariant(
+          this.steps.isValidStepKey(step),
+          `[createComponent]: the target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
+        );
+
+        const stepNumber = Number.parseInt(step.replace('step', ''));
+
+        invariant(
+          !Number.isNaN(stepNumber),
+          `[${step}:"createComponent"]: an error occurred while extracting the number`
+        );
+        const current = this.value[step as keyof resolvedStep];
+
+        // These checks are mostly for type safety. `current` should _always_ be in the proper format.
+        // On the off chance that it's not, we have the checks here to help, but these checks are basically
+        // just for type safety.
+        invariant(
+          'fields' in current,
+          `[${step}:createComponent]: unable to find the "fields" for the current step`
+        );
+        invariant(
+          typeof current.fields === 'object',
+          `[${step}:createComponent]: the "fields" property must be an object, was ${typeof current.fields}`
+        );
+
+        const Field = createField((name) => {
+          invariant(typeof name === 'string', () => {
+            const formatter = new Intl.ListFormat('en', {
+              style: 'long',
+              type: 'disjunction',
+            });
+
+            return `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include ${formatter.format(
+              Object.keys(current.fields as Record<string, unknown>)
+            )}`;
+          });
+          invariant(
+            name in (current.fields as object),
+            `[${step}:Field]: the field "${name}" doesn't exist for the current step`
+          );
+
+          invariant(
+            'update' in current,
+            `[${step}:Field]: No "update" function was found`
+          );
+
+          const { fields, update } = current;
+          const { defaultValue, label, nameTransformCasing, type } = (
+            fields as AnyStepField
+          )[name];
+
+          return {
+            defaultValue,
+            label,
+            nameTransformCasing,
+            type,
+            name,
+            onInputChange: (value: unknown) =>
+              // TODO remove type assertions
+              (
+                update as UpdateFn.stepSpecific<
+                  resolvedStep,
+                  stepNumbers,
+                  ValidStepKey<stepNumbers>
+                >
+              )({
+                fields: [`fields.${name}.defaultValue`] as never,
+                updater: value as never,
+              }),
+          };
+        });
+
+        let fnInput = {
+          ctx,
+          onInputChange: this.createStepUpdaterFn(step),
+          Field,
+          ...hookResults,
+        };
+
         if (form) {
           const {
             alias = MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS,
@@ -617,106 +714,24 @@ export class MultiStepFormStepSchema<
           } = form;
           const enabledFor = rest.enabledForSteps ?? 'all';
 
-          // Safe cast here since the step specific `createComponent` will always have
-          // `stepData` as a tuple
-          const [step] =
-            stepData as HelperFnChosenSteps.tupleNotation<`step${stepNumbers}`>;
-
-          invariant(
-            this.steps.isValidStepKey(step),
-            `[createComponent]: the target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
-          );
-
-          const stepNumber = Number.parseInt(step.replace('step', ''));
-
-          invariant(
-            !Number.isNaN(stepNumber),
-            `[${step}:"createComponent"]: an error occurred while extracting the number`
-          );
-          const current = this.value[step as keyof resolvedStep];
-
-          // These checks are mostly for type safety. `current` should _always_ be in the proper format.
-          // On the off chance that it's not, we have the checks here to help, but these checks are basically
-          // just for type safety.
-          invariant(
-            'fields' in current,
-            `[${step}:createComponent]: unable to find the "fields" for the current step`
-          );
-          invariant(
-            typeof current.fields === 'object',
-            `[${step}:createComponent]: the "fields" property must be an object, was ${typeof current.fields}`
-          );
-
-          const Field = createField((name) => {
-            invariant(typeof name === 'string', () => {
-              const formatter = new Intl.ListFormat('en', {
-                style: 'long',
-                type: 'disjunction',
-              });
-
-              return `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include ${formatter.format(
-                Object.keys(current.fields as Record<string, unknown>)
-              )}`;
-            });
-            invariant(
-              name in (current.fields as object),
-              `[${step}:Field]: the field "${name}" doesn't exist for the current step`
-            );
-            const { fields, update } = current;
-            const { defaultValue, label, nameTransformCasing, type } = (
-              fields as AnyStepField
-            )[name];
-
-            return {
-              defaultValue,
-              label,
-              nameTransformCasing,
-              type,
-              name,
-              onInputChange: (value: unknown) =>
-                // TODO remove type assertions
-                update(
-                  'fields' as never,
-                  (prev) =>
-                    ({
-                      ...(prev as Record<string, unknown>),
-                      [name]: {
-                        ...((prev as Record<string, unknown>)[name] as Record<
-                          string,
-                          unknown
-                        >),
-                        defaultValue: value,
-                      },
-                    } as never)
-                ),
-            };
-          });
-
-          let input = {
-            ctx,
-            onInputChange: this.createStepUpdaterFn(stepNumber as stepNumbers),
-            Field,
-            ...hookResults,
-          };
-
           if (
             MultiStepFormSchemaConfig.isFormAvailable(
               stepData as never,
               enabledFor as never
             )
           ) {
-            input = {
-              ...input,
+            fnInput = {
+              ...fnInput,
               [alias]: this.createFormComponent(rest, defaultId),
             };
           }
 
-          return fn(input, props);
+          return fn(fnInput, props);
         }
 
         return fn(
           {
-            ctx,
+            ...fnInput,
             [MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS]:
               MultiStepFormSchemaConfig.createDefaultForm(defaultId),
           },
@@ -936,32 +951,6 @@ export class MultiStepFormStepSchema<
     chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
   >(
     stepData: chosenStep,
-    config: CreateComponentImplConfig.nonStepSpecific
-  ): <props>(
-    fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenStep, props>
-  ) => CreatedMultiStepFormComponent<props>;
-  private createComponentImpl<
-    chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(
-    stepData: chosenStep,
-    config: CreateComponentImplConfig.stepSpecificConfig<
-      resolvedStep,
-      formAlias,
-      formEnabledFor,
-      formProps
-    >
-  ): StepSpecificCreateComponentFn<
-    resolvedStep,
-    stepNumbers,
-    chosenStep,
-    formAlias,
-    formProps,
-    formEnabledFor
-  >;
-  private createComponentImpl<
-    chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(
-    stepData: chosenStep,
     config: CreateComponentImplConfig.config<
       resolvedStep,
       formAlias,
@@ -1015,9 +1004,18 @@ export class MultiStepFormStepSchema<
     >,
     fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenSteps, props>
   ) {
-    return this.createComponentImpl(options.stepData, {
-      isStepSpecific: false,
-    })<props>(fn);
+    return (
+      this.createComponentImpl(options.stepData, {
+        isStepSpecific: false,
+      }) as <props>(
+        fn: CreateComponentCallback<
+          resolvedStep,
+          stepNumbers,
+          chosenSteps,
+          props
+        >
+      ) => CreatedMultiStepFormComponent<props>
+    )<props>(fn);
   }
 
   createDefaultValues<targetStep extends ValidStepKey<stepNumbers>>(

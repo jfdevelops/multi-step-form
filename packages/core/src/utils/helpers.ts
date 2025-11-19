@@ -34,6 +34,10 @@ export function comparePartialArray<T>(
   return { status: 'success' };
 }
 
-export function printErrors(errors: string[]) {
-  return errors.map((e, i) => `❌ ${i + 1}. ${e}`).join('\n');
+export function printErrors<T>(
+  errors: T[],
+  mapper?: (value: T, index: number) => string
+) {
+  const defaultMapper = (e: unknown, i: number) => `❌ ${i + 1}. ${e}`;
+  return errors.map((e, i) => mapper?.(e, i) ?? defaultMapper(e, i)).join('\n');
 }

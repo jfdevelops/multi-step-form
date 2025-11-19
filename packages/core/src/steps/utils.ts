@@ -1,3 +1,4 @@
+import { comparePartialArray, printErrors } from '@/utils/helpers';
 import { invariant } from '@/utils/invariant';
 import type {
   AnyResolvedStep,
@@ -7,7 +8,6 @@ import type {
   StepNumbers,
   Updater,
 } from './types';
-import { comparePartialArray, printErrors } from '@/utils/helpers';
 
 export type GetStepOptions<
   TResolvedStep extends AnyResolvedStep,
@@ -127,20 +127,6 @@ export function createCtx<
         }),
       ])
     ) as unknown as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>;
-
-    // return stepNumbers.reduce((acc, curr) => {
-    //   const stepKey = `step${curr}` as keyof HelperFnCtx<
-    //     TResolvedStep,
-    //     TStepNumbers,
-    //     TChosenSteps
-    //   >;
-
-    //   acc[stepKey] = getStep(values)({
-    //     step: curr,
-    //   }).data as never;
-
-    //   return acc;
-    // }, {} as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>);
   }
 
   if (Array.isArray(stepData)) {

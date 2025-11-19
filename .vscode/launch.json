@@ -1,0 +1,35 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Program",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}\\packages\\react\\test\\step-schema\\create-component.test.tsx",
+      "outFiles": ["${workspaceFolder}/**/*.js"]
+    },
+    {
+      "name": "Debug Vitest Browser",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/packages/react/node_modules/vitest/vitest.mjs",
+      "cwd": "${workspaceFolder}/packages/react",
+      "args": [
+        "--browser.enabled",
+        "true",
+        "--browser.headless",
+        "false", // Keeps the browser visible
+        "--watch",
+        "--no-file-parallelism"
+      ],
+      "autoAttachChildProcesses": true,
+      "smartStep": true,
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    }
+  ]
+}

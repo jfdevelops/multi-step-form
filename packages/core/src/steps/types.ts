@@ -6,7 +6,9 @@ import type {
   DefaultFieldType,
   Expand,
   FieldType,
+  objectHelpers,
 } from '@/utils';
+import type { DeepKeys, path } from '@/utils/path';
 import type {
   AnyValidator,
   DefaultValidator,
@@ -146,87 +148,168 @@ export type ResolvedStepBuilder<
 export type Updater<TInput, TOutput = TInput> =
   | TOutput
   | ((input: TInput) => TOutput);
-export type CurriedUpdateStepFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TTargetStep extends TStepNumbers
-> = {
-  /**
-   * Update a specific field's data for the specified step.
-   * @param step The step to update.
-   * @param field The field to update.
-   * @param updater The updated data for field.
-   */
-  // NOTE: This overload is first so that `field` gets autocomplete
-  <
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
+
+export namespace UpdateFn {
+  export type resolvedStep<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>
+  > = Expand<StrippedResolvedStep<TResolvedStep[TTargetStep], true>>;
+
+  type resolveAllPropertyPath<
+    TCurrentStep extends AnyResolvedStep,
+    TField extends chosenFields<TCurrentStep>
+  > = TField extends HelperFnChosenSteps.defaultStringOption
+    ? Relaxed<TCurrentStep>
+    : never;
+  type resolveTuplePropertyPath<
+    TCurrentStep extends AnyResolvedStep,
+    TField extends chosenFields<TCurrentStep>,
+    TDeepKeys extends DeepKeys<TCurrentStep> = DeepKeys<TCurrentStep>
+  > = TField extends HelperFnChosenSteps.tupleNotation<TDeepKeys>
+    ? TField[number] extends DeepKeys<Relaxed<TCurrentStep>>
+      ? path.pickBy<Relaxed<TCurrentStep>, TField[number]>
+      : never
+    : never;
+  type resolveObjectPropertyPath<
+    TCurrentStep extends AnyResolvedStep,
+    TField extends chosenFields<TCurrentStep>,
+    TDeepKeys extends DeepKeys<TCurrentStep> = DeepKeys<TCurrentStep>
+  > = TField extends path.generateObjectConfig<TField>
+    ? path.objectToPath<TField> extends TDeepKeys
+      ? path.objectToPath<TField> extends DeepKeys<Relaxed<TCurrentStep>>
+        ? path.pickBy<Relaxed<TCurrentStep>, path.objectToPath<TField>>
+        : never
+      : never
+    : never;
+  type resolvePathType<
+    TCurrentStep extends AnyResolvedStep,
+    TField extends chosenFields<TCurrentStep>
+  > = TField extends HelperFnChosenSteps.defaultStringOption
+    ? 'all'
+    : TField extends Array<infer _>
+    ? 'tuple'
+    : objectHelpers.isObject<TField> extends true
+    ? 'object'
+    : never;
+  type resolvePathMap<
+    TCurrentStep extends AnyResolvedStep,
+    TField extends chosenFields<TCurrentStep>
+  > = {
+    all: resolveAllPropertyPath<TCurrentStep, TField>;
+    tuple: resolveTuplePropertyPath<TCurrentStep, TField>;
+    object: resolveObjectPropertyPath<TCurrentStep, TField>;
+  };
+  export type resolvedFieldValue<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>,
+    TField extends chosenFields<TCurrentStep>,
+    TCurrentStep extends resolvedStep<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep
+    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>,
+    TType extends resolvePathType<TCurrentStep, TField> = resolvePathType<
+      TCurrentStep,
+      TField
     >
+  > = resolvePathMap<TCurrentStep, TField>[TType];
+  export type chosenFields<TCurrentStep extends AnyResolvedStep> =
+    | HelperFnChosenSteps.defaultStringOption
+    | HelperFnChosenSteps.tupleNotation<DeepKeys<TCurrentStep>>
+    | path.generateObjectConfig<TCurrentStep>;
+
+  export type options<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>,
+    TField extends chosenFields<TCurrentStep>,
+    TAdditionalCtx extends Record<string, unknown>,
+    TCurrentStep extends resolvedStep<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep
+    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+  > = CtxDataSelector<
+    TResolvedStep,
+    TStepNumbers,
+    [TTargetStep],
+    TAdditionalCtx
+  > & {
+    /**
+     * The step to update.
+     */
+    targetStep: TTargetStep;
+    /**
+     * The specific fields to update.
+     *
+     * Optionally provide a value to narrow the results of the `ctx` in the
+     * updater `fn`.
+     */
+    fields?: TField;
+    updater: Updater<
+      Expand<
+        HelperFnInputBase<
+          TResolvedStep,
+          TStepNumbers,
+          [TTargetStep],
+          never,
+          TAdditionalCtx
+        >
+      >,
+      resolvedFieldValue<
+        TResolvedStep,
+        TStepNumbers,
+        TTargetStep,
+        TField,
+        TCurrentStep
+      >
+    >;
+  };
+  export type availableFields<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>
+  > = HelperFnChosenSteps.build<
+    DeepKeys<resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>>
+  >;
+
+  export type general<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>
+  > = <
+    targetStep extends ValidStepKey<TStepNumbers>,
+    field extends chosenFields<
+      resolvedStep<TResolvedStep, TStepNumbers, targetStep>
+    > = 'all',
+    additionalCtx extends Record<string, unknown> = {}
   >(
-    field: Field,
-    updater: TUpdater
-  ): void;
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  <
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(
-    updater: TUpdater
-  ): void;
-};
-export type RegularUpdateStepFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>
-> = {
-  /**
-   * Update a specific field's data for the specified step.
-   * @param step The step to update.
-   * @param field The field to update.
-   * @param updater The updated data for field.
-   */
-  // NOTE: This overload is first so that `field` gets autocomplete
-  <
-    TargetStep extends TStepNumbers,
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TargetStep>,
-    Field extends keyof CurrentStepData,
-    TUpdater extends Updater<
-      CurrentStepData[Field],
-      Relaxed<CurrentStepData[Field]>
+    options: options<
+      TResolvedStep,
+      TStepNumbers,
+      targetStep,
+      field,
+      additionalCtx
     >
+  ) => void;
+
+  export type stepSpecific<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>
+  > = <
+    field extends chosenFields<
+      resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+    > = 'all',
+    additionalCtx extends Record<string, unknown> = {}
   >(
-    step: TargetStep,
-    field: Field,
-    updater: TUpdater
-  ): void;
-  /**
-   * Update the data for a specified step.
-   * @param step The step to update.
-   * @param updater The updated data for the step.
-   */
-  <
-    TargetStep extends TStepNumbers,
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TargetStep>,
-    TUpdater extends Updater<CurrentStepData, Relaxed<CurrentStepData>>
-  >(
-    step: TargetStep,
-    updater: TUpdater
-  ): void;
-};
-export type UpdateStepFn<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TTargetStep extends TStepNumbers = TStepNumbers,
-  TUseCurried extends boolean = false
-> = TUseCurried extends true
-  ? CurriedUpdateStepFn<TResolvedStep, TStepNumbers, TTargetStep>
-  : RegularUpdateStepFn<TResolvedStep, TStepNumbers>;
+    options: Omit<
+      options<TResolvedStep, TStepNumbers, TTargetStep, field, additionalCtx>,
+      'targetStep'
+    >
+  ) => void;
+}
 
 export type StepSpecificHelperFn<
   TResolvedStep extends AnyResolvedStep,
@@ -351,15 +434,6 @@ export type StepSpecificHelperFns<
   TKey extends keyof TResolvedStep
 > = {
   /**
-   * A helper function to updated the current step's data.
-   */
-  update: UpdateStepFn<
-    TResolvedStep,
-    StepNumbers<TResolvedStep>,
-    ExtractStepFromKey<Constrain<TKey, string>>,
-    true
-  >;
-  /**
    * A helper function to create a reusable function for the current step.
    */
   createHelperFn: CreateStepHelperFn<
@@ -368,7 +442,18 @@ export type StepSpecificHelperFns<
     ExtractStepFromKey<Constrain<TKey, string>>,
     true
   >;
-};
+} & (TKey extends ValidStepKey<StepNumbers<TResolvedStep>>
+  ? {
+      /**
+       * A helper function to updated the current step's data.
+       */
+      update: UpdateFn.stepSpecific<
+        TResolvedStep,
+        StepNumbers<TResolvedStep>,
+        TKey
+      >;
+    }
+  : {});
 export type ResolvedStep<
   TStep extends Step<TDefaultCasing>,
   TDefaultCasing extends CasingType = DefaultCasing,
@@ -381,10 +466,15 @@ export type ResolvedStep<
   [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] &
     StepSpecificHelperFns<TResolvedStep, stepKey>;
 };
-export type StrippedResolvedStep<T extends AnyResolvedStep> = {
+export type StrippedResolvedStep<
+  T extends AnyResolvedStep,
+  TStringUpdate extends boolean = false
+> = {
   [_ in keyof T as T[_] extends Function
     ? _ extends 'update'
-      ? _
+      ? TStringUpdate extends true
+        ? never
+        : _
       : never
     : _]: T[_];
 };
@@ -521,15 +611,6 @@ export type Relaxed<T> =
     : // Otherwise widen scalars
       WidenSpecial<T>;
 
-export type Join<T extends string[], D extends string> = T extends [
-  infer F extends string,
-  ...infer R extends string[]
-]
-  ? R['length'] extends 0
-    ? F
-    : `${F}${D}${Join<R, D>}`
-  : '';
-
 export namespace HelperFnChosenSteps {
   export type defaultStringOption = 'all';
   export type stringOption<T extends string> = defaultStringOption | T;
@@ -594,16 +675,12 @@ export type CreateHelperFunctionOptionsWithoutValidator<
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
 > = CreateHelperFunctionOptionsBase<TResolvedStep, TStepNumbers, TChosenSteps>;
-export type CreateHelperFunctionOptionsWithCustomCtxOptions<
+export interface CtxDataSelector<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
-  TAdditionalCtx
-> = CreateHelperFunctionOptionsBase<
-  TResolvedStep,
-  TStepNumbers,
-  TChosenSteps
-> & {
+  TAdditionalCtx extends Record<string, unknown>
+> {
   /**
    * A function to select the data that will be available in the `fn`'s ctx.
    * @param input The available input to create the context with.
@@ -617,13 +694,20 @@ export type CreateHelperFunctionOptionsWithCustomCtxOptions<
       HelperFnChosenSteps.resolve<TResolvedStep, TStepNumbers, TChosenSteps>
     >
   ) => TAdditionalCtx;
-};
+}
+export type CreateHelperFunctionOptionsWithCustomCtxOptions<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
+  TAdditionalCtx extends Record<string, unknown>
+> = CreateHelperFunctionOptionsBase<TResolvedStep, TStepNumbers, TChosenSteps> &
+  CtxDataSelector<TResolvedStep, TStepNumbers, TChosenSteps, TAdditionalCtx>;
 export type CreateHelperFunctionOptionsWithValidator<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
   TValidator,
-  TAdditionalCtx
+  TAdditionalCtx extends Record<string, unknown>
 > = CreateHelperFunctionOptionsBase<TResolvedStep, TStepNumbers, TChosenSteps> &
   CreateHelperFunctionOptionsWithCustomCtxOptions<
     TResolvedStep,
@@ -641,7 +725,9 @@ export type CreateHelperFunctionOptionsWithValidator<
 // optional since there is only one optional field
 // In words: if `validatedFields` only contains optional properties, then `data` should be optional
 // Approach: different interfaces (maybe)
-export type CreatedHelperFnInput<T> = { data: Expand<ResolveValidatorOutput<T>> };
+export type CreatedHelperFnInput<T> = {
+  data: Expand<ResolveValidatorOutput<T>>;
+};
 export type CreatedHelperFnWithInput<TValidator, TResponse> = (
   input: CreatedHelperFnInput<TValidator>
 ) => TResponse;
