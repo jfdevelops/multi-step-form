@@ -1,5 +1,23 @@
 # @jfdevelops/multi-step-form
 
+## 1.0.0-alpha.4
+
+### Patch Changes
+
+- This update brings changes to the following functions:
+
+  - `createHelperFn`
+  - `update`
+
+  ### `createHelperFn`
+
+  - adds ability to create custom `ctx`
+  - makes `update` available in callback
+
+  `update`
+
+  - changes function signature
+
 ## 1.0.0-alpha.3
 
 ### Patch Changes

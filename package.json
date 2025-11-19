@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/multi-step-form",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.4",
   "description": "An opinionated type safe solution to creating multi step forms.",
   "type": "module",
   "scripts": {
