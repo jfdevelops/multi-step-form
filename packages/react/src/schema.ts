@@ -11,7 +11,7 @@ import {
   MultiStepFormSchema as MultiStepFormSchemaCore,
   type ResolvedStep as ResolvedStepCore,
   type Step,
-  type StepNumbers
+  type StepNumbers,
 } from '@jfdevelops/multi-step-form';
 import type { ComponentPropsWithRef } from 'react';
 import { MultiStepFormSchemaConfig } from './form-config';
@@ -22,6 +22,7 @@ import {
   MultiStepFormStepSchema,
   type ResolvedStep,
 } from './step-schema';
+import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form/_internal';
 
 // export type AnyMultiStepFormSchema = MultiStepFormSchema<any, any, any>;
 export type AnyMultiStepFormSchema = { [x: string]: any };
@@ -97,6 +98,10 @@ export class MultiStepFormSchema<
     formEnabledFor,
     formProps
   >;
+  readonly #internal: MultiStepFormStepSchemaInternal<
+    resolvedStep,
+    stepNumbers
+  >;
 
   constructor(
     config: MultiStepFormSchemaOptions<
@@ -127,6 +132,17 @@ export class MultiStepFormSchema<
       nameTransformCasing,
       ...rest,
     });
+    this.#internal = new MultiStepFormStepSchemaInternal<
+      resolvedStep,
+      stepNumbers
+    >({
+      value: this.stepSchema.value as never,
+      setValue: (value) => {
+        this.stepSchema.value = value as never;
+        this.storage.add(value);
+        this.notify();
+      },
+    });
   }
 
   createComponent<
@@ -146,7 +162,14 @@ export class MultiStepFormSchema<
       stepData
     ) as never;
 
-    return ((props?: props) => fn({ ctx }, props as any)) as any;
+    return ((props?: props) =>
+      fn(
+        {
+          ctx,
+          update: this.#internal.createHelperFnInputUpdate(stepData),
+        },
+        props as any
+      )) as any;
   }
 }
 

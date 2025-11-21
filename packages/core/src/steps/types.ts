@@ -1,6 +1,5 @@
 import type { StorageConfig } from '@/storage';
 import {
-  invariant,
   type CasingType,
   type Constrain,
   type DefaultCasing,

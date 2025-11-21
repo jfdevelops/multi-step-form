@@ -1,23 +1,21 @@
-import { render } from 'vitest-browser-react';
-import { describe, expect, test, vi } from 'vitest';
-import {
-  createMultiStepFormSchema,
-  type CreateStepSpecificComponentCallback,
-  type StepSpecificComponent,
-} from '../../src';
+import type { MultiStepFormSchemaConfig } from '@/form-config';
 import type {
   StepNumbers,
   StrippedResolvedStep,
 } from '@jfdevelops/multi-step-form';
-import type {
-  MultiStepFormSchemaConfig,
-  MultiStepFormSchemaConfig,
-} from '@/form-config';
 import { ComponentPropsWithRef } from 'react';
+import { describe, expect, test, it, vi } from 'vitest';
+import { render } from 'vitest-browser-react';
+import {
+  createMultiStepFormSchema,
+  type CreateStepSpecificComponentCallback,
+  type MultiStepFormSchema,
+  type StepSpecificComponent,
+} from '../../src';
 
 describe('creating components via "createComponent" fn', () => {
   describe('using step specific "createComponent" fn', () => {
-    test('without custom ctx', async () => {
+    it('should only use the default "ctx"', async () => {
       const schema = createMultiStepFormSchema({
         steps: {
           step1: {
@@ -38,8 +36,10 @@ describe('creating components via "createComponent" fn', () => {
           },
         },
       });
-      type ResolvedStep = typeof schema.stepSchema.value;
+
+      type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
       type Steps = StepNumbers<ResolvedStep>;
+
       const componentSpy = vi.fn<
         CreateStepSpecificComponentCallback<
           ResolvedStep,
@@ -79,7 +79,7 @@ describe('creating components via "createComponent" fn', () => {
         .toBeInTheDocument();
     });
 
-    test('with custom "ctx"', async () => {
+    it('should use the provided custom "ctx"', async () => {
       const schema = createMultiStepFormSchema({
         steps: {
           step1: {
@@ -101,7 +101,7 @@ describe('creating components via "createComponent" fn', () => {
         },
       });
 
-      type ResolvedStep = typeof schema.stepSchema.value;
+      type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
       type Steps = StepNumbers<ResolvedStep>;
 
       const componentSpy = vi.fn<
@@ -177,7 +177,7 @@ describe('creating components via "createComponent" fn', () => {
         .toBeInTheDocument();
     });
 
-    test.skip('with calling "onInputChange"', async () => {
+    it('should use "onInputChange" to update a value for the specified field', async () => {
       const schema = createMultiStepFormSchema({
         steps: {
           step1: {
@@ -199,43 +199,66 @@ describe('creating components via "createComponent" fn', () => {
         },
       });
 
-      console.log('----------before-----------');
-      console.log(schema.stepSchema.value);
-      debugger;
+      type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
+      type Steps = StepNumbers<ResolvedStep>;
+
+      const componentSpy = vi.fn<
+        CreateStepSpecificComponentCallback<
+          ResolvedStep,
+          Steps,
+          ['step1'],
+          undefined,
+          MultiStepFormSchemaConfig.defaultFormAlias,
+          ComponentPropsWithRef<'form'>,
+          MultiStepFormSchemaConfig.defaultEnabledFor
+        >
+      >(({ ctx, onInputChange }) => (
+        <div>
+          <p>Step 1 Title: {ctx.step1.title}</p>
+          <input
+            type='text'
+            data-testid='foo'
+            value={ctx.step1.fields.foo.defaultValue}
+            onChange={(e) =>
+              onInputChange({
+                fields: ['fields.foo.defaultValue'],
+                updater: e.target.value,
+              })
+            }
+          />
+        </div>
+      ));
+
       const Step1 = schema.stepSchema.value.step1.createComponent(
-        function Step1({ ctx, onInputChange }) {
-          expect(ctx).toBeDefined();
-          expect(ctx).toHaveProperty('step1');
-          // This check is to ensure that there are no other steps available
-          expect(Object.keys(ctx)).toEqual(['step1']);
-
-          expect(onInputChange).toBeTypeOf('function');
-          debugger;
-          onInputChange({
-            fields: {
-              nameTransformCasing: true,
-            },
-            updater: 'flat',
-          });
-
-          return (
-            <div>
-              <p>Step 1 Title: {ctx.step1.title}</p>
-            </div>
-          );
-        }
+        componentSpy as never
       );
-      console.log('-------------------after------------------');
-      console.log(schema.stepSchema.value);
 
-      expect(schema.stepSchema.value.step1.nameTransformCasing).toBe('flat');
       expect(Step1).toBeTypeOf('function');
 
       const screen = await render(<Step1 />);
 
+      const lastCall = componentSpy.mock.lastCall;
+
+      expect(lastCall).toBeDefined();
+
+      const [{ ctx, onInputChange }] = lastCall!;
+
+      expect(ctx).toBeDefined();
+      expect(ctx).toHaveProperty('step1');
+      expect(Object.keys(ctx)).toEqual(['step1']);
+
       await expect
         .element(screen.getByText('Step 1 Title: First step'))
         .toBeInTheDocument();
+
+      expect(onInputChange).toBeDefined();
+      onInputChange({
+        fields: ['fields.foo.defaultValue'],
+        updater: 'New value',
+      });
+      expect(schema.stepSchema.value.step1.fields.foo.defaultValue).toBe(
+        'New value'
+      );
     });
 
     describe.todo('with custom form instance', () => {
