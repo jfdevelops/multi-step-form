@@ -20,7 +20,13 @@ import {
   type Expand,
   type Join,
 } from '@/utils';
+import {
+  comparePartialArray,
+  printErrors,
+  typedObjectKeys,
+} from '@/utils/helpers';
 import { invariant } from '@/utils/invariant';
+import { path } from '@/utils/path';
 import {
   runStandardValidation,
   type AnyValidator,
@@ -36,6 +42,7 @@ import {
   CreateHelperFunctionOptionsWithValidator,
   CreateHelperFunctionOptionsWithoutValidator,
   CreateStepHelperFn,
+  CreatedHelperFnInput,
   CreatedHelperFnWithInput,
   CreatedHelperFnWithoutInput,
   ExtractStepFromKey,
