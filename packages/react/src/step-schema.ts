@@ -29,6 +29,7 @@ import {
 import type { ComponentPropsWithRef, ReactNode } from 'react';
 import { createField, type Field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
+import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form/_internal';
 
 export interface MultiStepFormSchemaStepConfig<
   TStep extends Step<TCasing>,
@@ -511,6 +512,10 @@ export class MultiStepFormStepSchema<
 {
   // @ts-ignore type doesn't match `MultiStepFormSchemaBase.value`
   value: resolvedStep;
+  readonly #internal: MultiStepFormStepSchemaInternal<
+    resolvedStep,
+    stepNumbers
+  >;
 
   constructor(
     config: MultiStepFormSchemaStepConfig<
@@ -526,19 +531,39 @@ export class MultiStepFormStepSchema<
 
     super(rest as never);
 
-    this.value = this.enrichValues(createStep(this.original));
-    this.value = this.enrichValues(this.value, (step) => {
+    this.value = createStep(this.original);
+
+    this.#internal = new MultiStepFormStepSchemaInternal<
+      resolvedStep,
+      stepNumbers
+    >({
+      getValue: () => this.value,
+      setValue: (next) => this.handlePostUpdate(next as never)
+    });
+
+    // this.value = this.#internal.enrichValues(resolvedValues);
+    this.sync()
+    this.value = this.#internal.enrichValues(this.value, (step) => {
       const key = `step${step as stepNumbers}`;
+      const stepData = [key] as HelperFnChosenSteps.tupleNotation<
+        ValidStepKey<stepNumbers>
+      >;
       const id = form?.id ?? key;
+      const ctx = createCtx<
+        resolvedStep,
+        stepNumbers,
+        HelperFnChosenSteps.tupleNotation<ValidStepKey<stepNumbers>>
+      >(this.value, stepData);
 
       return {
-        createComponent: this.createComponentForStep(
-          [`step${step as stepNumbers}`],
+        createComponent: this.createStepSpecificComponentFactory(
+          stepData,
           {
             isStepSpecific: true,
             defaultId: id,
             form: form as never,
-          }
+          },
+          ctx
         ),
       };
     });
@@ -597,7 +622,7 @@ export class MultiStepFormStepSchema<
               if (typeof console !== 'undefined' && console.debug) {
                 console.debug(
                   `[multi-step-form] Hook "${key}" called successfully`,
-                  { result: result !== undefined ? 'defined' : 'undefined' }
+                  { result: result === undefined ? 'defined' : 'undefined' }
                 );
               }
             } catch (error) {
@@ -702,7 +727,7 @@ export class MultiStepFormStepSchema<
 
         let fnInput = {
           ctx,
-          onInputChange: this.createStepUpdaterFn(step),
+          onInputChange: this.#internal.createStepUpdaterFn(step),
           Field,
           ...hookResults,
         };
@@ -741,7 +766,9 @@ export class MultiStepFormStepSchema<
   }
 
   private createStepSpecificComponentFactory<
-    chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+    chosenStep extends HelperFnChosenSteps.tupleNotation<
+      ValidStepKey<stepNumbers>
+    >
   >(
     stepData: chosenStep,
     config: CreateComponentImplConfig.stepSpecificConfig<
@@ -762,7 +789,14 @@ export class MultiStepFormStepSchema<
     const createStepSpecificComponentImpl =
       this.createStepSpecificComponentImpl.bind(this);
     const createDefaultValues = this.createDefaultValues.bind(this);
+    debugger;
+    // Not exactly sure why `this.value` could be undefined, but it can be so
+    // we fallback to the internal value
     const resolvedValues = this.value;
+    const targetStep = stepData[0];
+    const update = this.#internal
+      .createStepUpdaterFn(targetStep)
+      .bind(this.#internal) as never;
 
     function impl<props = undefined>(
       fn: CreateStepSpecificComponentCallback<
@@ -856,21 +890,16 @@ export class MultiStepFormStepSchema<
 
       if (typeof optionsOrFn === 'object') {
         const { useFormInstance, ctxData, debug } = optionsOrFn;
-        const currentStepKey = (
-          stepData as HelperFnChosenSteps.tupleNotation<
-            ValidStepKey<stepNumbers>
-          >
-        )[0] as keyof resolvedStep;
         const logger = new MultiStepFormLogger({
           debug,
           prefix(prefix) {
-            return `${prefix}-${String(currentStepKey)}-createComponent`;
+            return `${prefix}-${targetStep}-createComponent`;
           },
         });
 
         logger.info('First argument is an object');
 
-        const { [currentStepKey]: _, ...values } = resolvedValues;
+        const { [targetStep]: _, ...values } = resolvedValues;
 
         invariant(
           typeof fn === 'function',
@@ -933,6 +962,7 @@ export class MultiStepFormStepSchema<
 
           return createStepSpecificComponentImpl(stepData, config, {
             ctx: resolvedCtx as never,
+            update,
           })(fn);
         }
 
@@ -945,45 +975,6 @@ export class MultiStepFormStepSchema<
     }
 
     return impl;
-  }
-
-  private createComponentImpl<
-    chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(
-    stepData: chosenStep,
-    config: CreateComponentImplConfig.config<
-      resolvedStep,
-      formAlias,
-      formEnabledFor,
-      formProps
-    >
-  ) {
-    const ctx = createCtx<resolvedStep, stepNumbers, chosenStep>(
-      this.value,
-      stepData
-    );
-
-    if (config.isStepSpecific) {
-      return this.createStepSpecificComponentFactory(stepData, config, ctx);
-    }
-
-    return <props>(fn: Function) =>
-      ((props?: props) =>
-        fn(ctx, props as any)) as CreatedMultiStepFormComponent<props>;
-  }
-
-  private createComponentForStep<
-    chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
-  >(
-    stepData: chosenStep,
-    config: CreateComponentImplConfig.stepSpecificConfig<
-      resolvedStep,
-      formAlias,
-      formEnabledFor,
-      formProps
-    >
-  ) {
-    return this.createComponentImpl(stepData, config);
   }
 
   /**
@@ -1004,18 +995,14 @@ export class MultiStepFormStepSchema<
     >,
     fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenSteps, props>
   ) {
-    return (
-      this.createComponentImpl(options.stepData, {
-        isStepSpecific: false,
-      }) as <props>(
-        fn: CreateComponentCallback<
-          resolvedStep,
-          stepNumbers,
-          chosenSteps,
-          props
-        >
-      ) => CreatedMultiStepFormComponent<props>
-    )<props>(fn);
+    const { stepData } = options;
+    const ctx = createCtx<resolvedStep, stepNumbers, chosenSteps>(
+      this.value,
+      stepData
+    ) as never;
+
+    return ((props?: props) =>
+      fn(ctx, props as any)) as CreatedMultiStepFormComponent<props>;
   }
 
   createDefaultValues<targetStep extends ValidStepKey<stepNumbers>>(

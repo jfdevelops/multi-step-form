@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": true,
+    "skipLibCheck": true,
+
+    "outDir": "dist/types",
+    "rootDir": "src",
+
+    // 👇 ensure we *don't* flattened declarations
+    "composite": false,
+    "isolatedModules": false
+  },
+  "include": ["src/index.ts", "src/internals/index.ts"]
+}

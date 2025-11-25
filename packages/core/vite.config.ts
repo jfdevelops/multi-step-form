@@ -10,18 +10,24 @@ export default defineConfig({
     dts({
       include: ['src'],
       outDir: 'dist/types',
+      entryRoot: 'src',
     }),
     tsconfigPaths(),
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: {
+        index: resolve(__dirname, 'src/index.ts'),
+        _internals: resolve(__dirname, 'src/internals/index.ts'),
+      },
       name: 'JfDevelopsMultiStepForm',
       formats: ['es', 'cjs'],
-      fileName: (format) => `index.${format === 'es' ? 'mjs' : 'cjs'}`,
+      fileName: (format, entryName) =>
+        `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`,
     },
     sourcemap: true,
     emptyOutDir: true,
+    minify: false,
   },
   test: {
     environment: 'jsdom',

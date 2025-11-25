@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/multi-step-form",
-  "version": "1.0.0-alpha.4",
+  "version": "1.0.0-alpha.5",
   "description": "",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -11,6 +11,11 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./_internal": {
+      "types": "./dist/types/internals/index.d.ts",
+      "import": "./dist/_internals.mjs",
+      "require": "./dist/_internals.cjs"
     }
   },
   "files": [

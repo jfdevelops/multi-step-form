@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form
 
+## 1.0.0-alpha.5
+
+### Patch Changes
+
+- Adds support for the `update` method in the `createHelperFn` callback in the react package
+
 ## 1.0.0-alpha.4
 
 ### Patch Changes
