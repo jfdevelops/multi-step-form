@@ -26,7 +26,7 @@ export class MultiStepFormStorage<
   readonly store!: Storage;
   readonly data: data;
   private readonly log: MultiStepFormLogger;
-  private readonly isWindowUndefined: boolean;
+  private readonly shouldRunActions: boolean;
   private readonly throwWhenUndefined: boolean;
 
   constructor(config: StorageConfig<data, key>) {
@@ -41,26 +41,33 @@ export class MultiStepFormStorage<
 
     if (store) {
       this.store = store;
-      this.isWindowUndefined = false;
+      this.shouldRunActions = true;
+
+      if (typeof window === 'undefined') {
+        this.shouldRunActions = false;
+        this.log.warn(WINDOW_UNDEFINED_MESSAGE);
+      }
     } else if (typeof window !== 'undefined') {
       this.store = window.localStorage;
-      this.isWindowUndefined = false;
+      this.shouldRunActions = true;
     } else {
-      this.isWindowUndefined = true;
+      this.shouldRunActions = false;
       this.log.warn(WINDOW_UNDEFINED_MESSAGE);
     }
   }
 
   private throwOnEmptyStore() {
-    if (this.throwWhenUndefined) {
-      invariant(this.store, () => {
-        if (this.isWindowUndefined) {
-          return WINDOW_UNDEFINED_MESSAGE;
-        }
-
-        return 'No storage available';
-      });
+    if (!this.throwWhenUndefined) {
+      return;
     }
+
+    invariant(this.store, () => {
+      if (this.shouldRunActions) {
+        return WINDOW_UNDEFINED_MESSAGE;
+      }
+
+      return 'No storage available';
+    });
   }
 
   private resolveValue(value: Updater<data>) {
@@ -85,6 +92,10 @@ export class MultiStepFormStorage<
   get() {
     this.throwOnEmptyStore();
 
+    if (!this.shouldRunActions) {
+      return;
+    }
+
     const item = this.store.getItem(this.key);
 
     if (item) {
@@ -96,11 +107,20 @@ export class MultiStepFormStorage<
 
   remove() {
     this.throwOnEmptyStore();
+
+    if (!this.shouldRunActions) {
+      return;
+    }
+
     this.store.removeItem(this.key);
   }
 
   add(value: Updater<data>) {
     this.throwOnEmptyStore();
+
+    if (!this.shouldRunActions) {
+      return;
+    }
 
     const resolvedValue = JSON.stringify(this.resolveValue(value));
 
