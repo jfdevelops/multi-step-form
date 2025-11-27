@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form
 
+## 1.0.0-alpha.7
+
+### Patch Changes
+
+- Changes storage module so that the actions (get, add, remove) are only ran if `window` is defined OR a specific store is provided and `window` is defined
+
 ## 1.0.0-alpha.6
 
 ### Patch Changes
