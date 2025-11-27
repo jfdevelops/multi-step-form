@@ -71,6 +71,7 @@ export class MultiStepFormSchema<
       key: (storage?.key ?? DEFAULT_STORAGE_KEY) as storageKey,
       data: this.stepSchema.value as never,
       store: storage?.store,
+      throwWhenUndefined: storage?.throwWhenUndefined ?? false,
     });
 
     this.stepSchema.subscribe(() => {

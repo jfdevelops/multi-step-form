@@ -7,6 +7,11 @@ export type StorageConfig<TData, TKey extends string> = {
   key: TKey;
   data: TData;
   store?: Storage;
+  /**
+   * An extra option to throw an error when {@linkcode window} is `undefined`
+   * @default false
+   */
+  throwWhenUndefined?: boolean;
 };
 
 const WINDOW_UNDEFINED_MESSAGE =
@@ -22,15 +27,17 @@ export class MultiStepFormStorage<
   readonly data: data;
   private readonly log: MultiStepFormLogger;
   private readonly isWindowUndefined: boolean;
+  private readonly throwWhenUndefined: boolean;
 
   constructor(config: StorageConfig<data, key>) {
-    const { key, data, store } = config;
+    const { key, data, store, throwWhenUndefined = false } = config;
 
     this.log = new MultiStepFormLogger({
       prefix: DEFAULT_STORAGE_KEY,
     });
     this.key = key;
     this.data = data;
+    this.throwWhenUndefined = throwWhenUndefined;
 
     if (store) {
       this.store = store;
@@ -45,13 +52,15 @@ export class MultiStepFormStorage<
   }
 
   private throwOnEmptyStore() {
-    invariant(this.store, () => {
-      if (this.isWindowUndefined) {
-        return WINDOW_UNDEFINED_MESSAGE;
-      }
+    if (this.throwWhenUndefined) {
+      invariant(this.store, () => {
+        if (this.isWindowUndefined) {
+          return WINDOW_UNDEFINED_MESSAGE;
+        }
 
-      return 'No storage available';
-    });
+        return 'No storage available';
+      });
+    }
   }
 
   private resolveValue(value: Updater<data>) {
