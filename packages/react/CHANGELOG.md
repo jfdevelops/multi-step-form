@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.6
+
+### Patch Changes
+
+- Adds option to storage for throwing an error when `window` is `undefined`
+- Updated dependencies
+  - @jfdevelops/multi-step-form@1.0.0-alpha.6
+
 ## 1.0.0-alpha.5
 
 ### Patch Changes

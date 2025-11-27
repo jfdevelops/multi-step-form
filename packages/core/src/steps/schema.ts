@@ -392,6 +392,7 @@ export class MultiStepFormStepSchema<
       data: this.value,
       key: (storage?.key ?? DEFAULT_STORAGE_KEY) as storageKey,
       store: storage?.store,
+      throwWhenUndefined: storage?.throwWhenUndefined ?? false,
     });
     this.#internal = new MultiStepFormStepSchemaInternal<
       resolvedStep,

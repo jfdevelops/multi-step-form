@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/react-multi-step-form",
-  "version": "1.0.0-alpha.5",
+  "version": "1.0.0-alpha.6",
   "description": "",
   "type": "module",
   "main": "./dist/index.cjs",

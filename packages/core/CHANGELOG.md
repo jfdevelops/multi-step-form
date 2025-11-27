@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form
 
+## 1.0.0-alpha.6
+
+### Patch Changes
+
+- Adds option to storage for throwing an error when `window` is `undefined`
+
 ## 1.0.0-alpha.5
 
 ### Patch Changes
