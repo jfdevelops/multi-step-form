@@ -119,14 +119,10 @@ export function createCtx<
       };
     }
 
-    return Object.fromEntries(
-      validStepKeys.map((key) => [
-        key,
-        getStep(values)({
-          step: extractNumber(key) as never,
-        }),
-      ])
-    ) as unknown as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>;
+    return createCtxHelper<TResolvedStep, TStepNumbers, TChosenSteps>(
+      values,
+      validStepKeys
+    );
   }
 
   if (Array.isArray(stepData)) {
