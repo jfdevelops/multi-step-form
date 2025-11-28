@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.8
+
+### Patch Changes
+
+- `form.render`'s first param, `data.steps` is now the right type and value
+
+  providing a custom `storage.key` actually works
+
+- Updated dependencies
+  - @jfdevelops/multi-step-form@1.0.0-alpha.8
+
 ## 1.0.0-alpha.7
 
 ### Patch Changes
