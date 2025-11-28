@@ -55,7 +55,7 @@ import {
   StepOptions,
   UnionToTuple,
   UpdateFn,
-  ValidStepKey,
+  ValidStepKey
 } from './types';
 import { getStep, type GetStepOptions } from './utils';
 
