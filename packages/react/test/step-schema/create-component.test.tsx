@@ -1,10 +1,10 @@
 import type { MultiStepFormSchemaConfig } from '@/form-config';
 import type {
   StepNumbers,
-  StrippedResolvedStep,
+  StrippedResolvedStep
 } from '@jfdevelops/multi-step-form';
 import { ComponentPropsWithRef } from 'react';
-import { describe, expect, test, it, vi } from 'vitest';
+import { describe, expect, it, test, vi } from 'vitest';
 import { render } from 'vitest-browser-react';
 import {
   createMultiStepFormSchema,
@@ -34,8 +34,27 @@ describe('creating components via "createComponent" fn', () => {
               },
             },
           },
+          step3: {
+            title: 'test',
+            fields: {
+              test: {
+                defaultValue: {
+                  nested: {
+                    foo: {
+                      bar: 0,
+                    },
+                  },
+                  more: [],
+                },
+              },
+              test2: {
+                defaultValue: '',
+              },
+            },
+          },
         },
       });
+
       type ResolvedStep = typeof schema.stepSchema.value;
       type Steps = StepNumbers<ResolvedStep>;
       const componentSpy = vi.fn<

@@ -29,7 +29,10 @@ import {
 import type { ComponentPropsWithRef, ReactNode } from 'react';
 import { createField, type Field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
-import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form/_internal';
+import {
+  MultiStepFormStepSchemaInternal,
+  path,
+} from '@jfdevelops/multi-step-form/_internal';
 
 export interface MultiStepFormSchemaStepConfig<
   TStep extends Step<TCasing>,
@@ -690,6 +693,8 @@ export class MultiStepFormStepSchema<
               Object.keys(current.fields as Record<string, unknown>)
             )}`;
           });
+          // TODO add support for deep keys (`name`)
+
           invariant(
             name in (current.fields as object),
             `[${step}:Field]: the field "${name}" doesn't exist for the current step`
@@ -699,8 +704,17 @@ export class MultiStepFormStepSchema<
             'update' in current,
             `[${step}:Field]: No "update" function was found`
           );
+          const [parent, ...rest] = name.split('.');
+          const fullFieldPath =
+            rest.length === 0
+              ? `${parent}.defaultValue`
+              : `${parent}.defaultValue.${rest.join('.')}`;
+          const defaultValue = path.pickBy(
+            current.fields,
+            fullFieldPath as never
+          );
 
-          const { defaultValue, label, nameTransformCasing, type } = (
+          const { label, nameTransformCasing, type } = (
             current.fields as AnyStepField
           )[name];
 
@@ -724,18 +738,6 @@ export class MultiStepFormStepSchema<
                 fields: [`fields.${name}.defaultValue`] as never,
               });
             },
-            // onInputChange: (value: unknown) =>
-            //   // TODO remove type assertions
-            //   (
-            //     update as UpdateFn.stepSpecific<
-            //       resolvedStep,
-            //       stepNumbers,
-            //       ValidStepKey<stepNumbers>
-            //     >
-            //   )({
-            //     fields: [`fields.${name}.defaultValue`] as never,
-            //     updater: value as never,
-            //   }),
           };
         });
 
