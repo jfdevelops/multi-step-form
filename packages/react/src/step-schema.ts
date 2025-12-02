@@ -165,25 +165,15 @@ export namespace StepSpecificComponent {
     onInputChange: TStepNumber extends TSteps
       ? UpdateFn.stepSpecific<TResolvedStep, TSteps, ValidStepKey<TStepNumber>>
       : never;
-    // onInputChange: <
-    //   CurrentStepData extends GetCurrentStep<
-    //     TResolvedStep,
-    //     // @ts-ignore Type checking works properly, type doesn't match
-    //     HelperFnChosenSteps.extractStepNumber<
-    //       TResolvedStep,
-    //       TSteps,
-    //       TChosenSteps
-    //     >
-    //   >,
-    //   Field extends keyof CurrentStepData
-    // >(
-    //   field: Field,
-    //   updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
-    // ) => void;
     Field: Field.component<
       TResolvedStep,
-      // @ts-ignore Type checking works properly, type doesn't match
-      HelperFnChosenSteps.extractStepNumber<TResolvedStep, TSteps, TChosenSteps>
+      ValidStepKey<
+        HelperFnChosenSteps.extractStepNumber<
+          TResolvedStep,
+          TSteps,
+          TChosenSteps
+        >
+      >
     >;
   }
 
