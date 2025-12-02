@@ -1,0 +1,49 @@
+{
+  "changesets": [
+    {
+      "releases": [
+        {
+          "name": "@jfdevelops/react-multi-step-form",
+          "type": "patch"
+        }
+      ],
+      "summary": "Fixes `name` prop in `<Field />` component not supporting deep keys",
+      "id": "flat-sheep-tan"
+    }
+  ],
+  "releases": [
+    {
+      "name": "@jfdevelops/react-multi-step-form",
+      "type": "patch",
+      "oldVersion": "1.0.0-alpha.10",
+      "changesets": [
+        "flat-sheep-tan"
+      ],
+      "newVersion": "1.0.0-alpha.11"
+    },
+    {
+      "name": "react-basic",
+      "type": "none",
+      "changesets": []
+    }
+  ],
+  "preState": {
+    "mode": "pre",
+    "tag": "alpha",
+    "initialVersions": {
+      "@jfdevelops/multi-step-form": "1.0.0-alpha.2",
+      "@jfdevelops/react-multi-step-form": "1.0.0-alpha.2"
+    },
+    "changesets": [
+      "big-bags-hunt",
+      "cozy-insects-crash",
+      "flat-sheep-tan",
+      "humble-queens-agree",
+      "mighty-emus-cross",
+      "seven-buttons-hunt",
+      "solid-jars-check",
+      "twelve-pears-rhyme",
+      "yummy-pans-crash"
+    ]
+  }
+}
