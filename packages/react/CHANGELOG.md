@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.11
+
+### Patch Changes
+
+- 600b08e: Fixes `name` prop in `<Field />` component not supporting deep keys
+
 ## 1.0.0-alpha.10
 
 ### Patch Changes
