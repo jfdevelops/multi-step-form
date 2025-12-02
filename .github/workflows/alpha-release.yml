@@ -1,6 +1,7 @@
 name: Alpha Release
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -31,21 +32,49 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Check for unprocessed changesets
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        working-directory: packages/react
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run tests (core)
+        env:
+          CI: true
+        run: pnpm run test:core
+
+      - name: Build (core)
+        run: pnpm run build:core
+
+      - name: Run tests (react)
+        env:
+          CI: true
+        run: pnpm run test:react --browser.headless=true --reporter=verbose --reporter=github-actions
+
+      - name: Build (react)
+        run: pnpm run build:react
+
+      # --- Fixed changeset detection block ---
       - name: Check for pending Changesets
         id: changesets
         run: |
-          count=$(npx changeset status --output > status.json && jq '.changesets | length' status.json)
+          echo "Checking for pending changesets..."
+          npx changeset status --output status.json
+          count=$(jq '.changesets | length' status.json)
+          echo "Found $count pending changeset(s)"
           echo "count=$count" >> $GITHUB_OUTPUT
+      # ---------------------------------------
 
-      # Stop early if no new changesets
       - name: Skip if no changesets
         if: steps.changesets.outputs.count == '0'
         run: |
           echo "No new changesets detected. Skipping alpha release."
           exit 0
 
-      # Version bump if changesets exist
       - name: Version bump (alpha)
         if: steps.changesets.outputs.count != '0'
         run: |
@@ -56,20 +85,17 @@ jobs:
           git commit -m "chore: bump alpha versions [skip ci]" || echo "No version bump"
           git push || echo "No changes to push"
 
-      # Read the new version from package.json
       - name: Get version from package.json
         if: steps.changesets.outputs.count != '0'
         id: pkg
         run: echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
 
-      # Create and push a tag for this alpha version
       - name: Create Git tag for version
         if: steps.changesets.outputs.count != '0'
         run: |
           git tag v${{ steps.pkg.outputs.version }}
           git push origin v${{ steps.pkg.outputs.version }}
 
-      # Create a GitHub Release entry for visibility
       - name: Create GitHub Release
         if: steps.changesets.outputs.count != '0'
         uses: softprops/action-gh-release@v2
@@ -80,7 +106,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish packages with alpha tag
       - name: Publish alpha packages
         if: steps.changesets.outputs.count != '0'
         env:
