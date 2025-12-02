@@ -61,9 +61,30 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Publish /packages/core
-          cd packages/core
-          pnpm publish --access public --no-git-checks
+          set -e
+
+          publish_if_different() {
+            local pkg_dir=$1
+            local pkg_name=$(jq -r '.name' $pkg_dir/package.json)
+            local pkg_version=$(jq -r '.version' $pkg_dir/package.json)
+            local npm_version=$(npm view $pkg_name version 2>/dev/null || echo "0.0.0")
+      
+            echo "Checking $pkg_name..."
+            echo "  Local: $pkg_version"
+            echo "  NPM:   $npm_version"
+      
+            if [ "$pkg_version" != "$npm_version" ]; then
+              echo "Publishing $pkg_name@$pkg_version..."
+              cd $pkg_dir
+              pnpm publish --access public --no-git-checks || echo "Failed but continuing..."
+              cd - >/dev/null
+            else
+              echo "$pkg_name@$pkg_version already published. Skipping."
+            fi
+          }
+      
+          publish_if_different packages/core
+          publish_if_different packages/react
 
           # Publish /packages/react
           cd ../react
