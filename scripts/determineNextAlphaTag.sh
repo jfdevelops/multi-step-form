@@ -22,10 +22,19 @@ if [ -z "$latest_tag" ]; then
     echo "No previous alpha tags found, starting from v${VERSION}-alpha.1"
     next_tag="v${VERSION}-alpha.1"
 else
-    base="${latest_tag%-*}-"
-    num="${latest_tag##*-}"
-    next_num=$((num + 1))
-    next_tag="${base}${next_num}"
+    # Extract the numeric part after "alpha."
+    # For example: v1.0.0-alpha.11 -> 11
+    num=$(echo "$latest_tag" | sed -n 's/.*-alpha\.\([0-9]*\)/\1/p')
+    if [ -z "$num" ]; then
+        echo "⚠️  Could not parse alpha number from tag: $latest_tag"
+        echo "Starting from v${VERSION}-alpha.1"
+        next_tag="v${VERSION}-alpha.1"
+    else
+        next_num=$((num + 1))
+        # Use the VERSION from monorepo as the base (not the tag's base)
+        # This ensures we always use the current version even if it changed
+        next_tag="v${VERSION}-alpha.${next_num}"
+    fi
 fi
 
 echo "Next alpha tag: $next_tag"
