@@ -15,25 +15,29 @@ fi
 echo "Determining next alpha tag..."
 git fetch --tags
 
+# Strip any pre-release suffix from VERSION (e.g., "1.0.0-alpha.12" -> "1.0.0")
+# This ensures we use the base version for the tag
+base_version=$(echo "$VERSION" | sed 's/-.*$//')
+echo "Base version (from monorepo): $base_version"
+
 latest_tag=$(git tag --list 'v*-alpha.*' | sort -V | tail -n 1)
 echo "Latest alpha tag: $latest_tag"
 
 if [ -z "$latest_tag" ]; then
-    echo "No previous alpha tags found, starting from v${VERSION}-alpha.1"
-    next_tag="v${VERSION}-alpha.1"
+    echo "No previous alpha tags found, starting from v${base_version}-alpha.1"
+    next_tag="v${base_version}-alpha.1"
 else
     # Extract the numeric part after "alpha."
     # For example: v1.0.0-alpha.11 -> 11
     num=$(echo "$latest_tag" | sed -n 's/.*-alpha\.\([0-9]*\)/\1/p')
     if [ -z "$num" ]; then
         echo "⚠️  Could not parse alpha number from tag: $latest_tag"
-        echo "Starting from v${VERSION}-alpha.1"
-        next_tag="v${VERSION}-alpha.1"
+        echo "Starting from v${base_version}-alpha.1"
+        next_tag="v${base_version}-alpha.1"
     else
         next_num=$((num + 1))
-        # Use the VERSION from monorepo as the base (not the tag's base)
-        # This ensures we always use the current version even if it changed
-        next_tag="v${VERSION}-alpha.${next_num}"
+        # Use the base version from monorepo (without any pre-release suffix)
+        next_tag="v${base_version}-alpha.${next_num}"
     fi
 fi
 
