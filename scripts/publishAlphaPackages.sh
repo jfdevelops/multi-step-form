@@ -15,7 +15,7 @@ for pkg_json in packages/*/package.json; do
     cd "$pkg_dir"
     pkg_name=$(node -p "require('./package.json').name")
     echo "Publishing $pkg_name..."
-    pnpm publish --tag alpha --access public --no-git-checks || echo "Already published or failed"
+    pnpm publish --tag latest --access public --no-git-checks || echo "Already published or failed"
     cd - >/dev/null
 done
 
