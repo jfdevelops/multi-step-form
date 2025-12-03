@@ -705,10 +705,19 @@ export class MultiStepFormStepSchema<
             name,
             onInputChange: (value: unknown) => {
               // Handle Updater pattern: if value is a function, call it with the current field value
-              const resolvedValue =
-                typeof value === 'function'
-                  ? (value as (prev: unknown) => unknown)(defaultValue)
-                  : value;
+              let resolvedValue;
+
+              if (typeof value === 'function') {
+                const defaultValue = this.getValue(
+                  step as never,
+                  name as never
+                );
+
+                resolvedValue = value(defaultValue);
+              } else {
+                resolvedValue = value;
+              }
+              
               this.update({
                 targetStep: step,
                 updater: resolvedValue as never,
