@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.13
+
+### Patch Changes
+
+- e4ff33e: Update version to work with npm
+
 ## 1.0.0-alpha.12
 
 ### Patch Changes

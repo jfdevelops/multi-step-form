@@ -7,19 +7,19 @@
           "type": "patch"
         }
       ],
-      "summary": "`onInputChange` of the `<Field />` component has access to the most up to date data for that field",
-      "id": "tiny-eels-give"
+      "summary": "Update version to work with npm",
+      "id": "wacky-pans-sniff"
     }
   ],
   "releases": [
     {
       "name": "@jfdevelops/react-multi-step-form",
       "type": "patch",
-      "oldVersion": "1.0.0-alpha.11",
+      "oldVersion": "1.0.0-alpha.12",
       "changesets": [
-        "tiny-eels-give"
+        "wacky-pans-sniff"
       ],
-      "newVersion": "1.0.0-alpha.12"
+      "newVersion": "1.0.0-alpha.13"
     },
     {
       "name": "react-basic",
@@ -44,6 +44,7 @@
       "solid-jars-check",
       "tiny-eels-give",
       "twelve-pears-rhyme",
+      "wacky-pans-sniff",
       "yummy-pans-crash"
     ]
   }
