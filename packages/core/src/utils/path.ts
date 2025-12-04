@@ -148,10 +148,25 @@ export namespace path {
   }
 
   // Runtime: normalize paths (drop descendants when ancestor exists)
-  function normalizePaths(paths: string[]) {
-    return paths.filter((p) => {
-      return !paths.some((q) => q !== p && p.startsWith(q + '.'));
-    });
+  export function normalizePaths(...paths: string[]) {
+    // Sort by depth (deepest first), so longer paths come before their parents.
+    const sorted = [...paths].sort(
+      (a, b) => b.split('.').length - a.split('.').length
+    );
+
+    const finalPaths: string[] = [];
+
+    for (const path of sorted) {
+      // If the path is contained inside another selected deeper path, skip it
+      const isCovered = finalPaths.some((p) => p.startsWith(path + '.'));
+
+      if (!isCovered) {
+        finalPaths.push(path);
+      }
+    }
+
+    // The order may not matter, but returning in shallow-to-deep order feels natural.
+    return finalPaths.reverse();
   }
 
   /**
@@ -163,7 +178,7 @@ export namespace path {
     obj: def,
     ...paths: paths[]
   ): pickBy<def, paths> {
-    const norm = normalizePaths(paths);
+    const norm = normalizePaths(...paths);
 
     // Single normalized path -> return relative value at that path
     if (norm.length === 1) {
@@ -611,7 +626,7 @@ export namespace path {
     T extends Record<string, unknown>,
     path extends DeepKeys<T>
   >(obj: T, paths: path[], value: pickBy<T, path>) {
-    const norm = normalizePaths(paths as string[]);
+    const norm = normalizePaths(...paths);
     if (norm.length === 0) return obj;
 
     let result = obj;
