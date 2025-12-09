@@ -9,7 +9,6 @@ export default defineConfig({
   plugins: [
     dts({
       include: ['src'],
-      outDir: 'dist/types',
       entryRoot: 'src',
     }),
     tsconfigPaths(),

@@ -5,15 +5,15 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/types/index.d.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./_internal": {
-      "types": "./dist/types/internals/index.d.ts",
+      "types": "./dist/internals/index.d.ts",
       "import": "./dist/_internals.mjs",
       "require": "./dist/_internals.cjs"
     }
