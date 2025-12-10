@@ -1,6 +1,5 @@
 {
   "name": "@jfdevelops/multi-step-form",
-  "version": "1.0.0-alpha.10",
   "description": "An opinionated type safe solution to creating multi step forms.",
   "type": "module",
   "scripts": {
@@ -31,10 +30,5 @@
     "semver": "^7.7.3",
     "typescript": "^5.9.2",
     "vite": "^7.1.11"
-  },
-  "pnpm": {
-    "overrides": {
-      "typescript": "5.9.2"
-    }
   }
-}
+ }

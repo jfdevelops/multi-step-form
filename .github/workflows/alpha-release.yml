@@ -11,11 +11,12 @@ on:
       - alpha
 
 permissions:
-  contents: write
+  id-token: write
+  contents: read
   packages: write
 
 jobs:
-  alpha-release:
+  publish:
     runs-on: ubuntu-latest
 
     steps:
