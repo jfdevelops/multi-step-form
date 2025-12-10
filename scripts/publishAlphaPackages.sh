@@ -32,6 +32,7 @@ for pkg_json in packages/*/package.json; do
     echo "📦 In $pkg_dir"
 
     echo "registry=https://registry.npmjs.org/" > .npmrc
+    echo "always-auth=true" > .npmrc
 
     pkg_name=$(node -p "require('./package.json').name")
     echo "Publishing $pkg_name via OIDC..."
