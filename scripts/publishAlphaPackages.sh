@@ -1,17 +1,11 @@
-# #!/bin/bash
-# Publish alpha packages
-# Publishes all packages in the monorepo with the alpha tag
-
+#!/bin/bash
 set -e
 
-# Get current branch
+echo "🔍 Current branch check..."
 current_branch=$(git rev-parse --abbrev-ref HEAD)
 echo "Current branch: $current_branch"
 
-# Define valid publish branches
 valid_branches=("main" "alpha" "beta")
-
-# Check if current branch is in valid branches
 branch_valid=false
 for branch in "${valid_branches[@]}"; do
     if [[ "$current_branch" == "$branch" ]]; then
@@ -20,7 +14,6 @@ for branch in "${valid_branches[@]}"; do
     fi
 done
 
-# Error if branch is not valid
 if [[ "$branch_valid" == false ]]; then
     echo "❌ Error: Cannot publish because '$current_branch' is not one of the valid publish branches."
     echo "Valid branches are: ${valid_branches[*]}"
@@ -29,22 +22,27 @@ fi
 
 echo "✅ Branch '$current_branch' is valid for publishing"
 
+# Ensure registry for trusted publishing
+echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+
 echo "Publishing alpha packages..."
 for pkg_json in packages/*/package.json; do
     pkg_dir=$(dirname "$pkg_json")
-
     cd "$pkg_dir"
+    echo "📦 In $pkg_dir"
 
-    echo "in $pkg_dir"
+    echo "registry=https://registry.npmjs.org/" > .npmrc
 
     pkg_name=$(node -p "require('./package.json').name")
+    echo "Publishing $pkg_name via OIDC..."
 
-    publish_cmd="pnpm publish --tag latest --access public --publish-branch $current_branch --no-git-checks"
-    echo "Publishing $pkg_name with command: \"$publish_cmd\""
+    npm whoami || echo "Not authenticated (no token detected)"
 
-    eval "$publish_cmd" || echo "Already published or failed"
+    publish_cmd="pnpm publish --tag latest --access public --no-git-checks --publish-branch $current_branch"
+    echo "Running: $publish_cmd"
+    eval "$publish_cmd" || echo "⚠️ Already published or failed"
 
     cd - >/dev/null
 done
 
-echo "📦 Alpha packages publishing completed"
+echo "🎉 Alpha packages publishing completed successfully"
