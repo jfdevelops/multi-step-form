@@ -22,24 +22,18 @@ fi
 
 echo "✅ Branch '$current_branch' is valid for publishing"
 
-# Ensure registry for trusted publishing
-echo "registry=https://registry.npmjs.org/" > ~/.npmrc
-
 echo "Publishing alpha packages..."
 for pkg_json in packages/*/package.json; do
     pkg_dir=$(dirname "$pkg_json")
     cd "$pkg_dir"
     echo "📦 In $pkg_dir"
 
-    echo "registry=https://registry.npmjs.org/" > .npmrc
-    echo "always-auth=true" > .npmrc
-
     pkg_name=$(node -p "require('./package.json').name")
     echo "Publishing $pkg_name via OIDC..."
 
-    npm whoami || echo "Not authenticated (no token detected)"
+    # npm whoami || echo "Not authenticated (no token detected)"
 
-    publish_cmd="pnpm publish --tag latest --access public --no-git-checks --publish-branch $current_branch"
+    publish_cmd="pnpm publish --provenance --tag latest --access public --no-git-checks --publish-branch $current_branch"
     echo "Running: $publish_cmd"
     eval "$publish_cmd" || echo "⚠️ Already published or failed"
 
