@@ -114,6 +114,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup NPM scope
+        run: npm config set @jfdevelops:registry https://registry.npmjs.org/
+
       # --- Publish all out-of-date packages ---
       - name: Publish alpha packages
         if: steps.changesets.outputs.count != '0' || steps.publish_check.outputs.needs_publish == '1'
