@@ -1,7 +1,6 @@
 # #!/bin/bash
 # Publish alpha packages
 # Publishes all packages in the monorepo with the alpha tag
-# Requires NODE_AUTH_TOKEN environment variable for npm authentication
 
 set -e
 
@@ -29,11 +28,6 @@ if [[ "$branch_valid" == false ]]; then
 fi
 
 echo "✅ Branch '$current_branch' is valid for publishing"
-
-if [ -z "$NODE_AUTH_TOKEN" ]; then
-    echo "⚠️ Warning: NODE_AUTH_TOKEN not set. Publishing may fail."
-    exit 1
-fi
 
 echo "Publishing alpha packages..."
 for pkg_json in packages/*/package.json; do
