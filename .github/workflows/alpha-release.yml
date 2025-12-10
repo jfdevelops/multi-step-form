@@ -117,6 +117,4 @@ jobs:
       # --- Publish all out-of-date packages ---
       - name: Publish alpha packages
         if: steps.changesets.outputs.count != '0' || steps.publish_check.outputs.needs_publish == '1'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bash scripts/publishAlphaPackages.sh
