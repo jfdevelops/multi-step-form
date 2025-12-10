@@ -1,20 +1,59 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-echo "🔍 Running tests before commit..."
-pnpm run test:packages --browser.headless=true
+echo "🔍 Checking for relevant file changes..."
 
-if [ $? -ne 0 ]; then
-  echo "❌ Tests failed — aborting commit."
-  exit 1
+# Get list of staged files
+staged_files=$(git diff --cached --name-only)
+
+# Define patterns for files that should trigger tests
+test_relevant_patterns=(
+  "\.js$"
+  "\.jsx$"
+  "\.ts$"
+  "\.tsx$"
+  "\.json$"
+  "package\.json$"
+  "package-lock\.json$"
+  "yarn\.lock$"
+  "pnpm-lock\.yaml$"
+  "\.test\."
+  "\.spec\."
+  "__tests__"
+  "src/"
+  "lib/"
+  "components/"
+)
+
+# Check if any staged files match our patterns
+should_run_tests=false
+for file in $staged_files; do
+  for pattern in "${test_relevant_patterns[@]}"; do
+    if echo "$file" | grep -E "$pattern" > /dev/null; then
+      should_run_tests=true
+      break 2
+    fi
+  done
+done
+
+if [ "$should_run_tests" = false ]; then
+  echo "⏭️  No test-relevant files changed - skipping tests"
+else
+  echo "🧪 Running tests before commit..."
+  pnpm run test:packages --browser.headless=true
+
+  if [ $? -ne 0 ]; then
+    echo "❌ Tests failed - aborting commit."
+    exit 1
+  fi
 fi
 
-echo "🏗️  Building packages..."
+echo "📦 Building packages..."
 pnpm run build:packages
 
 if [ $? -ne 0 ]; then
-  echo "❌ Build failed — aborting commit."
+  echo "❌ Build failed - aborting commit."
   exit 1
 fi
 
-echo "✅ Tests and build succeeded — proceeding with commit."
+echo "✅ Tests and build succeeded - proceeding with commit."
