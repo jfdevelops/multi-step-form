@@ -109,9 +109,7 @@ jobs:
           body: |
             🚀 Automated Alpha Release: **${{ steps.tagger.outputs.tag }}**
 
-            Highest monorepo version: v${{ steps.pkg.outputs.version }}
-
-            This release includes the latest changes merged into the `master` branch.
+            This release includes the latest changes merged into the `alpha` branch.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
