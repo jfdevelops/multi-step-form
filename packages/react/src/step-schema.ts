@@ -25,8 +25,8 @@ import {
   type UpdateFn,
   type Updater,
   type ValidStepKey,
-} from '@jfdevelops/multi-step-form';
-import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form/_internal';
+} from '@jfdevelops/multi-step-form-core';
+import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internal';
 import type { ComponentPropsWithRef, ReactNode } from 'react';
 import { createField, type Field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
@@ -717,7 +717,7 @@ export class MultiStepFormStepSchema<
               } else {
                 resolvedValue = value;
               }
-              
+
               this.update({
                 targetStep: step,
                 updater: resolvedValue as never,

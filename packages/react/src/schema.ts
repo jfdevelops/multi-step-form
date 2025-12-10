@@ -12,7 +12,7 @@ import {
   type ResolvedStep as ResolvedStepCore,
   type Step,
   type StepNumbers,
-} from '@jfdevelops/multi-step-form';
+} from '@jfdevelops/multi-step-form-core';
 import type { ComponentPropsWithRef } from 'react';
 import { MultiStepFormSchemaConfig } from './form-config';
 import {
@@ -22,7 +22,7 @@ import {
   MultiStepFormStepSchema,
   type ResolvedStep,
 } from './step-schema';
-import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form/_internal';
+import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internal';
 
 // export type AnyMultiStepFormSchema = MultiStepFormSchema<any, any, any>;
 export type AnyMultiStepFormSchema = { [x: string]: any };

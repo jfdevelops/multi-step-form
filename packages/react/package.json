@@ -40,7 +40,7 @@
     "vitest-browser-react": "^2.0.2"
   },
   "dependencies": {
-    "@jfdevelops/multi-step-form": "workspace:*",
+    "@jfdevelops/multi-step-form-core": "workspace:*",
     "use-sync-external-store": "^1.6.0"
   }
 }

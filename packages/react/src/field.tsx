@@ -3,7 +3,7 @@ import type {
   fields,
   Override,
   Updater
-} from '@jfdevelops/multi-step-form';
+} from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
 
 export namespace Field {

@@ -1,4 +1,4 @@
-import { MultiStepFormStepSchema } from '@jfdevelops/multi-step-form';
+import { MultiStepFormStepSchema } from '@jfdevelops/multi-step-form-core';
 import { type ComponentProps, type ReactNode } from 'react';
 import {
   createMultiStepFormDataHook,
