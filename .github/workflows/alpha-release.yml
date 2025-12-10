@@ -38,6 +38,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run tests (core)
+        env:
+          CI: true
+        run: pnpm run test:core
+
+      - name: Build (core)
+        run: pnpm run build:core
+
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -47,14 +55,6 @@ jobs:
       - name: Install Playwright browsers
         working-directory: packages/react
         run: pnpm exec playwright install --with-deps chromium
-
-      - name: Run tests (core)
-        env:
-          CI: true
-        run: pnpm run test:core
-
-      - name: Build (core)
-        run: pnpm run build:core
 
       - name: Run tests (react)
         env:
@@ -114,6 +114,23 @@ jobs:
             This release includes the latest changes merged into the `alpha` branch.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        # --- Refresh Node setup for OIDC (npm trusted publishing) ---
+      - name: Re-setup Node.js for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+
+      # --- Debug npm identity (optional but recommended the first run) ---
+      - name: Verify npm OIDC identity
+        run: |
+          echo "Current .npmrc:"
+          cat ~/.npmrc
+          echo ""
+          echo "npm whoami output:"
+          npm whoami || echo "❌ Not authenticated — OIDC not detected"
 
       # --- Publish all out-of-date packages ---
       - name: Publish alpha packages

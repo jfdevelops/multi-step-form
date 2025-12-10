@@ -2,6 +2,7 @@
   "name": "@jfdevelops/multi-step-form-core",
   "version": "1.0.0-alpha.11",
   "description": "",
+  "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

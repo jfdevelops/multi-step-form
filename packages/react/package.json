@@ -2,6 +2,7 @@
   "name": "@jfdevelops/react-multi-step-form",
   "version": "1.0.0-alpha.14",
   "description": "",
+  "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
