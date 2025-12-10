@@ -38,10 +38,18 @@ fi
 echo "Publishing alpha packages..."
 for pkg_json in packages/*/package.json; do
     pkg_dir=$(dirname "$pkg_json")
+
     cd "$pkg_dir"
+
+    echo "in $pkg_dir"
+
     pkg_name=$(node -p "require('./package.json').name")
-    echo "Publishing $pkg_name..."
-    npm publish --tag latest --access public --publish-branch $current_branch --no-git-checks || echo "Already published or failed"
+
+    publish_cmd="pnpm publish --tag latest --access public --publish-branch $current_branch --no-git-checks"
+    echo "Publishing $pkg_name with command: \"$publish_cmd\""
+
+    eval "$publish_cmd" || echo "Already published or failed"
+
     cd - >/dev/null
 done
 
