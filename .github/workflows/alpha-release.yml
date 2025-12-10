@@ -115,23 +115,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        # --- Refresh Node setup for OIDC (npm trusted publishing) ---
-      - name: Re-setup Node.js for npm publish
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: 'https://registry.npmjs.org'
-          always-auth: true
-
-      # --- Debug npm identity (optional but recommended the first run) ---
-      - name: Verify npm OIDC identity
-        run: |
-          echo "Current .npmrc:"
-          cat ~/.npmrc
-          echo ""
-          echo "npm whoami output:"
-          npm whoami || echo "❌ Not authenticated — OIDC not detected"
-
       # --- Publish all out-of-date packages ---
       - name: Publish alpha packages
         if: steps.changesets.outputs.count != '0' || steps.publish_check.outputs.needs_publish == '1'
