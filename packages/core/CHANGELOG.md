@@ -1,4 +1,4 @@
-# @jfdevelops/multi-step-form
+# @jfdevelops/multi-step-form-core
 
 ## 1.0.0-alpha.11
 

@@ -1,6 +1,6 @@
 ---
-"@jfdevelops/react-multi-step-form": patch
-"@jfdevelops/multi-step-form": patch
+'@jfdevelops/react-multi-step-form': patch
+'@jfdevelops/multi-step-form-core': patch
 ---
 
 This update brings changes to the following functions:
