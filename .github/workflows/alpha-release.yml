@@ -2,9 +2,13 @@ name: Alpha Release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: override release tag
+        required: false
   push:
     branches:
-      - master
+      - alpha
 
 permissions:
   contents: write
