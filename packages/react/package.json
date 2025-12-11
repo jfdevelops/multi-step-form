@@ -43,5 +43,9 @@
   "dependencies": {
     "@jfdevelops/multi-step-form-core": "workspace:*",
     "use-sync-external-store": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
