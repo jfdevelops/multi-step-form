@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import packageJson from './package.json'
 
 export default defineConfig({
   plugins: [
@@ -29,6 +30,7 @@ export default defineConfig({
     minify: false,
   },
   test: {
+    name: packageJson.name,
     environment: 'jsdom',
   },
 });

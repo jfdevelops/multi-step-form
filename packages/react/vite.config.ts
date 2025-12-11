@@ -5,7 +5,7 @@ import { playwright } from '@vitest/browser-playwright';
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
-
+import packageJson from './package.json';
 export default defineConfig({
   plugins: [
     react(),
@@ -33,6 +33,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   test: {
+    name: packageJson.name,
     environment: 'jsdom',
     browser: {
       enabled: true,

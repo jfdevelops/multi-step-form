@@ -49,7 +49,7 @@ jobs:
       - name: Run tests (core)
         env:
           CI: true
-        run: pnpm run test:core -- --reporter=junit --outputFile=core-test-results.xml
+        run: pnpm run test:core -- --reporter=junit --outputFile=test-results.xml
 
       # 3. ADDED: Upload Report
       - name: Report Core Results
@@ -57,7 +57,7 @@ jobs:
         if: success() || failure() # Run even if tests fail
         with:
           name: Core Tests         # Name shows up in GitHub Checks
-          path: core-test-results.xml
+          path: packages/core/test-results.xml
           reporter: java-junit
 
       - name: Build (core)
@@ -116,7 +116,7 @@ jobs:
         env:
           CI: true
         # Changed reporters to include junit and output file
-        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=react-test-results.xml
+        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=test-results.xml
 
       # 3. ADDED: Upload Report
       - name: Report React Results
@@ -124,7 +124,7 @@ jobs:
         if: success() || failure()
         with:
           name: React Tests
-          path: react-test-results.xml
+          path: packages/react/test-results.xml
           reporter: java-junit
 
       - name: Build (react)
