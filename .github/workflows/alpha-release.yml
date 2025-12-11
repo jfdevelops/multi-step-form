@@ -50,15 +50,16 @@ jobs:
         env:
           CI: true
           GITHUB_ACTIONS: true
-        run: pnpm run test:core -- --reporter=junit --outputFile=core-test-results.xml
+        run: pnpm run test:core --reporter=junit --outputFile=test-results.xml
 
       # 3. ADDED: Upload Report
       - name: Report Core Results
         uses: dorny/test-reporter@v1
         if: success() || failure() # Run even if tests fail
         with:
-          name: Core Tests # Name shows up in GitHub Checks
-          path: '**/core-test-results.xml'
+          name: Core Tests         # Name shows up in GitHub Checks
+          working-directory: packages/core
+          path: test-results.xml
           reporter: java-junit
 
       - name: Build (core)
@@ -118,7 +119,7 @@ jobs:
           CI: true
           GITHUB_ACTIONS: true
         # Changed reporters to include junit and output file
-        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=react-test-results.xml
+        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=test-results.xml
 
       # 3. ADDED: Upload Report
       - name: Report React Results
@@ -126,8 +127,10 @@ jobs:
         if: success() || failure()
         with:
           name: React Tests
-          path: '**/react-test-results.xml'
+          working-directory: packages/react
+          path: test-results.xml
           reporter: java-junit
+
 
       - name: Build (react)
         run: pnpm run build:react
@@ -167,8 +170,8 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: pnpm run release
-          commit: 'ci(changesets): version packages'
-          title: 'ci(changesets): version packages'
+          commit: "ci(changesets): version packages"
+          title: "ci(changesets): version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
