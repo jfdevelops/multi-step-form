@@ -19,9 +19,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  publish:
+  # ------------------------------------------------------------------
+  # JOB 1: Core (Builds and Uploads Artifacts)
+  # ------------------------------------------------------------------
+  core:
+    name: Core Build & Test
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,6 +51,49 @@ jobs:
       - name: Build (core)
         run: pnpm run build:core
 
+      # MAGIC STEP 1: Upload the compiled core files
+      # Adjust 'packages/core/dist' to match your actual build output folder
+      - name: Upload Core Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-build
+          path: packages/core/dist
+          retention-days: 1
+
+  # ------------------------------------------------------------------
+  # JOB 2: React (Downloads Core, then Runs)
+  # ------------------------------------------------------------------
+  react:
+    name: React Build & Test
+    runs-on: ubuntu-latest
+    # This creates the line in the chart: Core -> React
+    needs: core
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # MAGIC STEP 2: Download the compiled core files
+      # This puts the 'dist' folder back where it belongs so React can find it
+      - name: Download Core Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: core-build
+          path: packages/core/dist
+
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -66,16 +112,45 @@ jobs:
       - name: Build (react)
         run: pnpm run build:react
 
+  # ------------------------------------------------------------------
+  # JOB 3: Release
+  # ------------------------------------------------------------------
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: react
+    if: github.event_name == 'push' || github.event.inputs.tag
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # You likely need to rebuild everything here one last time
+      # to ensure the release packages are fresh and linked correctly
+      - name: Build All
+        run: pnpm run build
+
       - name: Create Release
         uses: changesets/action@v1
         with:
-          # This command runs when version bumps are ready to be published
           publish: pnpm run release
-          # Optional: Custom commit message for version bumps
           commit: "ci(changesets): version packages"
           title: "ci(changesets): version packages"
         env:
-          # GITHUB_TOKEN is needed to push tags and create releases
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN is needed to publish to the registry
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
