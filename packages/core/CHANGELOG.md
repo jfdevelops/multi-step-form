@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.12
+
+### Patch Changes
+
+- 915b62b: Renames core package to `@jfdevelops/multi-step-form-core`
+
 ## 1.0.0-alpha.11
 
 ### Patch Changes

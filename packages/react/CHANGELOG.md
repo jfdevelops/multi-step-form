@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.15
+
+### Patch Changes
+
+- 915b62b: Renames core package to `@jfdevelops/multi-step-form-core`
+- Updated dependencies [915b62b]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.12
+
 ## 1.0.0-alpha.14
 
 ### Patch Changes
