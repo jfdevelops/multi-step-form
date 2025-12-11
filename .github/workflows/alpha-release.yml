@@ -57,7 +57,8 @@ jobs:
         if: success() || failure() # Run even if tests fail
         with:
           name: Core Tests         # Name shows up in GitHub Checks
-          path: packages/core/test-results.xml
+          working-directory: packages/core
+          path: test-results.xml
           reporter: java-junit
 
       - name: Build (core)
@@ -124,8 +125,10 @@ jobs:
         if: success() || failure()
         with:
           name: React Tests
-          path: packages/react/test-results.xml
+          working-directory: packages/react
+          path: test-results.xml
           reporter: java-junit
+          
 
       - name: Build (react)
         run: pnpm run build:react
