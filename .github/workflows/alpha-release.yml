@@ -17,6 +17,7 @@ permissions:
   contents: write
   packages: write
   pull-requests: write
+  checks: write # <--- 1. ADD THIS (Required to publish test results)
 
 jobs:
   # ------------------------------------------------------------------
@@ -43,16 +44,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # 2. UPDATED: Output to XML
+      # We pass --reporter=junit and --outputFile via CLI to keep it clean
       - name: Run tests (core)
         env:
           CI: true
-        run: pnpm run test:core
+        run: pnpm run test:core -- --reporter=junit --outputFile=core-test-results.xml
+
+      # 3. ADDED: Upload Report
+      - name: Report Core Results
+        uses: dorny/test-reporter@v1
+        if: success() || failure() # Run even if tests fail
+        with:
+          name: Core Tests         # Name shows up in GitHub Checks
+          path: core-test-results.xml
+          reporter: java-junit
 
       - name: Build (core)
         run: pnpm run build:core
 
-      # MAGIC STEP 1: Upload the compiled core files
-      # Adjust 'packages/core/dist' to match your actual build output folder
       - name: Upload Core Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -66,7 +76,6 @@ jobs:
   react:
     name: React Build & Test
     runs-on: ubuntu-latest
-    # This creates the line in the chart: Core -> React
     needs: core
     steps:
       - name: Checkout repository
@@ -86,8 +95,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # MAGIC STEP 2: Download the compiled core files
-      # This puts the 'dist' folder back where it belongs so React can find it
       - name: Download Core Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -104,10 +111,21 @@ jobs:
         working-directory: packages/react
         run: pnpm exec playwright install --with-deps chromium
 
+      # 2. UPDATED: Output to XML for React tests as well
       - name: Run tests (react)
         env:
           CI: true
-        run: pnpm run test:react --browser.headless=true --reporter=verbose --reporter=github-actions
+        # Changed reporters to include junit and output file
+        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=react-test-results.xml
+
+      # 3. ADDED: Upload Report
+      - name: Report React Results
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: React Tests
+          path: react-test-results.xml
+          reporter: java-junit
 
       - name: Build (react)
         run: pnpm run build:react
@@ -140,8 +158,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # You likely need to rebuild everything here one last time
-      # to ensure the release packages are fresh and linked correctly
       - name: Build All
         run: pnpm run build
 
