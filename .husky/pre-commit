@@ -5,23 +5,17 @@ echo "🔍 Checking for relevant file changes..."
 # Get list of staged files
 staged_files=$(git diff --cached --name-only)
 
-# Define patterns for files that should trigger tests
+if [ -z "$staged_files" ]; then
+  echo "Empty commit or no file changes detected."
+  # We can exit successfully here or let it continue to build checks if you prefer
+  # usually safe to continue, or exit 0.
+fi
+
+# Define patterns as a single Regex string (no arrays!)
 test_relevant_patterns="\.(js|jsx|ts|tsx|json)$|package(-lock)?\.json$|yarn\.lock$|pnpm-lock\.yaml$|\.(test|spec)\.|__tests__|src/|lib/|components/"
 
 # Check if any staged files match our patterns
-should_run_tests=false
-for file in $staged_files; do
-  for pattern in "${test_relevant_patterns[@]}"; do
-    if echo "$file" | grep -E "$pattern" > /dev/null; then
-      should_run_tests=true
-      break 2
-    fi
-  done
-done
-
-if [ "$should_run_tests" = false ]; then
-  echo "⏭️  No test-relevant files changed - skipping tests"
-else
+if echo "$staged_files" | grep -E -q "$test_relevant_patterns"; then
   echo "🧪 Running tests before commit..."
   pnpm run test:packages --browser.headless=true
 
@@ -29,6 +23,8 @@ else
     echo "❌ Tests failed - aborting commit."
     exit 1
   fi
+else
+  echo "⏭️  No test-relevant files changed - skipping tests"
 fi
 
 echo "📦 Building packages..."
