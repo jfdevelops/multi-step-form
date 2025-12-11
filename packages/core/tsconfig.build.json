@@ -6,12 +6,12 @@
     "declarationMap": true,
     "skipLibCheck": true,
 
-    "outDir": "dist/types",
+    "outDir": "dist",
     "rootDir": "src",
 
     // 👇 ensure we *don't* flattened declarations
     "composite": false,
     "isolatedModules": false
   },
-  "include": ["src/index.ts", "src/internals/index.ts"]
+  "include": ["src/index.ts"]
 }

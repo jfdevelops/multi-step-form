@@ -6,26 +6,25 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/index.d.cts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
     },
-    "./_internal": {
-      "types": "./dist/internals/index.d.ts",
-      "import": "./dist/_internals.mjs",
-      "require": "./dist/_internals.cjs"
-    }
+    "./_internals": {
+      "require": "./dist/_internals.cjs",
+      "import": "./dist/_internals.mjs"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "watch": "vite build --watch",
+    "build": "tsdown",
+    "watch": "tsdown --watch",
     "test": "vitest"
   },
   "keywords": [],
@@ -34,6 +33,7 @@
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
     "arktype": "^2.1.22",
+    "typescript": "^5.8.3",
     "vite": "^7.1.5",
     "vite-plugin-dts": "^4.5.4",
     "vite-tsconfig-paths": "^5.1.4",
