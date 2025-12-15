@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.13
+
+### Patch Changes
+
+- a8a9502: Adds convenient `reset` method
+
 ## 1.0.0-alpha.12
 
 ### Patch Changes
