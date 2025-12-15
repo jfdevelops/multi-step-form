@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.16
+
+### Patch Changes
+
+- a8a9502: Adds convenient `reset` method
+- Updated dependencies [a8a9502]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.13
+
 ## 1.0.0-alpha.15
 
 ### Patch Changes
