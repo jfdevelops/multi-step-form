@@ -20,7 +20,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsdown",
-    "watch": "tsdown --watch"
+    "watch": "tsdown --watch",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "Joey Finkel",

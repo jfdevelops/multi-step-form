@@ -6,6 +6,8 @@ import {
   type CreateHelperFunctionOptionsWithoutValidator,
   type CreateHelperFunctionOptionsWithValidator,
   type HelperFnCtx,
+  type helperFnResetFn,
+  type HelperFnResetFn,
   type helperFnUpdateFn,
   type HelperFnUpdateFn,
   type HelperFnWithoutValidator,
@@ -172,6 +174,7 @@ export class MultiStepFormStepSchemaInternal<
     const updated = functionalUpdate(updater, {
       ctx: ctx as never,
       update: this.createHelperFnInputUpdate([targetStep]),
+      reset: this.createHelperFnInputReset([targetStep]),
     });
     logger.info(`The updated data is ${JSON.stringify(updated, null, 2)}`);
 
@@ -571,6 +574,62 @@ export class MultiStepFormStepSchemaInternal<
     throw new TypeError(`[update]: ${HelperFnChosenSteps.CATCH_ALL_MESSAGE}`);
   }
 
+  createHelperFnInputReset<
+    chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+  >(chosenSteps: chosenSteps) {
+    if (HelperFnChosenSteps.isAll(chosenSteps)) {
+      const stepSpecificUpdateFn = typedObjectKeys<
+        resolvedStep,
+        ValidStepKey<stepNumbers>
+      >(this.value).reduce((acc, key) => {
+        acc[key] = this.createStepResetterFn(key);
+
+        return acc;
+      }, {} as helperFnResetFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
+      const reset = Object.assign(
+        this.reset,
+        stepSpecificUpdateFn
+      ) as HelperFnResetFn<resolvedStep, stepNumbers, chosenSteps>;
+
+      return reset;
+    }
+
+    const validKeys = Object.keys(this.value);
+
+    if (HelperFnChosenSteps.isTuple<stepNumbers>(chosenSteps, validKeys)) {
+      const stepSpecificUpdateFn = chosenSteps.reduce((acc, step) => {
+        acc[step] = this.createStepResetterFn(step);
+
+        return acc;
+      }, {} as helperFnResetFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
+      const reset = Object.assign(
+        this.reset,
+        stepSpecificUpdateFn
+      ) as HelperFnResetFn<resolvedStep, stepNumbers, chosenSteps>;
+
+      return reset;
+    }
+
+    if (HelperFnChosenSteps.isObject<stepNumbers>(chosenSteps, validKeys)) {
+      const stepSpecificUpdateFn = typedObjectKeys<
+        HelperFnChosenSteps.objectNotation<`step${stepNumbers}`>,
+        ValidStepKey<stepNumbers>
+      >(chosenSteps).reduce((acc, key) => {
+        acc[key] = this.createStepResetterFn(key);
+
+        return acc;
+      }, {} as helperFnResetFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
+      const reset = Object.assign(
+        this.reset,
+        stepSpecificUpdateFn
+      ) as HelperFnResetFn<resolvedStep, stepNumbers, chosenSteps>;
+
+      return reset;
+    }
+
+    throw new TypeError(`[update]: ${HelperFnChosenSteps.CATCH_ALL_MESSAGE}`);
+  }
+
   createStepHelperFn<
     chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
   >(stepData: chosenSteps) {
@@ -618,9 +677,10 @@ export class MultiStepFormStepSchemaInternal<
             response
           >
     ) => {
-      const createInputUpdateFn = this.createHelperFnInputUpdate(
-        stepData
-      ) as HelperFnUpdateFn<resolvedStep, stepNumbers, chosenSteps>;
+      const functions = {
+        update: this.createHelperFnInputUpdate(stepData),
+        reset: this.createHelperFnInputReset(stepData),
+      };
 
       if (typeof optionsOrFunction === 'function') {
         return () => {
@@ -631,7 +691,7 @@ export class MultiStepFormStepSchemaInternal<
           ) as never;
           return optionsOrFunction({
             ctx,
-            update: createInputUpdateFn,
+            ...functions,
           });
         };
       }
@@ -677,7 +737,7 @@ export class MultiStepFormStepSchemaInternal<
 
             return fn({
               ctx: resolvedCtx as never,
-              update: createInputUpdateFn,
+              ...functions,
               ...input,
             });
           }
@@ -692,7 +752,7 @@ export class MultiStepFormStepSchemaInternal<
             >
           )({
             ctx,
-            update: createInputUpdateFn,
+            ...functions,
           });
         };
       }

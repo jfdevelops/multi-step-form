@@ -25,7 +25,8 @@
     "dev": "vite",
     "build": "tsdown",
     "watch": "tsdown --watch",
-    "test": "vitest"
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "Joey Finkel",

@@ -384,6 +384,18 @@ export namespace ResetFn {
     fields: TField;
   }
 
+  export type general<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>
+  > = <
+    targetStep extends ValidStepKey<TStepNumbers>,
+    field extends UpdateFn.chosenFields<
+      UpdateFn.resolvedStep<TResolvedStep, TStepNumbers, targetStep>
+    > = 'all'
+  >(
+    options: Options<TResolvedStep, TStepNumbers, targetStep, field>
+  ) => void;
+
   export type stepSpecific<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
@@ -966,6 +978,34 @@ export type HelperFnUpdateFn<
       }
     : {});
 
+export type helperFnResetFn<
+  TResolvedStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TResolvedStep>,
+  TSteps extends ValidStepKey<TStepNumbers>
+> = {
+  [step in TSteps]: ResetFn.stepSpecific<TResolvedStep, TStepNumbers, step>;
+};
+export type HelperFnResetFn<
+  TResolvedStep extends AnyResolvedStep,
+  TSteps extends StepNumbers<TResolvedStep>,
+  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+> = ResetFn.general<TResolvedStep, TSteps> &
+  (TChosenSteps extends HelperFnChosenSteps.defaultStringOption
+    ? helperFnResetFn<TResolvedStep, TSteps, ValidStepKey<TSteps>>
+    : TChosenSteps extends HelperFnChosenSteps.tupleNotation<
+        ValidStepKey<TSteps>
+      >
+    ? helperFnResetFn<TResolvedStep, TSteps, TChosenSteps[number]>
+    : TChosenSteps extends HelperFnChosenSteps.objectNotation<
+        ValidStepKey<TSteps>
+      >
+    ? {
+        [step in keyof TChosenSteps]: step extends ValidStepKey<TSteps>
+          ? helperFnResetFn<TResolvedStep, TSteps, step>[step]
+          : {};
+      }
+    : {});
+
 export interface HelperFnInputBase<
   TResolvedStep extends AnyResolvedStep,
   TSteps extends StepNumbers<TResolvedStep>,
@@ -989,6 +1029,12 @@ export interface HelperFnInputBase<
    * A function to update parts of the multi-step form schema.
    */
   update: HelperFnUpdateFn<TResolvedStep, TSteps, TChosenSteps>;
+  /**
+   * A useful wrapper for `update` to reset a specific field's value to its
+   * original config value.
+   * @resetFn
+   */
+  reset: HelperFnResetFn<TResolvedStep, TSteps, TChosenSteps>;
 }
 export type HelperFnInputWithValidator<
   TResolvedStep extends AnyResolvedStep,

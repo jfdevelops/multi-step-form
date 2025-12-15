@@ -161,6 +161,7 @@ export namespace StepSpecificComponent {
         /**
          * A useful wrapper for `update` to reset a specific field's value to its
          * original config value.
+         * @resetFn
          */
         reset: ResetFn.stepSpecific<
           TResolvedStep,
@@ -840,9 +841,12 @@ export class MultiStepFormStepSchema<
     // Not exactly sure why `this.value` could be undefined, but it can be so
     // we fallback to the internal value
     const resolvedValues = this.value;
-    const targetStep = stepData[0];
+    const [targetStep] = stepData;
     const update = this.#internal
       .createStepUpdaterFn(targetStep)
+      .bind(this.#internal) as never;
+    const reset = this.#internal
+      .createStepResetterFn(targetStep)
       .bind(this.#internal) as never;
 
     function impl<props = undefined>(
@@ -1010,6 +1014,7 @@ export class MultiStepFormStepSchema<
           return createStepSpecificComponentImpl(stepData, config, {
             ctx: resolvedCtx as never,
             update,
+            reset,
           })(fn);
         }
 
