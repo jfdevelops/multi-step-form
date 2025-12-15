@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.14
+
+### Patch Changes
+
+- 44fef3a: Brings `resetFn` support to `createHelperFn`
+
 ## 1.0.0-alpha.13
 
 ### Patch Changes

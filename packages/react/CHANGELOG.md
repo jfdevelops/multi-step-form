@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.17
+
+### Patch Changes
+
+- 44fef3a: Brings `resetFn` support to `createHelperFn`
+- Updated dependencies [44fef3a]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.14
+
 ## 1.0.0-alpha.16
 
 ### Patch Changes
