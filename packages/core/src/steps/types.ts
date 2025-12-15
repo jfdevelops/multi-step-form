@@ -221,7 +221,7 @@ export namespace UpdateFn {
     | HelperFnChosenSteps.tupleNotation<DeepKeys<TCurrentStep>>
     | path.generateObjectConfig<TCurrentStep>;
 
-  export type options<
+  export interface SharedOptions<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
     TTargetStep extends ValidStepKey<TStepNumbers>,
@@ -232,12 +232,7 @@ export namespace UpdateFn {
       TStepNumbers,
       TTargetStep
     > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
-  > = CtxDataSelector<
-    TResolvedStep,
-    TStepNumbers,
-    [TTargetStep],
-    TAdditionalCtx
-  > & {
+  > {
     /**
      * The step to update.
      */
@@ -254,6 +249,33 @@ export namespace UpdateFn {
      * Set to `true` to output helpful information for troubleshooting.
      */
     debug?: boolean;
+  }
+
+  export interface UpdateOptions<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>,
+    TField extends chosenFields<TCurrentStep>,
+    TAdditionalCtx extends Record<string, unknown>,
+    TCurrentStep extends resolvedStep<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep
+    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+  > extends SharedOptions<
+        TResolvedStep,
+        TStepNumbers,
+        TTargetStep,
+        TField,
+        TAdditionalCtx,
+        TCurrentStep
+      >,
+      CtxDataSelector<
+        TResolvedStep,
+        TStepNumbers,
+        [TTargetStep],
+        TAdditionalCtx
+      > {
     updater: Updater<
       Expand<
         HelperFnInputBase<
@@ -272,7 +294,27 @@ export namespace UpdateFn {
         TCurrentStep
       >
     >;
-  };
+  }
+
+  export type options<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>,
+    TField extends chosenFields<TCurrentStep>,
+    TAdditionalCtx extends Record<string, unknown>,
+    TCurrentStep extends resolvedStep<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep
+    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+  > = UpdateOptions<
+    TResolvedStep,
+    TStepNumbers,
+    TTargetStep,
+    TField,
+    TAdditionalCtx,
+    TCurrentStep
+  >;
   export type availableFields<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
@@ -312,6 +354,47 @@ export namespace UpdateFn {
   >(
     options: Omit<
       options<TResolvedStep, TStepNumbers, TTargetStep, field, additionalCtx>,
+      'targetStep'
+    >
+  ) => void;
+}
+
+export namespace ResetFn {
+  export interface Options<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>,
+    TField extends UpdateFn.chosenFields<TCurrentStep>,
+    TCurrentStep extends UpdateFn.resolvedStep<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep
+    > = UpdateFn.resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+  > extends UpdateFn.SharedOptions<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep,
+      TField,
+      {},
+      TCurrentStep
+    > {
+    /**
+     * The fields to reset.
+     */
+    fields: TField;
+  }
+
+  export type stepSpecific<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>
+  > = <
+    field extends UpdateFn.chosenFields<
+      UpdateFn.resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+    > = 'all'
+  >(
+    options?: Omit<
+      Options<TResolvedStep, TStepNumbers, TTargetStep, field>,
       'targetStep'
     >
   ) => void;
@@ -454,6 +537,18 @@ export type StepSpecificHelperFns<
        * A helper function to updated the current step's data.
        */
       update: UpdateFn.stepSpecific<
+        TResolvedStep,
+        StepNumbers<TResolvedStep>,
+        TKey
+      >;
+      /**
+       * A helper function to reset the current step's data.
+       *
+       * If no config is provided, **all** fields for the current step
+       * will be reset. If you need to reset a specific field, specify
+       * that field in the config.
+       */
+      reset: ResetFn.stepSpecific<
         TResolvedStep,
         StepNumbers<TResolvedStep>,
         TKey
@@ -647,13 +742,17 @@ export namespace HelperFnChosenSteps {
   export type resolve<
     TResolvedStep extends AnyResolvedStep,
     TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+    TChosenSteps extends main<TResolvedStep, TSteps>
   > = TChosenSteps extends 'all'
     ? keyof TResolvedStep
     : TChosenSteps extends tupleNotation<ValidStepKey<TSteps>>
-    ? TChosenSteps[number]
+    ? TChosenSteps[number] extends keyof TResolvedStep
+      ? TChosenSteps[number]
+      : never
     : TChosenSteps extends objectNotation<ValidStepKey<TSteps>>
-    ? keyof TChosenSteps
+    ? keyof TChosenSteps extends keyof TResolvedStep
+      ? keyof TChosenSteps
+      : never
     : never;
 
   export const CATCH_ALL_MESSAGE =

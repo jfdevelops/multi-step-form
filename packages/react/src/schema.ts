@@ -22,7 +22,7 @@ import {
   MultiStepFormStepSchema,
   type ResolvedStep,
 } from './step-schema';
-import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internal';
+import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internals';
 
 // export type AnyMultiStepFormSchema = MultiStepFormSchema<any, any, any>;
 export type AnyMultiStepFormSchema = { [x: string]: any };
@@ -100,6 +100,8 @@ export class MultiStepFormSchema<
     formProps
   >;
   readonly #internal: MultiStepFormStepSchemaInternal<
+    step,
+    casing,
     resolvedStep,
     stepNumbers
   >;
@@ -128,9 +130,12 @@ export class MultiStepFormSchema<
       formProps
     >(options);
     this.#internal = new MultiStepFormStepSchemaInternal<
+      step,
+      casing,
       resolvedStep,
       stepNumbers
     >({
+      originalValue: this.stepSchema.original,
       getValue: () => this.stepSchema.value as never,
       setValue: (value) => {
         this.stepSchema.value = { ...value } as never;

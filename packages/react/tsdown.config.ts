@@ -12,4 +12,5 @@ export default defineConfig({
   fixedExtension: true,
   exports: true,
   platform: 'neutral',
+  treeshake: true
 });
