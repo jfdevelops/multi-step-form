@@ -167,6 +167,7 @@ export class MultiStepFormSchema<
         {
           ctx,
           update: this.#internal.createHelperFnInputUpdate(stepData),
+          reset: this.#internal.createHelperFnInputReset(stepData),
         },
         props as any
       )) as any;
