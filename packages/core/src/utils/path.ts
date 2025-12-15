@@ -542,7 +542,7 @@ export namespace path {
   /**
    * Turn a CompareResult into a pretty error string.
    */
-  export function formatMismatches(result: CompareResult): string {
+  export function formatMismatches(result: CompareResult) {
     if (result.ok || result.mismatches.length === 0) {
       return 'No mismatches.';
     }

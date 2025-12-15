@@ -18,6 +18,7 @@ import {
   type MultiStepFormSchemaStepConfig as MultiStepFormSchemaStepBaseConfig,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
   type Relaxed,
+  type ResetFn,
   type ResolvedStep as ResolvedCoreStep,
   type Step,
   type StepNumbers,
@@ -26,9 +27,9 @@ import {
   type Updater,
   type ValidStepKey,
 } from '@jfdevelops/multi-step-form-core';
-import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internal';
+import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ComponentPropsWithRef, ReactNode } from 'react';
-import { createField, type Field } from './field';
+import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 
 export interface MultiStepFormSchemaStepConfig<
@@ -138,7 +139,37 @@ export namespace StepSpecificComponent {
     field: Field,
     updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
   ) => void;
-  export interface Input<
+  export type updateWrappers<
+    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TStepNumber extends HelperFnChosenSteps.extractStepNumber<
+      TResolvedStep,
+      TSteps,
+      TChosenSteps
+    >
+  > = TStepNumber extends TSteps
+    ? {
+        /**
+         * A useful wrapper around `update` to update the specific field.
+         */
+        onInputChange: UpdateFn.stepSpecific<
+          TResolvedStep,
+          TSteps,
+          ValidStepKey<TStepNumber>
+        >;
+        /**
+         * A useful wrapper for `update` to reset a specific field's value to its
+         * original config value.
+         */
+        reset: ResetFn.stepSpecific<
+          TResolvedStep,
+          TSteps,
+          ValidStepKey<TStepNumber>
+        >;
+      }
+    : {};
+  export type input<
     TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
     TSteps extends StepNumbers<TResolvedStep>,
     TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
@@ -152,30 +183,25 @@ export namespace StepSpecificComponent {
       TSteps,
       TChosenSteps
     >
-  > extends HelperFnInputBase<
-      TResolvedStep,
-      TSteps,
-      TChosenSteps,
-      never,
-      TAdditionalCtx
-    > {
-    /**
-     * A useful wrapper around `update` to update the specific field.
-     */
-    onInputChange: TStepNumber extends TSteps
-      ? UpdateFn.stepSpecific<TResolvedStep, TSteps, ValidStepKey<TStepNumber>>
-      : never;
-    Field: Field.component<
-      TResolvedStep,
-      ValidStepKey<
-        HelperFnChosenSteps.extractStepNumber<
-          TResolvedStep,
-          TSteps,
-          TChosenSteps
+  > = HelperFnInputBase<
+    TResolvedStep,
+    TSteps,
+    TChosenSteps,
+    never,
+    TAdditionalCtx
+  > &
+    updateWrappers<TResolvedStep, TSteps, TChosenSteps, TStepNumber> & {
+      Field: field.component<
+        TResolvedStep,
+        ValidStepKey<
+          HelperFnChosenSteps.extractStepNumber<
+            TResolvedStep,
+            TSteps,
+            TChosenSteps
+          >
         >
-      >
-    >;
-  }
+      >;
+    };
 
   export type callback<
     TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
@@ -189,7 +215,7 @@ export namespace StepSpecificComponent {
     TAdditionalCtx extends Record<string, unknown>
   > = CreateComponent<
     Expand<
-      Input<TResolvedStep, TSteps, TChosenSteps, TAdditionalCtx> &
+      input<TResolvedStep, TSteps, TChosenSteps, TAdditionalCtx> &
         formComponent<
           TResolvedStep,
           TSteps,
@@ -502,6 +528,8 @@ export class MultiStepFormStepSchema<
   // @ts-ignore type doesn't match `MultiStepFormSchemaBase.value`
   value: resolvedStep;
   readonly #internal: MultiStepFormStepSchemaInternal<
+    step,
+    casing,
     resolvedStep,
     stepNumbers
   >;
@@ -523,9 +551,12 @@ export class MultiStepFormStepSchema<
     this.value = createStep(this.original);
 
     this.#internal = new MultiStepFormStepSchemaInternal<
+      step,
+      casing,
       resolvedStep,
       stepNumbers
     >({
+      originalValue: this.original,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next as never),
     });
@@ -668,22 +699,29 @@ export class MultiStepFormStepSchema<
         );
         const stepUpdater = this.#internal.createStepUpdaterFn(step);
 
-        const Field = createField((name) => {
-          invariant(typeof name === 'string', () => {
-            const formatter = new Intl.ListFormat('en', {
-              style: 'long',
-              type: 'disjunction',
-            });
+        const Field = field.create<
+          resolvedStep,
+          HelperFnChosenSteps.resolve<resolvedStep, stepNumbers, chosenStep>
+        >((name) => {
+          const currentFields = Object.keys(
+            current.fields as Record<string, unknown>
+          );
 
-            return `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include ${formatter.format(
-              Object.keys(current.fields as Record<string, unknown>)
-            )}`;
-          });
+          invariant(
+            typeof name === 'string',
+            (formatter) =>
+              `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include: "${formatter.format(
+                currentFields
+              )}"`
+          );
           // TODO add support for deep keys (`name`)
 
           invariant(
             name in (current.fields as object),
-            `[${step}:Field]: the field "${name}" doesn't exist for the current step`
+            (formatter) =>
+              `[${step}:Field]: the field "${name}" doesn't exist for the current step. Available fields include: "${formatter.format(
+                currentFields
+              )}".`
           );
 
           invariant(
@@ -696,6 +734,7 @@ export class MultiStepFormStepSchema<
           const { label, nameTransformCasing, type } = (
             current.fields as AnyStepField
           )[name];
+          const targetFields = `fields.${name}.defaultValue`;
 
           return {
             defaultValue,
@@ -721,15 +760,21 @@ export class MultiStepFormStepSchema<
               this.update({
                 targetStep: step,
                 updater: resolvedValue as never,
-                fields: [`fields.${name}.defaultValue`] as never,
+                fields: [targetFields] as never,
               });
             },
-          };
+            reset: () =>
+              this.reset({
+                fields: [targetFields] as never,
+                targetStep: step,
+              }),
+          } as never;
         });
 
         let fnInput = {
           ctx,
           onInputChange: stepUpdater,
+          reset: this.#internal.createStepResetterFn(step),
           Field,
           ...hookResults,
         };
@@ -791,7 +836,7 @@ export class MultiStepFormStepSchema<
     const createStepSpecificComponentImpl =
       this.createStepSpecificComponentImpl.bind(this);
     const createDefaultValues = this.createDefaultValues.bind(this);
-    debugger;
+
     // Not exactly sure why `this.value` could be undefined, but it can be so
     // we fallback to the internal value
     const resolvedValues = this.value;

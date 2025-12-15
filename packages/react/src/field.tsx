@@ -2,11 +2,11 @@ import type {
   AnyResolvedStep,
   fields,
   Override,
-  Updater
+  Updater,
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
 
-export namespace Field {
+export namespace field {
   type sharedProps<TField extends string> = {
     /**
      * The name of the field.
@@ -34,6 +34,11 @@ export namespace Field {
        * @param value The new value for the field.
        */
       onInputChange: (value: Updater<TValue>) => void;
+      /**
+       * Resets the field's value to the original value that was
+       * defined in the config.
+       */
+      reset: () => void;
     };
   export type props<
     TResolvedStep extends AnyResolvedStep,
@@ -50,22 +55,27 @@ export namespace Field {
   > = <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
     props: props<TResolvedStep, TTargetStep, TField>
   ) => ReactNode;
-}
 
-export function createField<
-  TResolvedStep extends AnyResolvedStep,
-  TTargetStep extends keyof TResolvedStep
->(
-  propsCreator: <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
-    name: TField
-  ) => Field.childrenProps<TResolvedStep, TTargetStep, TField>
-) {
-  const Field: Field.component<TResolvedStep, TTargetStep> = (props) => {
-    const { children, name } = props;
-    const createdProps = propsCreator(name);
+  /**
+   * Create a field.
+   * @param propsCreator
+   * @returns
+   */
+  export function create<
+    TResolvedStep extends AnyResolvedStep,
+    TTargetStep extends keyof TResolvedStep
+  >(
+    propsCreator: <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
+      name: TField
+    ) => field.childrenProps<TResolvedStep, TTargetStep, TField>
+  ) {
+    const Field: field.component<TResolvedStep, TTargetStep> = (props) => {
+      const { children, name } = props;
+      const createdProps = propsCreator(name);
 
-    return children(createdProps);
-  };
+      return children(createdProps);
+    };
 
-  return Field;
+    return Field;
+  }
 }
