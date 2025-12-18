@@ -5,6 +5,7 @@ import {
   type CreatedHelperFnInput,
   type CreateHelperFunctionOptionsWithoutValidator,
   type CreateHelperFunctionOptionsWithValidator,
+  type CtxDataSelector,
   type HelperFnCtx,
   type helperFnResetFn,
   type HelperFnResetFn,
@@ -59,6 +60,49 @@ export type InternalOptions<
   setValue: (value: TResolvedStep) => void;
 };
 
+function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
+  strict: boolean;
+  partial: boolean;
+  obj: def;
+  paths: paths[];
+  actual: path.pickBy<def, paths>;
+}) {
+  const { strict, partial, actual, obj, paths } = options;
+
+  // Define the logic for when the update is considered valid
+  const { mismatches, ok } = path.equalsAtPaths(obj, paths, actual);
+
+  let isValid = true;
+
+  if (strict) {
+    isValid = ok && mismatches.length === 0;
+  }
+
+  if (partial) {
+    const mismatchesWithoutMissingKey = mismatches.filter(
+      ({ reason }) => reason !== 'missing-key'
+    );
+
+    if (strict) {
+      isValid = mismatchesWithoutMissingKey.length === 0;
+    } else {
+      const withoutExtraKey = mismatchesWithoutMissingKey.filter(
+        ({ reason }) => reason !== 'extra-key'
+      );
+
+      isValid = withoutExtraKey.length === 0;
+    }
+  }
+
+  invariant(
+    isValid,
+    `[update]: found value mismatches in ${path.printMismatches({
+      ok,
+      mismatches,
+    })}`
+  );
+}
+
 export class MultiStepFormStepSchemaInternal<
   step extends Step<casing>,
   casing extends CasingType,
@@ -96,26 +140,74 @@ export class MultiStepFormStepSchemaInternal<
     this.#setValue(this.enrichValues(value));
   }
 
+  private buildCtxData<
+    targetStep extends ValidStepKey<stepNumbers>,
+    additionalCtx extends Record<string, unknown>
+  >(
+    options: Required<
+      CtxDataSelector<resolvedStep, stepNumbers, [targetStep], additionalCtx>
+    > & {
+      values: Omit<resolvedStep, targetStep>;
+      logger: MultiStepFormLogger;
+    }
+  ) {
+    const { logger, values, ctxData } = options;
+    invariant(
+      typeof ctxData === 'function',
+      '[update]: "ctxData" must be a function'
+    );
+    logger.info('Custom "ctx" will be used');
+
+    const additionalCtx = ctxData({ ctx: values as never });
+
+    invariant(
+      typeof additionalCtx === 'object' &&
+        Object.keys(additionalCtx).length > 0,
+      '[update]: "ctxData" must return an object with keys'
+    );
+
+    logger.info(
+      `Custom "ctx" consists of the following keys: ${new Intl.ListFormat(
+        'en',
+        {
+          style: 'long',
+          type: 'conjunction',
+        }
+      ).format(Object.keys(additionalCtx))}`
+    );
+
+    return additionalCtx;
+  }
+
   private createStepUpdaterFnImpl<
     targetStep extends ValidStepKey<stepNumbers>,
-    fields extends UpdateFn.chosenFields<currentStep>,
+    fields extends UpdateFn.chosenFields<
+      UpdateFn.resolvedStep<resolvedStep, stepNumbers, targetStep>
+    >,
+    strict extends boolean,
+    partial extends boolean,
     additionalCtx extends Record<string, unknown>,
-    currentStep extends UpdateFn.resolvedStep<
-      resolvedStep,
-      stepNumbers,
-      targetStep
-    >
+    additionalUpdaterData extends UpdateFn.additionalUpdaterData
   >(
     options: UpdateFn.options<
       resolvedStep,
       stepNumbers,
       targetStep,
       fields,
+      strict,
+      partial,
       additionalCtx,
-      currentStep
+      additionalUpdaterData
     >
   ) {
-    const { targetStep, ctxData, fields = 'all', debug } = options;
+    const {
+      targetStep,
+      ctxData,
+      fields = 'all',
+      debug,
+      partial = false,
+      strict = true,
+    } = options;
     const logger = new MultiStepFormLogger({
       debug,
       prefix: (value) => `${value}:update${targetStep}`,
@@ -141,29 +233,11 @@ export class MultiStepFormStepSchemaInternal<
 
     // Build the `ctx` first
     if (ctxData) {
-      invariant(
-        typeof ctxData === 'function',
-        '[update]: "ctxData" must be a function'
-      );
-      logger.info('Custom "ctx" will be used');
-
-      const additionalCtx = ctxData({ ctx: values as never });
-
-      invariant(
-        typeof additionalCtx === 'object' &&
-          Object.keys(additionalCtx).length > 0,
-        '[update]: "ctxData" must return an object with keys'
-      );
-
-      logger.info(
-        `Custom "ctx" consists of the following keys: ${new Intl.ListFormat(
-          'en',
-          {
-            style: 'long',
-            type: 'conjunction',
-          }
-        ).format(Object.keys(additionalCtx))}`
-      );
+      const additionalCtx = this.buildCtxData({
+        values,
+        ctxData,
+        logger,
+      });
 
       ctx = {
         ...ctx,
@@ -217,16 +291,12 @@ export class MultiStepFormStepSchemaInternal<
           ...functions,
         };
 
-        const { mismatches, ok } = path.equalsAtPaths(
+        verifyUpdate({
+          strict,
+          partial,
           obj,
           paths,
-          actual as never
-        );
-
-        invariant(ok && mismatches.length === 0, () => {
-          const formatted = path.formatMismatches({ mismatches, ok });
-
-          return `[update]: found value mismatches in ${formatted}`;
+          actual: actual as never,
         });
 
         logger.info('The entire step will be updated');
@@ -235,11 +305,12 @@ export class MultiStepFormStepSchemaInternal<
           string,
           unknown
         >;
-        const updatedAtPath = path.updateAt(
-          currentUpdatedValue,
+        const updatedAtPath = path.updateAt({
+          obj: currentUpdatedValue,
           paths,
-          actual as never
-        );
+          value: actual as never,
+          partial,
+        });
 
         updatedValue = {
           ...updatedValue,
@@ -269,19 +340,13 @@ export class MultiStepFormStepSchemaInternal<
         }`
       );
 
-      const { mismatches, ok } = path.equalsAtPaths(
-        currentStep,
-        fields,
-        updated as never
-      );
-
-      invariant(
-        ok && mismatches.length === 0,
-        `[update]: found value mismatches in ${path.printMismatches({
-          ok,
-          mismatches,
-        })}`
-      );
+      verifyUpdate({
+        strict,
+        partial,
+        obj: currentStep,
+        paths: fields,
+        actual: updated as never,
+      });
 
       logger.info(
         `The following fields will be updated: ${new Intl.ListFormat('en', {
@@ -292,7 +357,12 @@ export class MultiStepFormStepSchemaInternal<
 
       updatedValue = {
         ...updatedValue,
-        [targetStep]: path.updateAt(currentStep, fields, updated as never),
+        [targetStep]: path.updateAt({
+          obj: currentStep,
+          paths: fields,
+          value: updated as never,
+          partial,
+        }),
       };
 
       this.handlePostUpdate(updatedValue);
@@ -318,27 +388,22 @@ export class MultiStepFormStepSchemaInternal<
       );
 
       // TODO validate all values (deepest) are `true`
-      const { mismatches, ok } = path.equalsAtPaths(
-        currentStep,
-        keys as never,
-        updated as never
-      );
-
-      invariant(
-        ok && mismatches.length === 0,
-        `[update]: found value mismatches in ${path.printMismatches({
-          ok,
-          mismatches,
-        })}`
-      );
+      verifyUpdate({
+        strict,
+        partial,
+        obj: currentStep,
+        paths: keys as never,
+        actual: updated as never,
+      });
 
       updatedValue = {
         ...updatedValue,
-        [targetStep]: path.updateAt(
-          currentStep,
-          keys as never,
-          updated as never
-        ),
+        [targetStep]: path.updateAt({
+          obj: currentStep,
+          paths: keys as never,
+          value: updated as never,
+          partial,
+        }),
       };
 
       logger.info(
@@ -373,14 +438,20 @@ export class MultiStepFormStepSchemaInternal<
     field extends UpdateFn.chosenFields<
       UpdateFn.resolvedStep<resolvedStep, stepNumbers, targetStep>
     > = 'all',
-    additionalCtx extends Record<string, unknown> = {}
+    strict extends boolean = true,
+    partial extends boolean = false,
+    additionalCtx extends Record<string, unknown> = {},
+    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never
   >(
     options: UpdateFn.options<
       resolvedStep,
       stepNumbers,
       targetStep,
       field,
-      additionalCtx
+      strict,
+      partial,
+      additionalCtx,
+      additionalUpdaterData
     >
   ) {
     return this.createStepUpdaterFnImpl(options);
@@ -413,7 +484,11 @@ export class MultiStepFormStepSchemaInternal<
 
       config.updatedValues = {
         ...config.updatedValues,
-        ...path.updateAt(values, fields, picked),
+        ...path.updateAt({
+          obj: values,
+          paths: fields,
+          value: picked,
+        }),
       };
 
       const formatter = new Intl.ListFormat('en', {
