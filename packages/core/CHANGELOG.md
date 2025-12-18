@@ -1,5 +1,19 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.15
+
+### Patch Changes
+
+- 7f33ec1: Adds 2 new options for `update`
+
+  - `partial`: allows the target object to be updated partially
+
+    - Defaults to `false`
+
+  - `strict`: ensures the target object can't have extra keys
+
+    - Defaults to `true`
+
 ## 1.0.0-alpha.14
 
 ### Patch Changes
