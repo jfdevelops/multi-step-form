@@ -92,3 +92,27 @@ export type DeepValue<
   : Path extends keyof T
   ? T[Path]
   : never;
+type Builtin =
+  | Date
+  | Function
+  | Error
+  | RegExp
+  | symbol
+  | bigint
+  | string
+  | number
+  | boolean
+  | undefined
+  | null
+  | Map<unknown, unknown>
+  | Set<unknown>
+  | WeakMap<object, unknown>
+  | WeakSet<object>
+  | Array<unknown>
+  | Promise<unknown>;
+
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends object
+  ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : T;

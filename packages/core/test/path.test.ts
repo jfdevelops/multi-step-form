@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { path } from '../src/utils/path';
 
 describe('path.equalsAtPaths', () => {
+  it('is just another temp test', () => {
+    const def = {}
+  })
   it('returns ok for matching scalar value at a single path', () => {
     const def = {
       name: 'Alice',

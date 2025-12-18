@@ -351,14 +351,20 @@ export class MultiStepFormStepSchema<
     field extends UpdateFn.chosenFields<
       UpdateFn.resolvedStep<resolvedStep, stepNumbers, targetStep>
     > = 'all',
-    additionalCtx extends Record<string, unknown> = {}
+    strict extends boolean = true,
+    partial extends boolean = false,
+    additionalCtx extends Record<string, unknown> = {},
+    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never
   >(
     options: UpdateFn.options<
       resolvedStep,
       stepNumbers,
       targetStep,
       field,
-      additionalCtx
+      strict,
+      partial,
+      additionalCtx,
+      additionalUpdaterData
     >
   ) {
     this.#internal.update(options);

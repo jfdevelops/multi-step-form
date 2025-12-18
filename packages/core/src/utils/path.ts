@@ -618,24 +618,150 @@ export namespace path {
     return helper(root, 0);
   }
 
-  // ---- main: updateAt ----
+  export function findMissingPaths<
+    obj extends Record<string, unknown>,
+    path extends DeepKeys<obj>
+  >(obj: obj, paths: Array<path>, actual: pickBy<obj, path>) {
+    const keys: string[] = [];
 
-  // PickByPaths<T, Paths> is your existing type
-  // that resolves & normalizes parent paths, etc.
-  export function updateAt<
+    for (const path of paths) {
+      const value = pickBy(obj, path);
+      const expectedKeys = createDeep(value);
+      const actualKeys = createDeep(actual);
+      const missingKeys = expectedKeys
+        .filter((key) => !actualKeys.includes(key))
+        .map((key) => `${path}.${key}`);
+
+      keys.push(...missingKeys);
+    }
+
+    return keys as Array<DeepKeys<obj>>;
+  }
+
+  export type updateAtOptions<
     T extends Record<string, unknown>,
     path extends DeepKeys<T>
-  >(obj: T, paths: path[], value: pickBy<T, path>) {
+  > = {
+    obj: T;
+    paths: Array<path>;
+    value: pickBy<T, path>;
+    partial?: boolean;
+  };
+
+  function getPathThatMatter(path: string) {
+    // Only works when updating a `defaultValue`
+    // TODO make this work with the entire object - will need to figure out some way to normalize
+    const [, ...rest] = path.split('.defaultValue.');
+
+    return rest.join('.');
+  }
+  function getPathsThatMatter(paths: Array<string>) {
+    return paths.map(getPathThatMatter);
+  }
+
+  export function joinAtPath<
+    obj extends Record<string, unknown>,
+    path extends DeepKeys<obj>
+  >(paths: Array<path>, obj: obj, value: pickBy<obj, path>) {
+    if (paths.length === 1) {
+      const [path] = paths;
+      const missingData = pickBy(obj, ...paths);
+      const setPath = getPathThatMatter(path);
+
+      // if (last) {
+      //   const data = setBy(
+      //     value as Record<string, unknown>,
+      //     last,
+      //     missingData
+      //   ) as pickBy<obj, path>;
+
+      //   return data;
+      // }
+
+      const data = setBy(
+        value as Record<string, unknown>,
+        setPath,
+        missingData
+      ) as pickBy<obj, path>;
+
+      return data;
+    }
+
+    if (paths.length > 1) {
+      let resolvedValue = {} as Record<string, unknown>;
+
+      for (const path of paths) {
+        const pathThatMatters = getPathThatMatter(path);
+        const missing = joinAtPath([path], obj, value);
+        const valueAtPathThatMatters = getBy(obj, path);
+
+        // This check is here to ensure `resolvedValue` will only have
+        // nested properties where they belong.
+        if (
+          Object.keys(resolvedValue).length > 0 &&
+          valueAtPathThatMatters !== 'undefined'
+        ) {
+          const dataAtPath = pickBy(obj, path);
+          const [key] = pathThatMatters.split('.');
+
+          if (typeof dataAtPath === 'object') {
+            if (missing) {
+              resolvedValue = {
+                ...resolvedValue,
+                [key]: {
+                  ...(resolvedValue[key] as Record<string, unknown>),
+                  ...missing,
+                },
+              };
+            }
+          }
+
+          continue;
+        }
+
+        if (missing) {
+          resolvedValue = {
+            ...resolvedValue,
+            ...missing,
+          };
+        }
+      }
+
+      return resolvedValue as pickBy<obj, path>;
+    }
+  }
+
+  export function updateAt<
+    obj extends Record<string, unknown>,
+    path extends DeepKeys<obj>
+  >(options: updateAtOptions<obj, path>) {
+    const { obj, partial, paths, value } = options;
     const norm = normalizePaths(...paths);
     if (norm.length === 0) return obj;
 
     let result = obj;
+    let resolvedValue = value;
+
+    if (partial) {
+      const missingPaths = findMissingPaths(obj, paths, value);
+
+      const missingData = joinAtPath(
+        missingPaths as Array<path>,
+        obj,
+        resolvedValue
+      );
+
+      resolvedValue = {
+        ...(resolvedValue as Record<string, unknown>),
+        ...(missingData as Record<string, unknown>),
+      } as pickBy<obj, path>;
+    }
 
     if (norm.length === 1) {
       // single path: value is relative at that path
-      const path = norm[0] as DeepKeys<T>;
+      const path = norm[0] as DeepKeys<obj>;
 
-      result = setAtImmutable(result, path, value as never);
+      result = setAtImmutable(result, path, resolvedValue as never);
 
       return result;
     }
@@ -645,7 +771,7 @@ export namespace path {
     for (const path of norm) {
       const sub = getBy(value, path);
 
-      result = setAtImmutable(result, path as DeepKeys<T>, sub);
+      result = setAtImmutable(result, path as DeepKeys<obj>, sub);
     }
 
     return result;

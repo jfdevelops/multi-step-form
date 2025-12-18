@@ -3,6 +3,7 @@ import {
   type CasingType,
   type Constrain,
   type DeepKeys,
+  type DeepPartial,
   type DefaultCasing,
   type DefaultFieldType,
   type Expand,
@@ -221,12 +222,49 @@ export namespace UpdateFn {
     | HelperFnChosenSteps.tupleNotation<DeepKeys<TCurrentStep>>
     | path.generateObjectConfig<TCurrentStep>;
 
-  export interface SharedOptions<
+  export type mode = {
+    /**
+     * Enables strict mode for the update operation.
+     *
+     * When enabled, you won't be able to add new keys to an object. If
+     * you need to add new keys, set to `false`.
+     * @default true
+     */
+    strict: boolean;
+    /**
+     * Enables partial mode for the update operation.
+     *
+     * When enabled, you will be required to return the whole object. If
+     * you need to return a partial object, set to `false`.
+     * @default false
+     */
+    partial: boolean;
+  };
+  export type defaultMode = {
+    strict: true;
+    partial: false;
+  };
+  export type additionalUpdaterData =
+    | Record<string, unknown>
+    | (() => Record<string, unknown>);
+  export type inferAdditionalUpdaterData<T extends additionalUpdaterData> =
+    T extends () => infer _ ? _ : T;
+  export type resolvedUpdaterReturnType<
+    T,
+    TMode extends mode,
+    TAdditionalCtx extends additionalUpdaterData
+  > = TMode['strict'] extends true
+    ? TMode['partial'] extends true
+      ? DeepPartial<T>
+      : T
+    : TMode['partial'] extends true
+    ? DeepPartial<T> & TAdditionalCtx
+    : T & TAdditionalCtx;
+  export interface BaseOptions<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
     TTargetStep extends ValidStepKey<TStepNumbers>,
     TField extends chosenFields<TCurrentStep>,
-    TAdditionalCtx extends Record<string, unknown>,
     TCurrentStep extends resolvedStep<
       TResolvedStep,
       TStepNumbers,
@@ -251,49 +289,40 @@ export namespace UpdateFn {
     debug?: boolean;
   }
 
-  export interface UpdateOptions<
+  export interface SharedOptions<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
     TTargetStep extends ValidStepKey<TStepNumbers>,
     TField extends chosenFields<TCurrentStep>,
-    TAdditionalCtx extends Record<string, unknown>,
+    TMode extends mode,
     TCurrentStep extends resolvedStep<
       TResolvedStep,
       TStepNumbers,
       TTargetStep
     > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
-  > extends SharedOptions<
-        TResolvedStep,
-        TStepNumbers,
-        TTargetStep,
-        TField,
-        TAdditionalCtx,
-        TCurrentStep
-      >,
-      CtxDataSelector<
-        TResolvedStep,
-        TStepNumbers,
-        [TTargetStep],
-        TAdditionalCtx
-      > {
-    updater: Updater<
-      Expand<
-        HelperFnInputBase<
-          TResolvedStep,
-          TStepNumbers,
-          [TTargetStep],
-          never,
-          TAdditionalCtx
-        >
-      >,
-      resolvedFieldValue<
-        TResolvedStep,
-        TStepNumbers,
-        TTargetStep,
-        TField,
-        TCurrentStep
-      >
-    >;
+  > extends BaseOptions<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep,
+      TField,
+      TCurrentStep
+    > {
+    /**
+     * Enables strict mode for the update operation.
+     *
+     * When enabled, you won't be able to add new keys to an object. If
+     * you need to add new keys, set to `false`.
+     * @default true
+     */
+    strict?: TMode['strict'];
+    /**
+     * Enables partial mode for the update operation.
+     *
+     * When enabled, you will be required to return the whole object. If
+     * you need to return a partial object, set to `false`.
+     * @default false
+     */
+    partial?: TMode['partial'];
   }
 
   export type options<
@@ -301,20 +330,56 @@ export namespace UpdateFn {
     TStepNumbers extends StepNumbers<TResolvedStep>,
     TTargetStep extends ValidStepKey<TStepNumbers>,
     TField extends chosenFields<TCurrentStep>,
+    TStrict extends boolean,
+    TPartial extends boolean,
     TAdditionalCtx extends Record<string, unknown>,
+    TAdditionalUpdaterData extends additionalUpdaterData,
     TCurrentStep extends resolvedStep<
       TResolvedStep,
       TStepNumbers,
       TTargetStep
-    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
-  > = UpdateOptions<
+    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>,
+    TMode extends mode = {
+      strict: TStrict;
+      partial: TPartial;
+    }
+  > = SharedOptions<
     TResolvedStep,
     TStepNumbers,
     TTargetStep,
     TField,
-    TAdditionalCtx,
+    TMode,
     TCurrentStep
-  >;
+  > &
+    CtxDataSelector<
+      TResolvedStep,
+      TStepNumbers,
+      [TTargetStep],
+      TAdditionalCtx
+    > & {
+      updater: Updater<
+        Expand<
+          HelperFnInputBase<
+            TResolvedStep,
+            TStepNumbers,
+            [TTargetStep],
+            never,
+            TAdditionalCtx
+          >
+        >,
+        resolvedUpdaterReturnType<
+          resolvedFieldValue<
+            TResolvedStep,
+            TStepNumbers,
+            TTargetStep,
+            TField,
+            TCurrentStep
+          >,
+          TMode,
+          TAdditionalUpdaterData
+        >
+      >;
+    };
   export type availableFields<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
@@ -331,14 +396,20 @@ export namespace UpdateFn {
     field extends chosenFields<
       resolvedStep<TResolvedStep, TStepNumbers, targetStep>
     > = 'all',
-    additionalCtx extends Record<string, unknown> = {}
+    strict extends boolean = true,
+    partial extends boolean = false,
+    additionalCtx extends Record<string, unknown> = {},
+    additionalUpdaterData extends Record<string, unknown> = {}
   >(
     options: options<
       TResolvedStep,
       TStepNumbers,
       targetStep,
       field,
-      additionalCtx
+      strict,
+      partial,
+      additionalCtx,
+      additionalUpdaterData
     >
   ) => void;
 
@@ -350,10 +421,22 @@ export namespace UpdateFn {
     field extends chosenFields<
       resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
     > = 'all',
-    additionalCtx extends Record<string, unknown> = {}
+    strict extends boolean = true,
+    partial extends boolean = false,
+    additionalCtx extends Record<string, unknown> = {},
+    additionalUpdaterData extends Record<string, unknown> = {}
   >(
     options: Omit<
-      options<TResolvedStep, TStepNumbers, TTargetStep, field, additionalCtx>,
+      options<
+        TResolvedStep,
+        TStepNumbers,
+        TTargetStep,
+        field,
+        strict,
+        partial,
+        additionalCtx,
+        additionalUpdaterData
+      >,
       'targetStep'
     >
   ) => void;
@@ -370,12 +453,11 @@ export namespace ResetFn {
       TStepNumbers,
       TTargetStep
     > = UpdateFn.resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
-  > extends UpdateFn.SharedOptions<
+  > extends UpdateFn.BaseOptions<
       TResolvedStep,
       TStepNumbers,
       TTargetStep,
       TField,
-      {},
       TCurrentStep
     > {
     /**
