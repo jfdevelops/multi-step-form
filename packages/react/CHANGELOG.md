@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.19
+
+### Patch Changes
+
+- d0a9fdb: Fixes `createStepSpecificComponentImpl`'s `input` when calling with `formInstance` and `ctxData`
+
 ## 1.0.0-alpha.18
 
 ### Patch Changes
