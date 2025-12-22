@@ -265,6 +265,28 @@ export namespace StepSpecificComponent {
      */
     render: CreateFunction<[input: TRenderInput], TReturn>;
   };
+
+  export interface CtxSelector<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TTargetStep extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TCtx
+  > {
+    /**
+     * A function to select the data that will be available in the `fn`'s ctx.
+     * @param input The available input to create the context with.
+     * @returns The created ctx.
+     */
+    ctxData?: (
+      input: HelperFnInputBase<
+        TResolvedStep,
+        TSteps,
+        'all',
+        HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TTargetStep>
+      >
+    ) => TCtx;
+  }
+
   export type options<
     TResolvedStep extends AnyResolvedStep,
     TSteps extends StepNumbers<TResolvedStep>,
@@ -272,7 +294,7 @@ export namespace StepSpecificComponent {
     TFormInstanceAlias extends string,
     TFormInstance,
     TCtx
-  > = {
+  > = CtxSelector<TResolvedStep, TSteps, TTargetStep, TCtx> & {
     /**
      * If set to `true`, you'll be able to open the {@linkcode console} to view logs.
      */
@@ -289,19 +311,6 @@ export namespace StepSpecificComponent {
       },
       TFormInstance
     >;
-    /**
-     * A function to select the data that will be available in the `fn`'s ctx.
-     * @param input The available input to create the context with.
-     * @returns The created ctx.
-     */
-    ctxData?: (
-      input: HelperFnInputBase<
-        TResolvedStep,
-        TSteps,
-        'all',
-        HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TTargetStep>
-      >
-    ) => TCtx;
   };
 }
 
@@ -813,6 +822,52 @@ export class MultiStepFormStepSchema<
       }) as CreatedMultiStepFormComponent<props>;
   }
 
+  private createCtx(
+    logger: MultiStepFormLogger,
+    values: Omit<resolvedStep, `step${stepNumbers}`>
+  ) {
+    return function <
+      chosenStep extends HelperFnChosenSteps.tupleNotation<
+        ValidStepKey<stepNumbers>
+      >,
+      additionalCtx
+    >(
+      options: Required<
+        StepSpecificComponent.CtxSelector<
+          resolvedStep,
+          stepNumbers,
+          chosenStep,
+          additionalCtx
+        >
+      > & { ctx: HelperFnCtx<resolvedStep, stepNumbers, chosenStep> }
+    ) {
+      const { ctx, ctxData } = options;
+
+      logger.info('Option "ctxData" is defined');
+      invariant(
+        typeof ctxData === 'function',
+        'Option "ctxData" must be a function'
+      );
+
+      const additionalCtx = ctxData({ ctx: values } as never);
+
+      logger.info(
+        `Addition context is: ${JSON.stringify(additionalCtx, null, 2)}`
+      );
+
+      const resolvedCtx = {
+        ...ctx,
+        ...additionalCtx,
+      };
+
+      logger.info(
+        `Resolved context is: ${JSON.stringify(resolvedCtx, null, 2)}`
+      );
+
+      return resolvedCtx;
+    };
+  }
+
   private createStepSpecificComponentFactory<
     chosenStep extends HelperFnChosenSteps.tupleNotation<
       ValidStepKey<stepNumbers>
@@ -848,6 +903,7 @@ export class MultiStepFormStepSchema<
     const reset = this.#internal
       .createStepResetterFn(targetStep)
       .bind(this.#internal) as never;
+    const createCtx = this.createCtx.bind(this);
 
     function impl<props = undefined>(
       fn: CreateStepSpecificComponentCallback<
@@ -956,6 +1012,7 @@ export class MultiStepFormStepSchema<
           typeof fn === 'function',
           'The second argument must be a function'
         );
+        const createdCtx = createCtx(logger, values);
 
         if (useFormInstance) {
           const {
@@ -971,18 +1028,17 @@ export class MultiStepFormStepSchema<
           // Store the render function and inputs to call it at component level
           // This ensures hooks are called in a valid React context
           const defaultValues = createDefaultValues(step) as never;
-          const resolvedCtx = ctxData
-            ? {
-                ...ctx,
-                ...ctxData({ ctx: values } as never),
-              }
-            : ctx;
+          const resolvedCtx = ctxData ? createdCtx({ ctx, ctxData }) : { ctx };
           const renderInput = { ctx: resolvedCtx, defaultValues };
 
           return createStepSpecificComponentImpl(
             stepData,
             config,
-            resolvedCtx as never,
+            {
+              ctx: resolvedCtx as never,
+              update,
+              reset,
+            },
             {
               [alias]: () => render(renderInput as never),
             }
@@ -990,26 +1046,7 @@ export class MultiStepFormStepSchema<
         }
 
         if (ctxData) {
-          logger.info('Option "ctxData" is defined');
-          invariant(
-            typeof ctxData === 'function',
-            'Option "ctxData" must be a function'
-          );
-
-          const additionalCtx = ctxData({ ctx: values } as never);
-
-          logger.info(
-            `Addition context is: ${JSON.stringify(additionalCtx, null, 2)}`
-          );
-
-          const resolvedCtx = {
-            ...ctx,
-            ...additionalCtx,
-          };
-
-          logger.info(
-            `Resolved context is: ${JSON.stringify(resolvedCtx, null, 2)}`
-          );
+          const resolvedCtx = createdCtx({ ctx, ctxData });
 
           return createStepSpecificComponentImpl(stepData, config, {
             ctx: resolvedCtx as never,
