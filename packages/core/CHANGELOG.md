@@ -1,5 +1,12 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.16
+
+### Patch Changes
+
+- cddc63c: Fixes extra keys getting added to result when calling `reset`
+- a206091: By default, it will be `true` if `partial === true` OR `strict === false`
+
 ## 1.0.0-alpha.15
 
 ### Patch Changes
