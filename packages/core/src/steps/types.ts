@@ -287,6 +287,13 @@ export namespace UpdateFn {
      * Set to `true` to output helpful information for troubleshooting.
      */
     debug?: boolean;
+    /**
+     * Controls whether console errors should be silenced.
+     *
+     * By default, errors will be silenced when `partial: true` OR `strict: false`.
+     *
+     */
+    silentErrors?: boolean
   }
 
   export interface SharedOptions<
