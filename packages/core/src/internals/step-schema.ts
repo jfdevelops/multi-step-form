@@ -63,11 +63,12 @@ export type InternalOptions<
 function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   strict: boolean;
   partial: boolean;
+  silenceErrors: boolean;
   obj: def;
   paths: paths[];
   actual: path.pickBy<def, paths>;
 }) {
-  const { strict, partial, actual, obj, paths } = options;
+  const { strict, partial, actual, obj, paths, silenceErrors } = options;
 
   // Define the logic for when the update is considered valid
   const { mismatches, ok } = path.equalsAtPaths(obj, paths, actual);
@@ -94,13 +95,15 @@ function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
     }
   }
 
-  invariant(
-    isValid,
-    `[update]: found value mismatches in ${path.printMismatches({
-      ok,
-      mismatches,
-    })}`
-  );
+  if (!silenceErrors) {
+    invariant(
+      isValid,
+      `[update]: found value mismatches in ${path.printMismatches({
+        ok,
+        mismatches,
+      })}`
+    );
+  }
 }
 
 export class MultiStepFormStepSchemaInternal<
@@ -207,7 +210,9 @@ export class MultiStepFormStepSchemaInternal<
       debug,
       partial = false,
       strict = true,
+      silentErrors,
     } = options;
+    const silenceErrors = silentErrors ?? (partial || !strict);
     const logger = new MultiStepFormLogger({
       debug,
       prefix: (value) => `${value}:update${targetStep}`,
@@ -294,6 +299,7 @@ export class MultiStepFormStepSchemaInternal<
         verifyUpdate({
           strict,
           partial,
+          silenceErrors,
           obj,
           paths,
           actual: actual as never,
@@ -343,6 +349,7 @@ export class MultiStepFormStepSchemaInternal<
       verifyUpdate({
         strict,
         partial,
+        silenceErrors,
         obj: currentStep,
         paths: fields,
         actual: updated as never,
@@ -391,6 +398,7 @@ export class MultiStepFormStepSchemaInternal<
       verifyUpdate({
         strict,
         partial,
+        silenceErrors,
         obj: currentStep,
         paths: keys as never,
         actual: updated as never,

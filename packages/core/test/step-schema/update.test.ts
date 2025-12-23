@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MultiStepFormStepSchema } from '../../src';
 
 describe('multi step form step schema: update', () => {
@@ -318,6 +318,7 @@ describe('multi step form step schema: update', () => {
           targetStep: 'step1',
           partial: true,
           strict: true,
+          silentErrors: false,
           fields: ['fields.userInfo.defaultValue'],
           updater: {
             age: 21,
@@ -475,6 +476,7 @@ describe('multi step form step schema: update', () => {
           targetStep: 'step1',
           partial: true,
           strict: true,
+          silentErrors: false,
           fields: ['fields.userInfo.defaultValue'],
           updater: {
             name: {
@@ -485,6 +487,187 @@ describe('multi step form step schema: update', () => {
           },
         })
       ).toThrowError();
+    });
+  });
+
+  describe('silent errors', () => {
+    describe('default behavior', () => {
+      it('should silent errors when "partial === true"', () => {
+        const stepSchema = new MultiStepFormStepSchema({
+          steps: {
+            step1: {
+              fields: {
+                userInfo: {
+                  defaultValue: {
+                    firstName: '',
+                    lastName: '',
+                    age: 20,
+                  },
+                },
+              },
+              title: 'Step 1',
+            },
+          },
+        });
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        stepSchema.update({
+          targetStep: 'step1',
+          partial: true,
+          fields: ['fields.userInfo.defaultValue'],
+          updater: {
+            age: 21,
+          },
+        });
+
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      });
+
+      it('should silent errors when "strict === false"', () => {
+        const stepSchema = new MultiStepFormStepSchema({
+          steps: {
+            step1: {
+              fields: {
+                userInfo: {
+                  defaultValue: {
+                    firstName: '',
+                    lastName: '',
+                    age: 20,
+                  },
+                },
+              },
+              title: 'Step 1',
+            },
+          },
+        });
+
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        stepSchema.update({
+          targetStep: 'step1',
+          strict: false,
+          fields: ['fields.userInfo.defaultValue'],
+          updater: {
+            age: 21,
+            firstName: 'Bob',
+            lastName: 'Smith',
+            foo: 'bar',
+          },
+        });
+
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      });
+
+      it('should silent errors when "strict === false" AND "partial === true"', () => {
+        const stepSchema = new MultiStepFormStepSchema({
+          steps: {
+            step1: {
+              fields: {
+                userInfo: {
+                  defaultValue: {
+                    firstName: '',
+                    lastName: '',
+                    age: 20,
+                  },
+                },
+              },
+              title: 'Step 1',
+            },
+          },
+        });
+
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        stepSchema.update({
+          targetStep: 'step1',
+          strict: false,
+          partial: true,
+          fields: ['fields.userInfo.defaultValue'],
+          updater: {
+            age: 21,
+            firstName: 'Bob',
+            lastName: 'Smith',
+            foo: 'bar',
+          },
+        });
+
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      });
+    });
+
+    describe('"silentErrors" === false', () => {
+      it('shouldn\'t silent errors when "partial === true"', () => {
+        const stepSchema = new MultiStepFormStepSchema({
+          steps: {
+            step1: {
+              fields: {
+                userInfo: {
+                  defaultValue: {
+                    firstName: '',
+                    lastName: '',
+                    age: 20,
+                  },
+                },
+              },
+              title: 'Step 1',
+            },
+          },
+        });
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        stepSchema.update({
+          targetStep: 'step1',
+          partial: true,
+          silentErrors: false,
+          fields: ['fields.userInfo.defaultValue'],
+          updater: {
+            age: 21,
+          },
+        });
+
+        expect(spy).toHaveBeenCalled();
+        spy.mockRestore();
+      });
+
+      it('shouldn\'t silent errors when "strict === false"', () => {
+        const stepSchema = new MultiStepFormStepSchema({
+          steps: {
+            step1: {
+              fields: {
+                userInfo: {
+                  defaultValue: {
+                    firstName: '',
+                    lastName: '',
+                    age: 20,
+                  },
+                },
+              },
+              title: 'Step 1',
+            },
+          },
+        });
+
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        stepSchema.update({
+          targetStep: 'step1',
+          strict: false,
+          silentErrors: false,
+          fields: ['fields.userInfo.defaultValue'],
+          updater: {
+            age: 21,
+            firstName: 'Bob',
+            lastName: 'Smith',
+            foo: 'bar',
+          },
+        });
+
+        expect(spy).toHaveBeenCalled();
+        spy.mockRestore();
+      });
     });
   });
 });
