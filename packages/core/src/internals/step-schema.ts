@@ -486,7 +486,7 @@ export class MultiStepFormStepSchemaInternal<
         ...config.updatedValues,
         ...path.updateAt({
           obj: values,
-          paths: fields,
+          paths: resolvedFields,
           value: picked,
         }),
       };
