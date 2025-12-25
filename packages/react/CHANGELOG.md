@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.21
+
+### Patch Changes
+
+- fcad2df: Fixes `ctx.{currentStep}` being `undefined` when calling step specific `createComponent` function with a custom `useFormInstance` and no `ctxData`
+
 ## 1.0.0-alpha.20
 
 ### Patch Changes
