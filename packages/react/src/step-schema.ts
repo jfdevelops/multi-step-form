@@ -31,6 +31,7 @@ import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-cor
 import type { ComponentPropsWithRef, ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
+import { resolvedCtxCreator } from './utils';
 
 export interface MultiStepFormSchemaStepConfig<
   TStep extends Step<TCasing>,
@@ -822,52 +823,6 @@ export class MultiStepFormStepSchema<
       }) as CreatedMultiStepFormComponent<props>;
   }
 
-  private createCtx(
-    logger: MultiStepFormLogger,
-    values: Omit<resolvedStep, `step${stepNumbers}`>
-  ) {
-    return function <
-      chosenStep extends HelperFnChosenSteps.tupleNotation<
-        ValidStepKey<stepNumbers>
-      >,
-      additionalCtx
-    >(
-      options: Required<
-        StepSpecificComponent.CtxSelector<
-          resolvedStep,
-          stepNumbers,
-          chosenStep,
-          additionalCtx
-        >
-      > & { ctx: HelperFnCtx<resolvedStep, stepNumbers, chosenStep> }
-    ) {
-      const { ctx, ctxData } = options;
-
-      logger.info('Option "ctxData" is defined');
-      invariant(
-        typeof ctxData === 'function',
-        'Option "ctxData" must be a function'
-      );
-
-      const additionalCtx = ctxData({ ctx: values } as never);
-
-      logger.info(
-        `Addition context is: ${JSON.stringify(additionalCtx, null, 2)}`
-      );
-
-      const resolvedCtx = {
-        ...ctx,
-        ...additionalCtx,
-      };
-
-      logger.info(
-        `Resolved context is: ${JSON.stringify(resolvedCtx, null, 2)}`
-      );
-
-      return resolvedCtx;
-    };
-  }
-
   private createStepSpecificComponentFactory<
     chosenStep extends HelperFnChosenSteps.tupleNotation<
       ValidStepKey<stepNumbers>
@@ -903,7 +858,6 @@ export class MultiStepFormStepSchema<
     const reset = this.#internal
       .createStepResetterFn(targetStep)
       .bind(this.#internal) as never;
-    const createCtx = this.createCtx.bind(this);
 
     function impl<props = undefined>(
       fn: CreateStepSpecificComponentCallback<
@@ -1012,7 +966,7 @@ export class MultiStepFormStepSchema<
           typeof fn === 'function',
           'The second argument must be a function'
         );
-        const createdCtx = createCtx(logger, values);
+        const createdCtx = resolvedCtxCreator(logger, values);
 
         if (useFormInstance) {
           const {
@@ -1028,7 +982,7 @@ export class MultiStepFormStepSchema<
           // Store the render function and inputs to call it at component level
           // This ensures hooks are called in a valid React context
           const defaultValues = createDefaultValues(step) as never;
-          const resolvedCtx = ctxData ? createdCtx({ ctx, ctxData }) : { ctx };
+          const resolvedCtx = ctxData ? createdCtx({ ctx, ctxData }) : ctx;
           const renderInput = { ctx: resolvedCtx, defaultValues };
 
           return createStepSpecificComponentImpl(
