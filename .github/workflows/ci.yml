@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  workflow_call:
+
+jobs:
+  core:
+    name: Core Build & Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 10
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    # 2. UPDATED: Output to XML
+    # We pass --reporter=junit and --outputFile via CLI to keep it clean
+    - name: Run tests (core)
+      env:
+        CI: true
+        GITHUB_ACTIONS: true
+      run: pnpm run test:core --reporter=junit --outputFile=test-results.xml
+
+    # 3. ADDED: Upload Report
+    - name: Report Core Results
+      uses: dorny/test-reporter@v1
+      if: (success() || failure()) && hashFiles('packages/core/test-results.xml') != ''
+      with:
+        name: Core Tests
+        working-directory: packages/core
+        path: test-results.xml
+        reporter: java-junit
+
+    - name: Build (core)
+      run: pnpm run build:core
+
+    - name: Upload Core Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: core-build
+        path: packages/core/dist
+        retention-days: 1
+
+  # ------------------------------------------------------------------
+  # JOB 2: React (Downloads Core, then Runs)
+  # ------------------------------------------------------------------
+  react:
+    name: React Build & Test
+    runs-on: ubuntu-latest
+    needs: core
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download Core Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: core-build
+          path: packages/core/dist
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        working-directory: packages/react
+        run: pnpm exec playwright install --with-deps chromium
+
+      # 2. UPDATED: Output to XML for React tests as well
+      - name: Run tests (react)
+        env:
+          CI: true
+          GITHUB_ACTIONS: true
+        # Changed reporters to include junit and output file
+        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=test-results.xml
+
+      # 3. ADDED: Upload Report
+      - name: Report React Results
+        uses: dorny/test-reporter@v1
+        if: (success() || failure()) && hashFiles('packages/react/test-results.xml') != ''
+        with:
+          name: React Tests
+          working-directory: packages/react
+          path: test-results.xml
+          reporter: java-junit
+
+      - name: Build (react)
+        run: pnpm run build:react

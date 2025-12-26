@@ -1,0 +1,52 @@
+name: Integration (Version Packages)
+
+on:
+  push:
+    branches:
+      - alpha
+      - beta
+      - rc
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    name: Version with Changesets
+    runs-on: ubuntu-latest
+    needs: ci
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Version packages (no publish)
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          commit: 'ci(changesets): version packages'
+          title: 'ci(changesets): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
