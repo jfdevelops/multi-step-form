@@ -1,27 +1,8 @@
 import { type } from 'arktype';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MultiStepFormStepSchema } from '../../src';
+import { createMockStorage } from '../utils/create-mock-storage';
 
-// Create a mock storage that doesn't persist between tests
-const createMockStorage = () => {
-  const storage: Record<string, string> = {};
-  return {
-    getItem: (key: string) => storage[key] || null,
-    setItem: (key: string, value: string) => {
-      storage[key] = value;
-    },
-    removeItem: (key: string) => {
-      delete storage[key];
-    },
-    clear: () => {
-      Object.keys(storage).forEach((key) => delete storage[key]);
-    },
-    get length() {
-      return Object.keys(storage).length;
-    },
-    key: (index: number) => Object.keys(storage)[index] || null,
-  };
-};
 
 describe('multi step form step schema: ctx update', () => {
   // Generate unique storage keys for each test to prevent data persistence

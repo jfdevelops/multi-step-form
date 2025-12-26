@@ -44,7 +44,7 @@ export class MultiStepFormStorage<
       this.shouldRunActions = true;
 
       if (typeof window === 'undefined') {
-        this.shouldRunActions = false;
+        // this.shouldRunActions = false;
         this.log.warn(WINDOW_UNDEFINED_MESSAGE);
       }
     } else if (typeof window !== 'undefined') {
@@ -71,18 +71,11 @@ export class MultiStepFormStorage<
   }
 
   private resolveValue(value: Updater<data>) {
-    if (typeof value === 'object') {
-      return value;
-    }
-
     if (typeof value === 'function') {
       return (value as (input: data) => data)(this.data);
     }
 
-    this.log.error(
-      `The updater value must be a function or object. Was a ${typeof value}`,
-      { throw: true }
-    );
+    return value;
   }
 
   hasKey() {
