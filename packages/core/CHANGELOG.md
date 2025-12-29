@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.17
+
+### Patch Changes
+
+- 374bcdd: Fixes storage module storing array's of object improperly
+
 ## 1.0.0-alpha.16
 
 ### Patch Changes
