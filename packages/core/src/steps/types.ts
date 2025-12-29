@@ -293,7 +293,7 @@ export namespace UpdateFn {
      * By default, errors will be silenced when `partial: true` OR `strict: false`.
      *
      */
-    silentErrors?: boolean
+    silentErrors?: boolean;
   }
 
   export interface SharedOptions<
@@ -1039,12 +1039,21 @@ export type HelperFnCtx<
     : never
   : never;
 
+export namespace HelperFn {
+  export type stepSpecificKey<TNumber extends number, TSteps> = Exclude<
+    ValidStepKey<TNumber>,
+    ExtractStepFromKey<TSteps>
+  >;
+}
 export type helperFnUpdateFn<
   TResolvedStep extends AnyResolvedStep,
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TSteps extends ValidStepKey<TStepNumbers>
 > = {
-  [step in TSteps]: UpdateFn.stepSpecific<TResolvedStep, TStepNumbers, step>;
+  [step in HelperFn.stepSpecificKey<
+    TStepNumbers,
+    TSteps
+  >]: UpdateFn.stepSpecific<TResolvedStep, TStepNumbers, step>;
 };
 export type HelperFnUpdateFn<
   TResolvedStep extends AnyResolvedStep,
@@ -1062,7 +1071,11 @@ export type HelperFnUpdateFn<
       >
     ? {
         [step in keyof TChosenSteps]: step extends ValidStepKey<TSteps>
-          ? helperFnUpdateFn<TResolvedStep, TSteps, step>[step]
+          ? helperFnUpdateFn<
+              TResolvedStep,
+              TSteps,
+              step
+            >[HelperFn.stepSpecificKey<TSteps, step>]
           : {};
       }
     : {});
@@ -1072,7 +1085,10 @@ export type helperFnResetFn<
   TStepNumbers extends StepNumbers<TResolvedStep>,
   TSteps extends ValidStepKey<TStepNumbers>
 > = {
-  [step in TSteps]: ResetFn.stepSpecific<TResolvedStep, TStepNumbers, step>;
+  [step in HelperFn.stepSpecificKey<
+    TStepNumbers,
+    TSteps
+  >]: ResetFn.stepSpecific<TResolvedStep, TStepNumbers, step>;
 };
 export type HelperFnResetFn<
   TResolvedStep extends AnyResolvedStep,
@@ -1090,7 +1106,11 @@ export type HelperFnResetFn<
       >
     ? {
         [step in keyof TChosenSteps]: step extends ValidStepKey<TSteps>
-          ? helperFnResetFn<TResolvedStep, TSteps, step>[step]
+          ? helperFnResetFn<
+              TResolvedStep,
+              TSteps,
+              step
+            >[HelperFn.stepSpecificKey<TSteps, step>]
           : {};
       }
     : {});
