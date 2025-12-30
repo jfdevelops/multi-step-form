@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.22
+
+### Patch Changes
+
+- 8537ac7: Makes step data reactive in `createComponent` function
+- Updated dependencies [fe74361]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.17
+
 ## 1.0.0-alpha.21
 
 ### Patch Changes
