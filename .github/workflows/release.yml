@@ -10,7 +10,7 @@ permissions:
   contents: write
   packages: write
   pull-requests: write
-  checks: write 
+  checks: write
 
 jobs:
   ci:
@@ -45,6 +45,8 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: pnpm run release
+          commit: 'ci(changesets): version packages'
+          title: 'ci(changesets): version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
