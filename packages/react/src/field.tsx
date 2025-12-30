@@ -5,6 +5,7 @@ import type {
   Updater,
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
+import { memo, useSyncExternalStore } from 'react';
 
 export namespace field {
   type sharedProps<TField extends string> = {
@@ -59,6 +60,8 @@ export namespace field {
   /**
    * Create a field.
    * @param propsCreator
+   * @param subscribe - Optional subscription function for reactivity
+   * @param getValue - Optional function to get the current field value reactively
    * @returns
    */
   export function create<
@@ -67,14 +70,45 @@ export namespace field {
   >(
     propsCreator: <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
       name: TField
-    ) => field.childrenProps<TResolvedStep, TTargetStep, TField>
+    ) => field.childrenProps<TResolvedStep, TTargetStep, TField>,
+    subscribe?: (listener: () => void) => () => void,
+    getValue?: <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
+      name: TField
+    ) => fields.resolveDeepPath<TResolvedStep, TTargetStep, TField>
   ) {
-    const Field: field.component<TResolvedStep, TTargetStep> = (props) => {
-      const { children, name } = props;
-      const createdProps = propsCreator(name);
+    const Field: field.component<TResolvedStep, TTargetStep> = memo(
+      (props) => {
+        const { children, name } = props;
 
-      return children(createdProps);
-    };
+        // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
+        const subscribeFn = subscribe || (() => () => {});
+        const getValueFn = getValue || (() => undefined);
+
+        // Subscribe to changes to trigger rerenders
+        const currentValue = useSyncExternalStore(
+          subscribeFn,
+          () => getValueFn(name),
+          () => getValueFn(name)
+        );
+
+        let createdProps = propsCreator(name);
+
+        // If getValue is provided, override defaultValue with the reactive value
+        if (getValue) {
+          createdProps = {
+            ...createdProps,
+            defaultValue: currentValue,
+          } as typeof createdProps;
+        }
+
+        return children(createdProps);
+      },
+      // Custom comparison: only compare the `name` prop
+      // The `children` function will always be a new reference, but that's okay
+      // because we only re-render when the field value changes (via useSyncExternalStore)
+      // or when the `name` prop changes
+      (prevProps, nextProps) => prevProps.name === nextProps.name
+    );
 
     return Field;
   }

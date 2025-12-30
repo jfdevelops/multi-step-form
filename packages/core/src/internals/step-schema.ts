@@ -605,11 +605,8 @@ export class MultiStepFormStepSchemaInternal<
     chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>
   >(chosenSteps: chosenSteps) {
     if (HelperFnChosenSteps.isAll(chosenSteps)) {
-      const stepSpecificUpdateFn = typedObjectKeys<
-        resolvedStep,
-        ValidStepKey<stepNumbers>
-      >(this.value).reduce((acc, key) => {
-        acc[key] = this.createStepUpdaterFn(key);
+      const stepSpecificUpdateFn = typedObjectKeys(this.value).reduce((acc, key) => {
+        (acc as any)[key] = this.createStepUpdaterFn(key as never);
 
         return acc;
       }, {} as helperFnUpdateFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
@@ -625,7 +622,7 @@ export class MultiStepFormStepSchemaInternal<
 
     if (HelperFnChosenSteps.isTuple<stepNumbers>(chosenSteps, validKeys)) {
       const stepSpecificUpdateFn = chosenSteps.reduce((acc, step) => {
-        acc[step] = this.createStepUpdaterFn(step);
+        (acc as any)[step] = this.createStepUpdaterFn(step);
 
         return acc;
       }, {} as helperFnUpdateFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
@@ -642,7 +639,7 @@ export class MultiStepFormStepSchemaInternal<
         HelperFnChosenSteps.objectNotation<`step${stepNumbers}`>,
         ValidStepKey<stepNumbers>
       >(chosenSteps).reduce((acc, key) => {
-        acc[key] = this.createStepUpdaterFn(key);
+        (acc as any)[key] = this.createStepUpdaterFn(key);
 
         return acc;
       }, {} as helperFnUpdateFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
@@ -665,7 +662,7 @@ export class MultiStepFormStepSchemaInternal<
         resolvedStep,
         ValidStepKey<stepNumbers>
       >(this.value).reduce((acc, key) => {
-        acc[key] = this.createStepResetterFn(key);
+        (acc as any)[key] = this.createStepResetterFn(key);
 
         return acc;
       }, {} as helperFnResetFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
@@ -681,7 +678,7 @@ export class MultiStepFormStepSchemaInternal<
 
     if (HelperFnChosenSteps.isTuple<stepNumbers>(chosenSteps, validKeys)) {
       const stepSpecificUpdateFn = chosenSteps.reduce((acc, step) => {
-        acc[step] = this.createStepResetterFn(step);
+        (acc as any)[step] = this.createStepResetterFn(step);
 
         return acc;
       }, {} as helperFnResetFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);
@@ -698,7 +695,7 @@ export class MultiStepFormStepSchemaInternal<
         HelperFnChosenSteps.objectNotation<`step${stepNumbers}`>,
         ValidStepKey<stepNumbers>
       >(chosenSteps).reduce((acc, key) => {
-        acc[key] = this.createStepResetterFn(key);
+        (acc as any)[key] = this.createStepResetterFn(key);
 
         return acc;
       }, {} as helperFnResetFn<resolvedStep, stepNumbers, ValidStepKey<stepNumbers>>);

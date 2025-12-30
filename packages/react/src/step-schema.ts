@@ -28,10 +28,12 @@ import {
   type ValidStepKey,
 } from '@jfdevelops/multi-step-form-core';
 import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internals';
-import type { ComponentPropsWithRef, ReactNode } from 'react';
+import React, { memo, type ComponentPropsWithRef, type ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
-import { resolvedCtxCreator } from './utils';
+import { createUseSelector, type UseSelector } from './hooks/use-selector';
+import { getValidatedCustomInputHooks, resolvedCtxCreator } from './utils';
+import { selector } from './selector';
 
 export interface MultiStepFormSchemaStepConfig<
   TStep extends Step<TCasing>,
@@ -203,6 +205,32 @@ export namespace StepSpecificComponent {
           >
         >
       >;
+      /**
+       * A hook for reactively selecting a value from the form context.
+       * The selector function receives the contextual data for the currently rendered step, and returns any derived value.
+       * `useSelector` will automatically provide the latest context data on updates, and will subscribe the caller for automatic re-renders when the underlying data changes.
+       *
+       * @param selector - A function that receives the current step's context and returns the selected value
+       * @returns The derived value, which will re-render the component on change
+       *
+       * @example
+       * const someValue = useSelector(ctx => ctx.fields.username.value);
+       */
+      useSelector: UseSelector<TResolvedStep, TSteps, TChosenSteps>;
+      /**
+       * A component for reactively displaying a value from the form context.
+       * Unlike `useSelector`, this component only re-renders itself, not the parent component.
+       * Use this when you want to display a reactive value without causing parent re-renders.
+       *
+       * @param selector - A function that receives the current step's context and returns the selected value
+       * @param children - Optional render prop that receives the selected value
+       *
+       * @example
+       * <Selector selector={(ctx) => ctx.step1.fields.firstName.defaultValue}>
+       *   {(value) => <p>First name: {value}</p>}
+       * </Selector>
+       */
+      Selector: selector.component<TResolvedStep, TSteps, TChosenSteps>;
     };
 
   export type callback<
@@ -302,7 +330,7 @@ export namespace StepSpecificComponent {
     debug?: boolean;
     useFormInstance?: formInstanceOptions<
       TFormInstanceAlias,
-      HelperFnInputBase<TResolvedStep, TSteps, TTargetStep> & {
+      Pick<HelperFnInputBase<TResolvedStep, TSteps, TTargetStep>, 'ctx'> & {
         /**
          * An object containing all the default values for the current step.
          */
@@ -580,22 +608,13 @@ export class MultiStepFormStepSchema<
         ValidStepKey<stepNumbers>
       >;
       const id = form?.id ?? key;
-      const ctx = createCtx<
-        resolvedStep,
-        stepNumbers,
-        HelperFnChosenSteps.tupleNotation<ValidStepKey<stepNumbers>>
-      >(this.value, stepData);
 
       return {
-        createComponent: this.createStepSpecificComponentFactory(
-          stepData,
-          {
-            isStepSpecific: true,
-            defaultId: id,
-            form: form as never,
-          },
-          ctx
-        ),
+        createComponent: this.createStepSpecificComponentFactory(stepData, {
+          isStepSpecific: true,
+          defaultId: id,
+          form: form as never,
+        }),
       };
     });
   }
@@ -622,8 +641,48 @@ export class MultiStepFormStepSchema<
     return (props: formProps) => render(ctx, props);
   }
 
+  private createResolvedCtx<
+    chosenStep extends HelperFnChosenSteps.tupleNotation<
+      ValidStepKey<stepNumbers>
+    >,
+    additionalCtx
+  >(
+    options: {
+      stepData: chosenStep;
+      logger: MultiStepFormLogger;
+    } & StepSpecificComponent.CtxSelector<
+      resolvedStep,
+      stepNumbers,
+      chosenStep,
+      additionalCtx
+    >
+  ) {
+    const { logger, stepData, ctxData } = options;
+    // Create ctx fresh each time to ensure it has the latest this.value
+    const ctx = createCtx<resolvedStep, stepNumbers, chosenStep>(
+      this.value,
+      stepData
+    );
+    let resolvedCtx = ctx as Expand<
+      HelperFnCtx<resolvedStep, stepNumbers, chosenStep>
+    >;
+
+    if (ctxData) {
+      const [targetStep] = stepData;
+      const { [targetStep]: _, ...values } = this.value;
+      const createResolvedCtx = resolvedCtxCreator(logger, values);
+
+      resolvedCtx = createResolvedCtx({ ctx: resolvedCtx, ctxData });
+    }
+
+    return resolvedCtx;
+  }
+
   private createStepSpecificComponentImpl<
-    chosenStep extends HelperFnChosenSteps<resolvedStep, stepNumbers>
+    chosenStep extends HelperFnChosenSteps.tupleNotation<
+      ValidStepKey<stepNumbers>
+    >,
+    additionalCtx = {}
   >(
     stepData: chosenStep,
     config: CreateComponentImplConfig.stepSpecificConfig<
@@ -632,52 +691,33 @@ export class MultiStepFormStepSchema<
       formEnabledFor,
       formProps
     >,
-    input: HelperFnInputBase<resolvedStep, stepNumbers, chosenStep>,
-    extraInput = {}
+    extraConfig?: {
+      logger?: MultiStepFormLogger;
+      input?: (
+        ctx: Expand<HelperFnCtx<resolvedStep, stepNumbers, chosenStep>>
+      ) => Record<string, unknown>;
+    } & StepSpecificComponent.CtxSelector<
+      resolvedStep,
+      stepNumbers,
+      chosenStep,
+      additionalCtx
+    >
   ) {
     return <props>(fn: Function) =>
       ((props: props) => {
+        const ctxData = extraConfig?.ctxData;
+        const logger = extraConfig?.logger ?? new MultiStepFormLogger();
+        const resolvedCtx = this.createResolvedCtx({
+          stepData,
+          ctxData,
+          logger,
+        });
+        const extraInput = extraConfig?.input?.(resolvedCtx) ?? {};
         // Call hook functions from extraInput at the top level of the component
         // This ensures hooks are called in a valid React context (before any conditionals)
-        const hookResults: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(extraInput)) {
-          if (typeof value === 'function') {
-            try {
-              const result = value();
-              // Verify the hook was actually called and returned a value
-              // (hooks should always return something, even if it's undefined)
-              hookResults[key] = result;
-
-              // In development, we can add additional verification here
-              // Log hook calls for debugging (can be disabled in production by removing console.debug)
-              // if (typeof console !== 'undefined' && console.debug) {
-              //   console.debug(
-              //     `[multi-step-form] Hook "${key}" called successfully`,
-              //     { result: result === undefined ? 'defined' : 'undefined' }
-              //   );
-              // }
-            } catch (error) {
-              // Provide helpful error message if hook throws
-              const errorMessage =
-                error instanceof Error ? error.message : String(error);
-
-              throw new Error(
-                `[multi-step-form] Error calling hook "${key}" in useFormInstance.render: ${errorMessage}\n\n` +
-                  `This usually means:\n` +
-                  `1. The hook is being called outside of a React component\n` +
-                  `2. The hook has invalid dependencies or configuration\n` +
-                  `3. There's an error in your hook implementation\n\n` +
-                  `Original error: ${errorMessage}`,
-                { cause: error }
-              );
-            }
-          } else {
-            hookResults[key] = value;
-          }
-        }
+        const hookResults = getValidatedCustomInputHooks(extraInput);
 
         const { defaultId, form } = config;
-        const { ctx } = input;
 
         // Safe cast here since the step specific `createComponent` will always have
         // `stepData` as a tuple
@@ -708,85 +748,112 @@ export class MultiStepFormStepSchema<
           typeof current.fields === 'object',
           `[${step}:createComponent]: the "fields" property must be an object, was ${typeof current.fields}`
         );
-        const stepUpdater = this.#internal.createStepUpdaterFn(step);
 
+        // Memoize Field component to prevent remounting on every render
+        // This ensures input focus is maintained when ctx changes
         const Field = field.create<
           resolvedStep,
           HelperFnChosenSteps.resolve<resolvedStep, stepNumbers, chosenStep>
-        >((name) => {
-          const currentFields = Object.keys(
-            current.fields as Record<string, unknown>
-          );
+        >(
+          (name) => {
+            // Access current step data directly to avoid stale closure
+            const currentStep = this.value[
+              step as keyof resolvedStep
+            ] as typeof current;
+            const currentFields = Object.keys(
+              currentStep.fields as Record<string, unknown>
+            );
 
-          invariant(
-            typeof name === 'string',
-            (formatter) =>
-              `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include: "${formatter.format(
-                currentFields
-              )}"`
-          );
-          // TODO add support for deep keys (`name`)
+            invariant(
+              typeof name === 'string',
+              (formatter) =>
+                `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include: "${formatter.format(
+                  currentFields
+                )}"`
+            );
+            // TODO add support for deep keys (`name`)
 
-          invariant(
-            name in (current.fields as object),
-            (formatter) =>
-              `[${step}:Field]: the field "${name}" doesn't exist for the current step. Available fields include: "${formatter.format(
-                currentFields
-              )}".`
-          );
+            invariant(
+              name in (currentStep.fields as object),
+              (formatter) =>
+                `[${step}:Field]: the field "${name}" doesn't exist for the current step. Available fields include: "${formatter.format(
+                  currentFields
+                )}".`
+            );
 
-          invariant(
-            'update' in current,
-            `[${step}:Field]: No "update" function was found`
-          );
+            invariant(
+              'update' in currentStep,
+              `[${step}:Field]: No "update" function was found`
+            );
 
-          const defaultValue = this.getValue(step as never, name as never);
+            const defaultValue = this.getValue(step as never, name as never);
 
-          const { label, nameTransformCasing, type } = (
-            current.fields as AnyStepField
-          )[name];
-          const targetFields = `fields.${name}.defaultValue`;
+            const { label, nameTransformCasing, type } = (
+              currentStep.fields as AnyStepField
+            )[name];
+            const targetFields = `fields.${name}.defaultValue`;
 
-          return {
-            defaultValue,
-            label,
-            nameTransformCasing,
-            type,
-            name,
-            onInputChange: (value: unknown) => {
-              // Handle Updater pattern: if value is a function, call it with the current field value
-              let resolvedValue;
+            return {
+              defaultValue,
+              label,
+              nameTransformCasing,
+              type,
+              name,
+              onInputChange: (value: unknown) => {
+                // Handle Updater pattern: if value is a function, call it with the current field value
+                let resolvedValue;
 
-              if (typeof value === 'function') {
-                const defaultValue = this.getValue(
-                  step as never,
-                  name as never
-                );
+                if (typeof value === 'function') {
+                  const defaultValue = this.getValue(
+                    step as never,
+                    name as never
+                  );
 
-                resolvedValue = value(defaultValue);
-              } else {
-                resolvedValue = value;
-              }
+                  resolvedValue = value(defaultValue);
+                } else {
+                  resolvedValue = value;
+                }
 
-              this.update({
-                targetStep: step,
-                updater: resolvedValue as never,
-                fields: [targetFields] as never,
-              });
-            },
-            reset: () =>
-              this.reset({
-                fields: [targetFields] as never,
-                targetStep: step,
-              }),
-          } as never;
-        });
+                this.update({
+                  targetStep: step,
+                  updater: resolvedValue as never,
+                  fields: [targetFields] as never,
+                });
+              },
+              reset: () =>
+                this.reset({
+                  fields: [targetFields] as never,
+                  targetStep: step,
+                }),
+            } as never;
+          },
+          this.subscribe,
+          (name) => this.getValue(step as never, name as never)
+        );
+
+        // Create useSelector hook for reactive value access via selector
+        // This allows getting values from ctx reactively without causing re-renders
+        // Pass a function that creates fresh ctx on each call to avoid stale closures
+        const useSelector = createUseSelector(
+          () => this.createResolvedCtx({ stepData, ctxData, logger }),
+          this.subscribe
+        );
+
+        // Create Selector component that uses useSelector internally
+        // This allows parts of the UI to subscribe to specific values without
+        // causing the parent component to re-render
+        const Selector = selector.create(
+          () => this.createResolvedCtx({ stepData, ctxData, logger }),
+          this.subscribe
+        );
 
         let fnInput = {
-          ctx,
-          onInputChange: stepUpdater,
+          ctx: resolvedCtx,
+          onInputChange: this.#internal.createStepUpdaterFn(step),
           reset: this.#internal.createStepResetterFn(step),
           Field,
+          useSelector,
+          Selector,
           ...hookResults,
         };
 
@@ -834,8 +901,8 @@ export class MultiStepFormStepSchema<
       formAlias,
       formEnabledFor,
       formProps
-    >,
-    ctx: HelperFnCtx<resolvedStep, stepNumbers, chosenStep>
+    >
+    // ctx: HelperFnCtx<resolvedStep, stepNumbers, chosenStep>
   ): StepSpecificCreateComponentFn<
     resolvedStep,
     stepNumbers,
@@ -847,17 +914,7 @@ export class MultiStepFormStepSchema<
     const createStepSpecificComponentImpl =
       this.createStepSpecificComponentImpl.bind(this);
     const createDefaultValues = this.createDefaultValues.bind(this);
-
-    // Not exactly sure why `this.value` could be undefined, but it can be so
-    // we fallback to the internal value
-    const resolvedValues = this.value;
     const [targetStep] = stepData;
-    const update = this.#internal
-      .createStepUpdaterFn(targetStep)
-      .bind(this.#internal) as never;
-    const reset = this.#internal
-      .createStepResetterFn(targetStep)
-      .bind(this.#internal) as never;
 
     function impl<props = undefined>(
       fn: CreateStepSpecificComponentCallback<
@@ -930,23 +987,13 @@ export class MultiStepFormStepSchema<
         { [_ in formInstanceAlias]: formInstance }
       >
     ) {
-      function createResolvedCtx(additionalCtx: unknown) {
-        return (
-          additionalCtx ? { ctx: { ...ctx, ...additionalCtx } } : { ctx }
-        ) as HelperFnInputBase<resolvedStep, stepNumbers, chosenStep>;
-      }
-
       function createStepSpecificComponent() {
         invariant(
           typeof optionsOrFn === 'function',
           'The first argument must be a function'
         );
 
-        return createStepSpecificComponentImpl(
-          stepData,
-          config,
-          createResolvedCtx(undefined)
-        )(optionsOrFn);
+        return createStepSpecificComponentImpl(stepData, config)(optionsOrFn);
       }
 
       if (typeof optionsOrFn === 'object') {
@@ -960,13 +1007,10 @@ export class MultiStepFormStepSchema<
 
         logger.info('First argument is an object');
 
-        const { [targetStep]: _, ...values } = resolvedValues;
-
         invariant(
           typeof fn === 'function',
           'The second argument must be a function'
         );
-        const createdCtx = resolvedCtxCreator(logger, values);
 
         if (useFormInstance) {
           const {
@@ -979,33 +1023,27 @@ export class MultiStepFormStepSchema<
           const [step] =
             stepData as HelperFnChosenSteps.tupleNotation<`step${stepNumbers}`>;
 
-          // Store the render function and inputs to call it at component level
-          // This ensures hooks are called in a valid React context
-          const defaultValues = createDefaultValues(step) as never;
-          const resolvedCtx = ctxData ? createdCtx({ ctx, ctxData }) : ctx;
-          const renderInput = { ctx: resolvedCtx, defaultValues };
+          return createStepSpecificComponentImpl(stepData, config, {
+            logger,
+            ctxData,
+            input: (ctx) => {
+              const defaultValues = createDefaultValues(step) as never;
 
-          return createStepSpecificComponentImpl(
-            stepData,
-            config,
-            {
-              ctx: resolvedCtx as never,
-              update,
-              reset,
+              return {
+                [alias]: () =>
+                  render({
+                    ctx,
+                    defaultValues,
+                  }),
+              };
             },
-            {
-              [alias]: () => render(renderInput as never),
-            }
-          )(fn);
+          })(fn);
         }
 
         if (ctxData) {
-          const resolvedCtx = createdCtx({ ctx, ctxData });
-
           return createStepSpecificComponentImpl(stepData, config, {
-            ctx: resolvedCtx as never,
-            update,
-            reset,
+            logger,
+            ctxData,
           })(fn);
         }
 
