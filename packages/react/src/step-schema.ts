@@ -28,12 +28,12 @@ import {
   type ValidStepKey,
 } from '@jfdevelops/multi-step-form-core';
 import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internals';
-import React, { memo, type ComponentPropsWithRef, type ReactNode } from 'react';
+import { type ComponentPropsWithRef, type ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { createUseSelector, type UseSelector } from './hooks/use-selector';
-import { getValidatedCustomInputHooks, resolvedCtxCreator } from './utils';
 import { selector } from './selector';
+import { getValidatedCustomInputHooks, resolvedCtxCreator } from './utils';
 
 export interface MultiStepFormSchemaStepConfig<
   TStep extends Step<TCasing>,

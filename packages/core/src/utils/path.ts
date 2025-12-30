@@ -655,9 +655,6 @@ export namespace path {
 
     return rest.join('.');
   }
-  function getPathsThatMatter(paths: Array<string>) {
-    return paths.map(getPathThatMatter);
-  }
 
   export function joinAtPath<
     obj extends Record<string, unknown>,
