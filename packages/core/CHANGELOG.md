@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.18
+
+### Patch Changes
+
+- d18c881: Makes sure packages actually get built
+
 ## 1.0.0-alpha.17
 
 ### Patch Changes
