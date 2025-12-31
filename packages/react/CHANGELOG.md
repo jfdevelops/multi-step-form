@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.24
+
+### Patch Changes
+
+- 06e7d7d: Fixes `form` being `undefined`
+
 ## 1.0.0-alpha.23
 
 ### Patch Changes
