@@ -110,3 +110,307 @@ it('should return the part of the object specified by the path', () => {
     x: { y: 2 },
   });
 });
+
+describe('path.updateAt with partial merge', () => {
+  it('preserves array type when merging arrays', () => {
+    const obj = {
+      items: [1, 2, 3],
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['items'],
+      value: [4, 5] as any,
+      partial: true,
+    });
+
+    expect(result.items).toBeInstanceOf(Array);
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('merges arrays element-wise when both are arrays', () => {
+    const obj = {
+      items: [
+        { id: 1, name: 'Item 1', extra: 'preserved' },
+        { id: 2, name: 'Item 2', extra: 'preserved' },
+        { id: 3, name: 'Item 3', extra: 'preserved' },
+      ],
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['items'],
+      value: [
+        { id: 1, name: 'Updated Item 1' },
+        { id: 2, name: 'Updated Item 2' },
+      ] as any,
+      partial: true,
+    });
+
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toEqual({
+      id: 1,
+      name: 'Updated Item 1',
+      extra: 'preserved',
+    });
+    expect(result.items[1]).toEqual({
+      id: 2,
+      name: 'Updated Item 2',
+      extra: 'preserved',
+    });
+  });
+
+  it('deep merges objects while preserving structure', () => {
+    const obj = {
+      user: {
+        name: 'John',
+        age: 30,
+        address: {
+          street: '123 Main St',
+          city: 'New York',
+          country: 'USA',
+        },
+      },
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['user'],
+      value: {
+        name: 'Jane',
+        address: {
+          city: 'Los Angeles',
+        },
+      } as any,
+      partial: true,
+    });
+
+    expect(result.user).toEqual({
+      name: 'Jane',
+      age: 30,
+      address: {
+        street: '123 Main St',
+        city: 'Los Angeles',
+        country: 'USA',
+      },
+    });
+  });
+
+  it('merges nested arrays of objects correctly', () => {
+    const obj = {
+      sections: [
+        {
+          title: 'Section 1',
+          items: [
+            { id: 1, name: 'Item A', meta: 'preserved' },
+            { id: 2, name: 'Item B', meta: 'preserved' },
+          ],
+        },
+        {
+          title: 'Section 2',
+          items: [{ id: 3, name: 'Item C', meta: 'preserved' }],
+        },
+      ],
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['sections'],
+      value: [
+        {
+          title: 'Updated Section 1',
+          items: [{ id: 1, name: 'Updated Item A' } as never],
+        },
+      ],
+      partial: true,
+    });
+
+    expect(Array.isArray(result.sections)).toBe(true);
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].title).toBe('Updated Section 1');
+    expect(Array.isArray(result.sections[0].items)).toBe(true);
+    expect(result.sections[0].items[0]).toEqual({
+      id: 1,
+      name: 'Updated Item A',
+      meta: 'preserved',
+    });
+  });
+
+  it('preserves primitive values when merging', () => {
+    const obj = {
+      name: 'John',
+      age: 30,
+      active: true,
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['name'],
+      value: 'Jane' as any,
+      partial: true,
+    });
+
+    expect(result.name).toBe('Jane');
+    expect(typeof result.name).toBe('string');
+  });
+
+  it('handles mixed array and object structures', () => {
+    const obj = {
+      data: {
+        users: [
+          { id: 1, name: 'Alice', role: 'admin' },
+          { id: 2, name: 'Bob', role: 'user' },
+        ],
+        settings: {
+          theme: 'dark',
+          language: 'en',
+        },
+      },
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['data'],
+      value: {
+        users: [{ id: 1, name: 'Alice Updated' }],
+        settings: {
+          theme: 'light',
+        },
+      } as any,
+      partial: true,
+    });
+
+    expect(Array.isArray(result.data.users)).toBe(true);
+    expect(result.data.users[0]).toEqual({
+      id: 1,
+      name: 'Alice Updated',
+      role: 'admin',
+    });
+    expect(result.data.settings).toEqual({
+      theme: 'light',
+      language: 'en',
+    });
+  });
+
+  it('handles empty arrays correctly', () => {
+    const obj = {
+      items: [{ id: 1, name: 'Item 1' }],
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['items'],
+      value: [] as any,
+      partial: true,
+    });
+
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items).toHaveLength(0);
+  });
+
+  it('handles arrays with missing target elements', () => {
+    const obj = {
+      items: [
+        { id: 1, name: 'Item 1', extra: 'preserved' },
+        { id: 2, name: 'Item 2', extra: 'preserved' },
+      ],
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['items'],
+      value: [{ id: 1, name: 'Updated Item 1' }] as any,
+      partial: true,
+    });
+
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual({
+      id: 1,
+      name: 'Updated Item 1',
+      extra: 'preserved',
+    });
+  });
+
+  it('handles deeply nested structures with arrays and objects', () => {
+    const obj = {
+      config: {
+        features: [
+          {
+            name: 'Feature 1',
+            settings: {
+              enabled: true,
+              priority: 'high',
+              metadata: { version: '1.0' },
+            },
+          },
+          {
+            name: 'Feature 2',
+            settings: {
+              enabled: false,
+              priority: 'medium',
+              metadata: { version: '2.0' },
+            },
+          },
+        ],
+      },
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['config'],
+      value: {
+        features: [
+          {
+            name: 'Updated Feature 1',
+            settings: {
+              enabled: false,
+              metadata: { version: '1.1' },
+            },
+          },
+        ],
+      } as any,
+      partial: true,
+    });
+
+    expect(Array.isArray(result.config.features)).toBe(true);
+    expect(result.config.features).toHaveLength(1);
+    expect(result.config.features[0]).toEqual({
+      name: 'Updated Feature 1',
+      settings: {
+        enabled: false,
+        priority: 'high',
+        metadata: { version: '1.1' },
+      },
+    });
+  });
+
+  it('handles multiple paths with arrays and objects', () => {
+    const obj = {
+      users: [{ id: 1, name: 'Alice' }],
+      settings: { theme: 'dark' },
+    };
+
+    const result = path.updateAt({
+      obj,
+      paths: ['users', 'settings'],
+      value: {
+        users: [{ id: 1, name: 'Alice Updated' }],
+        settings: { language: 'en' },
+      } as any,
+      partial: true,
+    });
+
+    expect(Array.isArray(result.users)).toBe(true);
+    expect(result.users[0]).toEqual({
+      id: 1,
+      name: 'Alice Updated',
+    });
+    expect(result.settings).toEqual({
+      theme: 'dark',
+      language: 'en',
+    });
+  });
+});
