@@ -62,10 +62,10 @@ export function getValidatedCustomInputHooks(input: Record<string, unknown>) {
   for (const [key, value] of Object.entries(input)) {
     if (typeof value === 'function') {
       try {
-        const result = value();
+        const hookResult = value();
         // Verify the hook was actually called and returned a value
         // (hooks should always return something, even if it's undefined)
-        result[key] = result;
+        result[key] = hookResult;
 
         // In development, we can add additional verification here
         // Log hook calls for debugging (can be disabled in production by removing console.debug)
