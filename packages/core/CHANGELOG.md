@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.19
+
+### Patch Changes
+
+- 883d7f7: Performing a partial update preserves that data's structure
+
 ## 1.0.0-alpha.18
 
 ### Patch Changes
