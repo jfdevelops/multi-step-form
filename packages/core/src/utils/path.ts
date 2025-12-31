@@ -665,15 +665,21 @@ export namespace path {
       const missingData = pickBy(obj, ...paths);
       const setPath = getPathThatMatter(path);
 
-      // if (last) {
-      //   const data = setBy(
-      //     value as Record<string, unknown>,
-      //     last,
-      //     missingData
-      //   ) as pickBy<obj, path>;
-
-      //   return data;
-      // }
+      // If setPath is empty (path doesn't contain .defaultValue.),
+      // return missingData directly. The merge will happen in deepMergePreserveType.
+      // Calling setBy with empty path would create a "" key which is wrong.
+      // Only return if missingData is an object/array, not a primitive
+      if (setPath === '') {
+        if (
+          missingData !== null &&
+          missingData !== undefined &&
+          typeof missingData === 'object'
+        ) {
+          return missingData;
+        }
+        // If missingData is a primitive, return undefined so merge doesn't happen
+        return undefined;
+      }
 
       const data = setBy(
         value as Record<string, unknown>,
@@ -728,6 +734,135 @@ export namespace path {
     }
   }
 
+  /**
+   * Check if an array contains objects (not primitives)
+   */
+  function isArrayOfObjects(arr: unknown[]): boolean {
+    return (
+      arr.length > 0 &&
+      arr.every(
+        (item) =>
+          item !== null && typeof item === 'object' && !Array.isArray(item)
+      )
+    );
+  }
+
+  /**
+   * Merge two array elements, handling objects recursively
+   * sourceItem is the new value, targetItem is the original (missing data)
+   * We want to preserve targetItem properties and let sourceItem override
+   */
+  function mergeArrayElement(
+    sourceItem: unknown,
+    targetItem: unknown
+  ): unknown {
+    if (targetItem === undefined) {
+      return sourceItem;
+    }
+    // If both are objects (not arrays), deep merge them
+    // targetItem (original) is base, sourceItem (new) overrides
+    if (
+      sourceItem !== null &&
+      typeof sourceItem === 'object' &&
+      !Array.isArray(sourceItem) &&
+      targetItem !== null &&
+      typeof targetItem === 'object' &&
+      !Array.isArray(targetItem)
+    ) {
+      // Merge: target (original) is base, source (new) overrides
+      return mergeObjects(
+        sourceItem as Record<string, unknown>,
+        targetItem as Record<string, unknown>
+      );
+    }
+    // Otherwise, prefer source item (new value)
+    return sourceItem;
+  }
+
+  /**
+   * Deep merge two objects recursively
+   * Target (original/missing data) is the base, source (new value) overrides
+   */
+  function mergeObjects(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>
+  ): Record<string, unknown> {
+    // Start with target (original) to preserve all its properties
+    const result = { ...target };
+    for (const key in source) {
+      if (key in result) {
+        // Deep merge nested properties (target is base, source overrides)
+        result[key] = deepMergePreserveType(source[key], result[key]);
+      } else {
+        // Add new properties from source
+        result[key] = source[key];
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Deep merge two values while preserving their structure.
+   * - Arrays:
+   *   - If both are arrays of objects: merge element-wise
+   *   - If both are arrays of primitives: use source (replacement)
+   *   - Otherwise: use source
+   * - Objects: deep merge nested properties
+   * - Primitives: use source value
+   */
+  function deepMergePreserveType<T>(source: T, target: unknown): T {
+    if (target === undefined || target === null) {
+      return source;
+    }
+
+    if (Array.isArray(source)) {
+      if (Array.isArray(target)) {
+        const sourceArr = source as unknown[];
+        const targetArr = target as unknown[];
+
+        // If both are arrays of objects, merge element-wise
+        if (isArrayOfObjects(sourceArr) && isArrayOfObjects(targetArr)) {
+          // Merge element-wise: for each source item, merge with corresponding target item
+          // Use the length of source array (new values take precedence)
+          return sourceArr.map((item, index) => {
+            const targetItem = targetArr[index];
+            // If target has a corresponding item, merge them (target properties preserved, source overrides)
+            if (targetItem !== undefined) {
+              return mergeArrayElement(item, targetItem);
+            }
+            // If no target item, use source item
+            return item;
+          }) as T;
+        }
+
+        // For arrays of primitives:
+        // - If source is empty, use it (replacement/clear)
+        // - Otherwise, concatenate target then source (preserve original, add new)
+        if (sourceArr.length === 0) {
+          return source;
+        }
+        return [...targetArr, ...sourceArr] as T;
+      }
+      return source;
+    }
+
+    if (source !== null && typeof source === 'object') {
+      if (
+        target !== null &&
+        typeof target === 'object' &&
+        !Array.isArray(target)
+      ) {
+        return mergeObjects(
+          source as Record<string, unknown>,
+          target as Record<string, unknown>
+        ) as T;
+      }
+      return source;
+    }
+
+    return source;
+  }
+
   export function updateAt<
     obj extends Record<string, unknown>,
     path extends DeepKeys<obj>
@@ -742,16 +877,59 @@ export namespace path {
     if (partial) {
       const missingPaths = findMissingPaths(obj, paths, value);
 
-      const missingData = joinAtPath(
+      let missingData = joinAtPath(
         missingPaths as Array<path>,
         obj,
         resolvedValue
       );
 
-      resolvedValue = {
-        ...(resolvedValue as Record<string, unknown>),
-        ...(missingData as Record<string, unknown>),
-      } as pickBy<obj, path>;
+      // For arrays and objects, if missingData is undefined or empty object, we need to get the original value
+      // This can happen when:
+      // 1. missingPaths is empty (because createDeep skips arrays)
+      // 2. missingPaths has paths but joinAtPath returns undefined or {} (paths don't contain .defaultValue.)
+      if (
+        missingData === undefined ||
+        (typeof missingData === 'object' &&
+          missingData !== null &&
+          Object.keys(missingData).length === 0)
+      ) {
+        if (norm.length === 1) {
+          // Single path: get the original value at that path
+          const originalValue = getBy(obj, norm[0]);
+          if (originalValue !== undefined) {
+            if (Array.isArray(originalValue) && Array.isArray(resolvedValue)) {
+              if (resolvedValue.length > 0) {
+                missingData = originalValue as pickBy<obj, path>;
+              }
+            } else if (
+              originalValue !== null &&
+              typeof originalValue === 'object' &&
+              !Array.isArray(originalValue) &&
+              resolvedValue !== null &&
+              typeof resolvedValue === 'object' &&
+              !Array.isArray(resolvedValue)
+            ) {
+              missingData = originalValue;
+            }
+          }
+        } else if (norm.length > 1) {
+          // Multiple paths: build an object with original values at each path
+          const originalData: Record<string, unknown> = {};
+          for (const p of norm) {
+            const originalValue = getBy(obj, p);
+            if (originalValue !== undefined) {
+              // Set the value at the path in the root-shaped object
+              setBy(originalData, p, originalValue);
+            }
+          }
+          if (Object.keys(originalData).length > 0) {
+            missingData = originalData as pickBy<obj, path>;
+          }
+        }
+      }
+
+      // Merge missingData into resolvedValue while preserving structure
+      resolvedValue = deepMergePreserveType(resolvedValue, missingData);
     }
 
     if (norm.length === 1) {
@@ -765,8 +943,9 @@ export namespace path {
 
     // multiple paths:
     // value is the root-shaped object that contains all those paths
+    // Use resolvedValue (which has been merged with missingData if partial) instead of value
     for (const path of norm) {
-      const sub = getBy(value, path);
+      const sub = getBy(resolvedValue, path);
 
       result = setAtImmutable(result, path as DeepKeys<obj>, sub);
     }
