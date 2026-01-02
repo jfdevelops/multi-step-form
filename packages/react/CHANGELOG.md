@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.26
+
+### Patch Changes
+
+- 94c7f38: Caches `ctx` value in `useSelector` and `<Selector />`
+
 ## 1.0.0-alpha.25
 
 ### Patch Changes
