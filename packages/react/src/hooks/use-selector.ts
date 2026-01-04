@@ -5,6 +5,7 @@ import type {
   Expand,
   HelperFnCtx,
 } from '@jfdevelops/multi-step-form-core';
+import { path } from '@jfdevelops/multi-step-form-core/_internals';
 import { useSyncExternalStore, useRef } from 'react';
 
 export type UseSelector<
@@ -41,12 +42,17 @@ export function createUseSelector<
       // Cache the result to ensure stable reference
       if (snapshotCacheRef.current === null) {
         snapshotCacheRef.current = { value: newValue };
-
         return newValue;
       }
 
-      // Only update if the value actually changed
-      if (!Object.is(snapshotCacheRef.current.value, newValue)) {
+      // Only update if the value actually changed (deep comparison using path.equalsAtPaths)
+      const comparisonResult = path.equalsAtPaths(
+        { value: snapshotCacheRef.current.value },
+        ['value'],
+        newValue
+      );
+
+      if (!comparisonResult.ok) {
         snapshotCacheRef.current = { value: newValue };
       }
 
