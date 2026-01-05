@@ -6,6 +6,7 @@ import type {
   HelperFnCtx,
   Override,
   StepNumbers,
+  UpdateFn,
   Updater,
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
@@ -48,6 +49,14 @@ export namespace field {
     TResolvedStep,
     HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>
   >;
+  export type onInputChangeOptions<
+    TStrict extends boolean,
+    TPartial extends boolean
+  > = UpdateFn.ModeOptions<{
+    strict: TStrict;
+    partial: TPartial;
+  }> &
+    UpdateFn.DebugOptions;
 
   export type childrenProps<
     TResolvedStep extends AnyResolvedStep,
@@ -69,13 +78,26 @@ export namespace field {
       /**
        * A useful wrapper around `update` to update the specific field.
        * @param value The new value for the field.
+       * @param options The options for the update operation.
        */
-      onInputChange: (value: Updater<TValue>) => void;
+      onInputChange: <
+        strict extends boolean = true,
+        partial extends boolean = false
+      >(
+        value: Updater<
+          UpdateFn.resolvedUpdaterReturnType<
+            TValue,
+            { strict: strict; partial: partial },
+            {}
+          >
+        >,
+        options?: onInputChangeOptions<strict, partial>
+      ) => void;
       /**
        * Resets the field's value to the original value that was
        * defined in the config.
        */
-      reset: () => void;
+      reset: (options?: UpdateFn.DebugOptions) => void;
     };
   export type childrenPropsWithSelected<
     TResolvedStep extends AnyResolvedStep,
