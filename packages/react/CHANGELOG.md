@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.27
+
+### Patch Changes
+
+- a12650c: Adds new `selectorFn` prop to the `Field` component. Providing a value for the `selectorFn` will internally wrap the `<Field />`'s children with a `<Selector />`.
+
 ## 1.0.0-alpha.26
 
 ### Patch Changes
