@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.28
+
+### Patch Changes
+
+- 22ced19: Adds `options` argument to `onInputChange` and `reset` (`<Field />` props)
+- Updated dependencies [dcbf92e]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.20
+
 ## 1.0.0-alpha.27
 
 ### Patch Changes
