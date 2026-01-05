@@ -8,7 +8,10 @@ import {
   type DefaultFieldType,
   type Expand,
   type FieldType,
+  type GetInferredFieldType,
   type objectHelpers,
+  type Override,
+  type ResolvedFieldTypeMap,
 } from '@/utils';
 import type { path } from '@/utils/path';
 import type {
@@ -109,22 +112,31 @@ export type ResolvedFields<
   TFields extends GetFieldsForStep<TInferredSteps, TKey> = GetFieldsForStep<
     TInferredSteps,
     TKey
-  >
+  >,
+  TDefaultFields = {
+    nameTransformCasing: GetDefaultCasingTransformation<TInferredSteps, TKey>;
+    label: string;
+  }
 > = {
-  [name in keyof TFields]: Expand<
-    // current field information for the `name`
-    SetDefault<
-      TFields[name],
-      {
-        type: DefaultFieldType;
-        nameTransformCasing: GetDefaultCasingTransformation<
-          TInferredSteps,
-          TKey
-        >;
-        label: string;
-      }
-    >
-  >;
+  [name in keyof TFields]: TFields[name] extends {
+    type: infer type extends FieldType;
+  }
+    ? Expand<
+        Override<
+          SetDefault<TFields[name], TDefaultFields & { type: type }>,
+          'defaultValue',
+          ResolvedFieldTypeMap[type]
+        >
+      >
+    : Expand<
+        // current field information for the `name`
+        SetDefault<
+          TFields[name],
+          TDefaultFields & {
+            type: GetInferredFieldType<TFields[name]>;
+          }
+        >
+      >;
 };
 export type ResolvedStepBuilder<
   TStep extends Step,
@@ -260,28 +272,7 @@ export namespace UpdateFn {
     : TMode['partial'] extends true
     ? DeepPartial<T> & TAdditionalCtx
     : T & TAdditionalCtx;
-  export interface BaseOptions<
-    TResolvedStep extends AnyResolvedStep,
-    TStepNumbers extends StepNumbers<TResolvedStep>,
-    TTargetStep extends ValidStepKey<TStepNumbers>,
-    TField extends chosenFields<TCurrentStep>,
-    TCurrentStep extends resolvedStep<
-      TResolvedStep,
-      TStepNumbers,
-      TTargetStep
-    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
-  > {
-    /**
-     * The step to update.
-     */
-    targetStep: TTargetStep;
-    /**
-     * The specific fields to update.
-     *
-     * Optionally provide a value to narrow the results of the `ctx` in the
-     * updater `fn`.
-     */
-    fields?: TField;
+  export interface DebugOptions {
     /**
      * Enables verbose debug logging for this update operation.
      * Set to `true` to output helpful information for troubleshooting.
@@ -295,25 +286,43 @@ export namespace UpdateFn {
      */
     silentErrors?: boolean;
   }
-
-  export interface SharedOptions<
+  export interface BaseOptions<
     TResolvedStep extends AnyResolvedStep,
     TStepNumbers extends StepNumbers<TResolvedStep>,
     TTargetStep extends ValidStepKey<TStepNumbers>,
     TField extends chosenFields<TCurrentStep>,
-    TMode extends mode,
     TCurrentStep extends resolvedStep<
       TResolvedStep,
       TStepNumbers,
       TTargetStep
     > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
-  > extends BaseOptions<
-      TResolvedStep,
-      TStepNumbers,
-      TTargetStep,
-      TField,
-      TCurrentStep
-    > {
+  > extends DebugOptions {
+    /**
+     * The step to update.
+     */
+    targetStep: TTargetStep;
+    /**
+     * The specific fields to update.
+     *
+     * Optionally provide a value to narrow the results of the `ctx` in the
+     * updater `fn`.
+     */
+    fields?: TField;
+  }
+
+  export interface ModeOptions<TMode extends mode> {
+    /**
+     * Enables verbose debug logging for this update operation.
+     * Set to `true` to output helpful information for troubleshooting.
+     */
+    debug?: boolean;
+    /**
+     * Controls whether console errors should be silenced.
+     *
+     * By default, errors will be silenced when `partial: true` OR `strict: false`.
+     *
+     */
+    silentErrors?: boolean;
     /**
      * Enables strict mode for the update operation.
      *
@@ -331,6 +340,26 @@ export namespace UpdateFn {
      */
     partial?: TMode['partial'];
   }
+
+  export interface SharedOptions<
+    TResolvedStep extends AnyResolvedStep,
+    TStepNumbers extends StepNumbers<TResolvedStep>,
+    TTargetStep extends ValidStepKey<TStepNumbers>,
+    TField extends chosenFields<TCurrentStep>,
+    TMode extends mode,
+    TCurrentStep extends resolvedStep<
+      TResolvedStep,
+      TStepNumbers,
+      TTargetStep
+    > = resolvedStep<TResolvedStep, TStepNumbers, TTargetStep>
+  > extends BaseOptions<
+        TResolvedStep,
+        TStepNumbers,
+        TTargetStep,
+        TField,
+        TCurrentStep
+      >,
+      ModeOptions<TMode> {}
 
   export type options<
     TResolvedStep extends AnyResolvedStep,
