@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MultiStepFormStepSchema } from '../../src';
+import { createMockStorage } from '../utils/create-mock-storage';
 
 describe('multi step form step schema: update', () => {
   it.skip('should update the specified data immutably', () => {
@@ -195,6 +196,89 @@ describe('multi step form step schema: update', () => {
       firstName: 'Bob',
       lastName: 'Smith',
     });
+  });
+
+  it('should update Date values', () => {
+    const initialDate = new Date('2024-01-01');
+    const updatedDate = new Date('2024-12-31');
+
+    const stepSchema = new MultiStepFormStepSchema({
+      steps: {
+        step1: {
+          fields: {
+            birthDate: {
+              defaultValue: initialDate,
+            },
+          },
+          title: 'Step 1',
+        },
+      },
+    });
+
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toBeInstanceOf(
+      Date
+    );
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toEqual(
+      initialDate
+    );
+
+    stepSchema.update({
+      targetStep: 'step1',
+      fields: ['fields.birthDate.defaultValue'],
+      updater: updatedDate,
+    });
+
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toBeInstanceOf(
+      Date
+    );
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toEqual(
+      updatedDate
+    );
+  });
+
+  it('should update Date values stored in storage (serialized as strings)', () => {
+    const mockStorage = createMockStorage();
+    const initialDate = new Date('2024-01-01');
+    const updatedDate = new Date('2024-12-31');
+
+    // Create schema with Date and store it (Date gets serialized to string)
+    const stepSchema = new MultiStepFormStepSchema({
+      storage: {
+        key: `date-storage-test-${Date.now()}`,
+        store: mockStorage,
+      },
+      steps: {
+        step1: {
+          fields: {
+            birthDate: {
+              defaultValue: initialDate,
+              type: 'date'
+            },
+          },
+          title: 'Step 1',
+        },
+      },
+    });
+
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toBeInstanceOf(
+      Date
+    );
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toEqual(
+      initialDate
+    );
+
+    stepSchema.update({
+      targetStep: 'step1',
+      fields: ['fields.birthDate.defaultValue'],
+      updater: updatedDate,
+    });
+
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toBeInstanceOf(
+      Date
+    );
+    expect(stepSchema.value.step1.fields.birthDate.defaultValue).toEqual(
+      updatedDate
+    );
   });
 
   describe('mode config (shallow)', () => {

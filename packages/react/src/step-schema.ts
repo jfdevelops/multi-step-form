@@ -787,7 +787,13 @@ export class MultiStepFormStepSchema<
               nameTransformCasing,
               type,
               name,
-              onInputChange: (value: unknown) => {
+              onInputChange: <
+                strict extends boolean = true,
+                partial extends boolean = false
+              >(
+                value: unknown,
+                options?: field.onInputChangeOptions<strict, partial>
+              ) => {
                 // Handle Updater pattern: if value is a function, call it with the current field value
                 let resolvedValue;
 
@@ -803,15 +809,21 @@ export class MultiStepFormStepSchema<
                 }
 
                 this.update({
+                  partial: options?.partial ?? false,
+                  strict: options?.strict ?? true,
+                  debug: options?.debug,
+                  silentErrors: options?.silentErrors,
                   targetStep: step,
                   updater: resolvedValue as never,
                   fields: [targetFields] as never,
                 });
               },
-              reset: () =>
+              reset: (options?: UpdateFn.DebugOptions) =>
                 this.reset({
                   fields: [targetFields] as never,
                   targetStep: step,
+                  debug: options?.debug,
+                  silentErrors: options?.silentErrors,
                 }),
             } as never;
           },
