@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.20
+
+### Patch Changes
+
+- dcbf92e: Fixes `Date`s not being able to be `update`d
+
 ## 1.0.0-alpha.19
 
 ### Patch Changes
