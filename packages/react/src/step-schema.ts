@@ -195,16 +195,7 @@ export namespace StepSpecificComponent {
     TAdditionalCtx
   > &
     updateWrappers<TResolvedStep, TSteps, TChosenSteps, TStepNumber> & {
-      Field: field.component<
-        TResolvedStep,
-        ValidStepKey<
-          HelperFnChosenSteps.extractStepNumber<
-            TResolvedStep,
-            TSteps,
-            TChosenSteps
-          >
-        >
-      >;
+      Field: field.component<TResolvedStep, TSteps, TChosenSteps>;
       /**
        * A hook for reactively selecting a value from the form context.
        * The selector function receives the contextual data for the currently rendered step, and returns any derived value.
@@ -751,11 +742,8 @@ export class MultiStepFormStepSchema<
 
         // Memoize Field component to prevent remounting on every render
         // This ensures input focus is maintained when ctx changes
-        const Field = field.create<
-          resolvedStep,
-          HelperFnChosenSteps.resolve<resolvedStep, stepNumbers, chosenStep>
-        >(
-          (name) => {
+        const Field = field.create<resolvedStep, stepNumbers, chosenStep>({
+          propsCreator: (name) => {
             // Access current step data directly to avoid stale closure
             const currentStep = this.value[
               step as keyof resolvedStep
@@ -827,9 +815,10 @@ export class MultiStepFormStepSchema<
                 }),
             } as never;
           },
-          this.subscribe,
-          (name) => this.getValue(step as never, name as never)
-        );
+          subscribe: this.subscribe,
+          getValue: (name) => this.getValue(step as never, name as never),
+          selectorCtx: this.createResolvedCtx({ stepData, ctxData, logger }),
+        });
 
         // Create useSelector hook for reactive value access via selector
         // This allows getting values from ctx reactively without causing re-renders

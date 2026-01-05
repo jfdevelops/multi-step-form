@@ -1,11 +1,17 @@
 import type {
   AnyResolvedStep,
+  Expand,
   fields,
+  HelperFnChosenSteps,
+  HelperFnCtx,
   Override,
+  StepNumbers,
   Updater,
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
 import { memo, useSyncExternalStore } from 'react';
+import type { SelectorFn } from './hooks/use-selector';
+import { selector } from './selector';
 
 export namespace field {
   type sharedProps<TField extends string> = {
@@ -15,18 +21,48 @@ export namespace field {
     name: TField;
   };
 
+  // aliases for types in `fields` namespace
+  type getDeep<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  > = fields.getDeep<
+    TResolvedStep,
+    HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>
+  >;
+  type resolveDeepPath<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>
+  > = fields.resolveDeepPath<
+    TResolvedStep,
+    HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>,
+    TField
+  >;
+  type get<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  > = fields.get<
+    TResolvedStep,
+    HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>
+  >;
+
   export type childrenProps<
     TResolvedStep extends AnyResolvedStep,
-    TTargetStep extends keyof TResolvedStep,
-    TField extends fields.getDeep<TResolvedStep, TTargetStep>,
-    TValue extends fields.resolveDeepPath<
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
+    TValue extends resolveDeepPath<
       TResolvedStep,
-      TTargetStep,
+      TSteps,
+      TChosenSteps,
       TField
-    > = fields.resolveDeepPath<TResolvedStep, TTargetStep, TField>
+    > = resolveDeepPath<TResolvedStep, TSteps, TChosenSteps, TField>
   > = sharedProps<TField> &
     Override<
-      fields.get<TResolvedStep, TTargetStep>[fields.parentOf<TField>],
+      get<TResolvedStep, TSteps, TChosenSteps>[fields.parentOf<TField>],
       'defaultValue',
       TValue
     > & {
@@ -41,21 +77,82 @@ export namespace field {
        */
       reset: () => void;
     };
+  export type childrenPropsWithSelected<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
+    TSelected
+  > = childrenProps<TResolvedStep, TSteps, TChosenSteps, TField> & {
+    selected: {
+      /**
+       * The result of the `selectorFn`.
+       */
+      value: TSelected;
+    };
+  };
+  export type selectorChildrenProps<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
+    TSelected
+  > = childrenProps<TResolvedStep, TSteps, TChosenSteps, TField> & {
+    selected: {
+      /**
+       * The selected value.
+       */
+      value: TSelected;
+    };
+  };
   export type props<
     TResolvedStep extends AnyResolvedStep,
-    TTargetStep extends keyof TResolvedStep,
-    TField extends fields.getDeep<TResolvedStep, TTargetStep>
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
+    TSelected
   > = sharedProps<TField> & {
+    selectorFn?: SelectorFn<TResolvedStep, TSteps, TChosenSteps, TSelected>;
     children: (
-      props: childrenProps<TResolvedStep, TTargetStep, TField>
+      props: [TSelected] extends [never]
+        ? childrenProps<TResolvedStep, TSteps, TChosenSteps, TField>
+        : childrenPropsWithSelected<
+            TResolvedStep,
+            TSteps,
+            TChosenSteps,
+            TField,
+            TSelected
+          >
     ) => ReactNode;
   };
   export type component<
     TResolvedStep extends AnyResolvedStep,
-    TTargetStep extends keyof TResolvedStep
-  > = <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
-    props: props<TResolvedStep, TTargetStep, TField>
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  > = <
+    field extends fields.getDeep<
+      TResolvedStep,
+      HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>
+    >,
+    selected = never
+  >(
+    props: props<TResolvedStep, TSteps, TChosenSteps, field, selected>
   ) => ReactNode;
+
+  export type createOptions<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  > = {
+    propsCreator: <TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>>(
+      name: TField
+    ) => field.childrenProps<TResolvedStep, TSteps, TChosenSteps, TField>;
+    subscribe?: (listener: () => void) => () => void;
+    getValue?: <TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>>(
+      name: TField
+    ) => resolveDeepPath<TResolvedStep, TSteps, TChosenSteps, TField>;
+    selectorCtx: Expand<HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>>;
+  };
 
   /**
    * Create a field.
@@ -66,50 +163,58 @@ export namespace field {
    */
   export function create<
     TResolvedStep extends AnyResolvedStep,
-    TTargetStep extends keyof TResolvedStep
-  >(
-    propsCreator: <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
-      name: TField
-    ) => field.childrenProps<TResolvedStep, TTargetStep, TField>,
-    subscribe?: (listener: () => void) => () => void,
-    getValue?: <TField extends fields.getDeep<TResolvedStep, TTargetStep>>(
-      name: TField
-    ) => fields.resolveDeepPath<TResolvedStep, TTargetStep, TField>
-  ) {
-    const Field: field.component<TResolvedStep, TTargetStep> = memo(
-      (props) => {
-        const { children, name } = props;
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  >(options: createOptions<TResolvedStep, TSteps, TChosenSteps>) {
+    const { propsCreator, subscribe, getValue, selectorCtx } = options;
 
-        // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
-        const subscribeFn = subscribe || (() => () => {});
-        const getValueFn = getValue || (() => undefined);
+    const Field: field.component<TResolvedStep, TSteps, TChosenSteps> = (
+      props
+    ) => {
+      const { name, children, selectorFn } = props;
 
-        // Subscribe to changes to trigger rerenders
-        const currentValue = useSyncExternalStore(
-          subscribeFn,
-          () => getValueFn(name),
-          () => getValueFn(name)
+      // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
+      const subscribeFn = subscribe || (() => () => {});
+      const getValueFn = getValue || (() => undefined);
+
+      // Subscribe to changes to trigger rerenders
+      const currentValue = useSyncExternalStore(
+        subscribeFn,
+        () => getValueFn(name),
+        () => getValueFn(name)
+      );
+
+      let createdProps = propsCreator(name);
+
+      // If getValue is provided, override defaultValue with the reactive value
+      if (getValue) {
+        createdProps = {
+          ...createdProps,
+          defaultValue: currentValue,
+        } as typeof createdProps;
+      }
+
+      if (selectorFn) {
+        const Selector = selector.create<TResolvedStep, TSteps, TChosenSteps>(
+          () => selectorCtx,
+          subscribeFn
         );
 
-        let createdProps = propsCreator(name);
+        return (
+          <Selector selector={selectorFn}>
+            {(value) =>
+              children({
+                ...createdProps,
+                selected: { value: value as never },
+              })
+            }
+          </Selector>
+        );
+      }
 
-        // If getValue is provided, override defaultValue with the reactive value
-        if (getValue) {
-          createdProps = {
-            ...createdProps,
-            defaultValue: currentValue,
-          } as typeof createdProps;
-        }
+      return children(createdProps as never);
+    };
 
-        return children(createdProps);
-      },
-      // Custom comparison: only compare the `name` prop
-      // The `children` function will always be a new reference, but that's okay
-      // because we only re-render when the field value changes (via useSyncExternalStore)
-      // or when the `name` prop changes
-      (prevProps, nextProps) => prevProps.name === nextProps.name
-    );
-
-    return Field;
+    return memo(Field);
   }
 }
