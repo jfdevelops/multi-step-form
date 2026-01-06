@@ -97,7 +97,20 @@ export namespace field {
        * Resets the field's value to the original value that was
        * defined in the config.
        */
-      reset: () => void;
+      reset: (options?: UpdateFn.DebugOptions) => void;
+    };
+  export type childrenPropsWithSelected<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
+    TSelected
+  > = childrenProps<TResolvedStep, TSteps, TChosenSteps, TField> & {
+    selected: {
+      /**
+       * The result of the `selectorFn`.
+       */
+      value: TSelected;
     };
   export type childrenPropsWithSelected<
     TResolvedStep extends AnyResolvedStep,
@@ -208,13 +221,6 @@ export namespace field {
 
       let createdProps = propsCreator(name);
 
-      // If getValue is provided, override defaultValue with the reactive value
-      if (getValue) {
-        createdProps = {
-          ...createdProps,
-          defaultValue: currentValue,
-        } as typeof createdProps;
-      }
       // If getValue is provided, override defaultValue with the reactive value
       if (getValue) {
         createdProps = {
