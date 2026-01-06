@@ -1,5 +1,5 @@
 type LogLevel = 'info' | 'warn' | 'error';
-type MultiStepFormLoggerOptions = {
+export type MultiStepFormLoggerOptions = {
   debug?: boolean;
   prefix?: string | ((prefix: typeof DEFAULT_LOGGER_PREFIX) => string);
   includeTimestamp?: boolean;
