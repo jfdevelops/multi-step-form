@@ -100,7 +100,7 @@ export const Step2 = schema.stepSchema.value.step2.createComponent(
                 <FieldLabel htmlFor={label}>{label}</FieldLabel>
                 <Select
                   name={label}
-                  defaultValue={defaultValue}
+                  value={defaultValue}
                   onValueChange={onInputChange}
                 >
                   <SelectTrigger id={label}>
@@ -111,6 +111,229 @@ export const Step2 = schema.stepSchema.value.step2.createComponent(
                     <SelectItem value='sp'>Spanish</SelectItem>
                   </SelectContent>
                 </Select>
+              </Field>
+            )}
+          </FieldComponent>
+        </FieldSet>
+      </MyCoolCustomForm>
+    );
+  }
+);
+
+export const Step3 = schema.stepSchema.value.step3.createComponent(
+  function Step3({ Field: FieldComponent, MyCoolCustomForm, ctx, Selector }) {
+    return (
+      <MyCoolCustomForm title={ctx.step3.title}>
+        <FieldSet>
+          <FieldComponent name='theme'>
+            {({ defaultValue, label, onInputChange }) => (
+              <Field>
+                <FieldLabel htmlFor={label}>{label}</FieldLabel>
+                <Select
+                  name={label}
+                  value={defaultValue}
+                  onValueChange={onInputChange}
+                >
+                  <SelectTrigger id={label}>
+                    <SelectValue placeholder='Select theme' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='light'>Light</SelectItem>
+                    <SelectItem value='dark'>Dark</SelectItem>
+                    <SelectItem value='auto'>Auto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+          </FieldComponent>
+
+          {/* This Selector demonstrates the reactivity fix - it should update when theme changes */}
+          <Field>
+            <FieldLabel>Theme Preview</FieldLabel>
+            <Selector
+              selector={({ step3 }) => {
+                const theme = step3.fields.theme.defaultValue;
+
+                return theme;
+              }}
+            >
+              {(theme) => {
+                const themeInfo = {
+                  light: {
+                    name: 'Light Theme',
+                    description: 'Bright and clean interface',
+                    emoji: '☀️',
+                  },
+                  dark: {
+                    name: 'Dark Theme',
+                    description: 'Easy on the eyes',
+                    emoji: '🌙',
+                  },
+                  auto: {
+                    name: 'Auto Theme',
+                    description: 'Follows system preference',
+                    emoji: '🔄',
+                  },
+                };
+
+                const info =
+                  themeInfo[theme as keyof typeof themeInfo] || themeInfo.light;
+
+                return (
+                  <div className='p-4 border rounded-md bg-muted/50'>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-2xl'>{info.emoji}</span>
+                      <div>
+                        <p className='font-semibold'>{info.name}</p>
+                        <p className='text-sm text-muted-foreground'>
+                          {info.description}
+                        </p>
+                      </div>
+                    </div>
+                    <p className='mt-2 text-xs text-muted-foreground'>
+                      Current theme: <strong>{theme}</strong> - This preview
+                      updates reactively when you change the theme above,
+                      without the parent component re-rendering!
+                    </p>
+                  </div>
+                );
+              }}
+            </Selector>
+          </Field>
+
+          {/* This Selector demonstrates watching a non-primitive (object) value */}
+          <Field>
+            <FieldLabel>Preferences Object Preview</FieldLabel>
+            <Selector
+              selector={({ step3 }) => {
+                return step3.fields.preferences.defaultValue;
+              }}
+            >
+              {(preferences) => {
+                return (
+                  <div className='p-4 border rounded-md bg-muted/50'>
+                    <p className='font-semibold mb-2'>Current Preferences:</p>
+                    <div className='space-y-1 text-sm'>
+                      <div className='flex items-center gap-2'>
+                        <span className='font-medium'>Notifications:</span>
+                        <span
+                          className={
+                            preferences.notifications
+                              ? 'text-green-600'
+                              : 'text-gray-400'
+                          }
+                        >
+                          {preferences.notifications
+                            ? '✅ Enabled'
+                            : '❌ Disabled'}
+                        </span>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <span className='font-medium'>Font Size:</span>
+                        <span className='capitalize'>
+                          {preferences.fontSize}
+                        </span>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <span className='font-medium'>Color Scheme:</span>
+                        <span className='capitalize'>
+                          {preferences.colorScheme}
+                        </span>
+                      </div>
+                    </div>
+                    <p className='mt-3 text-xs text-muted-foreground'>
+                      This preview watches an <strong>object</strong> value and
+                      updates reactively when the preferences change, without
+                      the parent component re-rendering!
+                    </p>
+                  </div>
+                );
+              }}
+            </Selector>
+          </Field>
+
+          <FieldComponent name='preferences'>
+            {({ defaultValue, label, onInputChange }) => (
+              <Field>
+                <FieldLabel>{label}</FieldLabel>
+                <div className='space-y-3 p-4 border rounded-md'>
+                  <div className='flex items-center gap-2'>
+                    <input
+                      type='checkbox'
+                      checked={defaultValue.notifications}
+                      onChange={(e) =>
+                        onInputChange({
+                          ...defaultValue,
+                          notifications: e.target.checked,
+                        })
+                      }
+                      className='h-4 w-4'
+                    />
+                    <label className='text-sm'>Enable Notifications</label>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-sm'>Font Size:</label>
+                    <Select
+                      value={defaultValue.fontSize}
+                      onValueChange={(value) =>
+                        onInputChange({
+                          ...defaultValue,
+                          fontSize: value as 'small' | 'medium' | 'large',
+                        })
+                      }
+                    >
+                      <SelectTrigger className='w-32'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='small'>Small</SelectItem>
+                        <SelectItem value='medium'>Medium</SelectItem>
+                        <SelectItem value='large'>Large</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-sm'>Color Scheme:</label>
+                    <Select
+                      value={defaultValue.colorScheme}
+                      onValueChange={(value) =>
+                        onInputChange({
+                          ...defaultValue,
+                          colorScheme: value as 'blue' | 'green' | 'purple',
+                        })
+                      }
+                    >
+                      <SelectTrigger className='w-32'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='blue'>Blue</SelectItem>
+                        <SelectItem value='green'>Green</SelectItem>
+                        <SelectItem value='purple'>Purple</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </Field>
+            )}
+          </FieldComponent>
+
+          <FieldComponent name='newsLetterOptIn'>
+            {({ defaultValue, label, onInputChange }) => (
+              <Field>
+                <FieldLabel htmlFor={label}>{label}</FieldLabel>
+                <div className='flex items-center gap-2'>
+                  <input
+                    id={label}
+                    type='checkbox'
+                    checked={defaultValue}
+                    onChange={(e) => onInputChange(e.target.checked)}
+                    className='h-4 w-4'
+                  />
+                  <label htmlFor={label} className='text-sm'>
+                    Subscribe to our newsletter
+                  </label>
+                </div>
               </Field>
             )}
           </FieldComponent>
