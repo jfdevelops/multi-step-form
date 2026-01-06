@@ -39,8 +39,20 @@ export const schema = createMultiStepFormSchema({
       },
     },
     step3: {
-      title: 'Confirmation',
+      title: 'Preferences & Confirmation',
       fields: {
+        theme: {
+          defaultValue: 'light',
+          label: 'Theme Preference',
+        },
+        preferences: {
+          defaultValue: {
+            notifications: true,
+            fontSize: 'medium',
+            colorScheme: 'blue',
+          },
+          label: 'User Preferences',
+        },
         newsLetterOptIn: {
           defaultValue: false,
           type: 'boolean.switch',
@@ -53,7 +65,7 @@ export const schema = createMultiStepFormSchema({
   },
   form: {
     alias: 'MyCoolCustomForm',
-    enabledForSteps: ['step1', 'step2'],
+    enabledForSteps: ['step1', 'step2', 'step3'],
     render(
       { id },
       {
