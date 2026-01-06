@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.21
+
+### Patch Changes
+
+- e215a55: Ensures `<Selector />`'s children will rerender each its `value` changes
+
 ## 1.0.0-alpha.20
 
 ### Patch Changes
