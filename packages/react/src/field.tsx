@@ -99,6 +99,7 @@ export namespace field {
        */
       reset: (options?: UpdateFn.DebugOptions) => void;
     };
+
   export type childrenPropsWithSelected<
     TResolvedStep extends AnyResolvedStep,
     TSteps extends StepNumbers<TResolvedStep>,
@@ -109,33 +110,6 @@ export namespace field {
     selected: {
       /**
        * The result of the `selectorFn`.
-       */
-      value: TSelected;
-    };
-  export type childrenPropsWithSelected<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
-    TSelected
-  > = childrenProps<TResolvedStep, TSteps, TChosenSteps, TField> & {
-    selected: {
-      /**
-       * The result of the `selectorFn`.
-       */
-      value: TSelected;
-    };
-  };
-  export type selectorChildrenProps<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
-    TSelected
-  > = childrenProps<TResolvedStep, TSteps, TChosenSteps, TField> & {
-    selected: {
-      /**
-       * The selected value.
        */
       value: TSelected;
     };
@@ -152,12 +126,12 @@ export namespace field {
       props: [TSelected] extends [never]
         ? childrenProps<TResolvedStep, TSteps, TChosenSteps, TField>
         : childrenPropsWithSelected<
-            TResolvedStep,
-            TSteps,
-            TChosenSteps,
-            TField,
-            TSelected
-          >
+          TResolvedStep,
+          TSteps,
+          TChosenSteps,
+          TField,
+          TSelected
+        >
     ) => ReactNode;
   };
   export type component<
@@ -209,7 +183,7 @@ export namespace field {
       const { name, children, selectorFn } = props;
 
       // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
-      const subscribeFn = subscribe || (() => () => {});
+      const subscribeFn = subscribe || (() => () => { });
       const getValueFn = getValue || (() => undefined);
 
       // Subscribe to changes to trigger rerenders
