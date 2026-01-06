@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.30
+
+### Patch Changes
+
+- e215a55: Ensures `<Selector />`'s children will rerender each its `value` changes
+- Updated dependencies [e215a55]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.21
+
 ## 1.0.0-alpha.29
 
 ### Patch Changes
