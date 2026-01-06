@@ -34,10 +34,14 @@ export function createUseSelector<
     selector: SelectorFn<TResolvedStep, TSteps, TChosenSteps, selected>
   ) => {
     const snapshotCacheRef = useRef<{ value: selected } | null>(null);
+    const selectorRef = useRef(selector);
+
+    // Update the selector ref on every render to ensure we always use the latest selector
+    selectorRef.current = selector;
 
     const getSnapshot = () => {
       const currentCtx = createCtx();
-      const newValue = selector(currentCtx);
+      const newValue = selectorRef.current(currentCtx);
 
       // Cache the result to ensure stable reference
       if (snapshotCacheRef.current === null) {

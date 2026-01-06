@@ -112,6 +112,19 @@ export namespace field {
        */
       value: TSelected;
     };
+  export type childrenPropsWithSelected<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>,
+    TSelected
+  > = childrenProps<TResolvedStep, TSteps, TChosenSteps, TField> & {
+    selected: {
+      /**
+       * The result of the `selectorFn`.
+       */
+      value: TSelected;
+    };
   };
   export type selectorChildrenProps<
     TResolvedStep extends AnyResolvedStep,
