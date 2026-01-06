@@ -5,7 +5,7 @@ import type {
   Expand,
   HelperFnCtx,
   MultiStepFormLogger,
-  MultiStepFormLoggerOptions,
+  MultiStepFormLoggerOptions
 } from '@jfdevelops/multi-step-form-core';
 import { useSyncExternalStore, useRef } from 'react';
 
