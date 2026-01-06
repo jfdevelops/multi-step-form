@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.29
+
+### Patch Changes
+
+- ed7b13a: Ensures the latest selector value is used in `createUseSelector`
+
 ## 1.0.0-alpha.28
 
 ### Patch Changes
