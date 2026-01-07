@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.31
+
+### Patch Changes
+
+- 5b8612c: Adds full support for deep fields for the `<Field />` component (previously, only type support was available)
+- Updated dependencies [5b8612c]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.22
+
 ## 1.0.0-alpha.30
 
 ### Patch Changes
