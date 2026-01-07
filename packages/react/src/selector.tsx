@@ -1,10 +1,8 @@
 import {
   AnyResolvedStep,
   Expand,
-  HelperFnChosenSteps,
-  HelperFnCtx,
   MultiStepFormLogger,
-  StepNumbers,
+  type CurrentStepHelperFnCtx,
 } from '@jfdevelops/multi-step-form-core';
 import { createElement, useMemo } from 'react';
 import { Fragment } from 'react/jsx-runtime';
@@ -15,24 +13,15 @@ import {
 } from './hooks/use-selector';
 
 export namespace selector {
-  export type props<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TSelected
-  > = {
-    selector: SelectorFn<TResolvedStep, TSteps, TChosenSteps, TSelected>;
+  export type props<TCurrentStep extends AnyResolvedStep, TSelected> = {
+    selector: SelectorFn<TCurrentStep, TSelected>;
     children?: (selected: TSelected) => React.ReactNode;
     /**
      * Optional debug options to customize logging behavior.
      */
     debug?: boolean | DebugOptions<TSelected>;
   };
-  export type component<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-  > =
+  export type component<TCurrentStep extends AnyResolvedStep> =
     /**
      * A component for reactively displaying a value from the form context.
      * Unlike `useSelector`, this component only re-renders itself, not the parent component.
@@ -70,20 +59,14 @@ export namespace selector {
      * </Selector>
      * ```
      */
-    <TSelected>(
-      props: props<TResolvedStep, TSteps, TChosenSteps, TSelected>
-    ) => React.ReactNode;
+    <TSelected>(props: props<TCurrentStep, TSelected>) => React.ReactNode;
 
-  export function create<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-  >(
-    createCtx: () => Expand<HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>>,
+  export function create<TCurrentStep extends AnyResolvedStep>(
+    createCtx: () => Expand<CurrentStepHelperFnCtx<TCurrentStep>>,
     subscribe: (listener: () => void) => () => void
   ) {
     const useSelector = createUseSelector(createCtx, subscribe);
-    const Selector: component<TResolvedStep, TSteps, TChosenSteps> = ({
+    const Selector: component<TCurrentStep> = ({
       selector,
       children,
       debug,

@@ -1,13 +1,11 @@
 import type {
   AnyResolvedStep,
-  StepNumbers,
-  HelperFnChosenSteps,
+  CurrentStepHelperFnCtx,
   Expand,
-  HelperFnCtx,
   MultiStepFormLogger,
   MultiStepFormLoggerOptions,
 } from '@jfdevelops/multi-step-form-core';
-import { useSyncExternalStore, useRef } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 
 /**
  * Deep equality check that compares values regardless of property order.
@@ -167,30 +165,19 @@ export type DebugOptions<TSelected> = {
   onValueUnchanged?: (value: TSelected) => string;
 };
 
-export type UseSelector<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-> = ReturnType<typeof createUseSelector<TResolvedStep, TSteps, TChosenSteps>>;
-export type SelectorFn<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TSelected
-> = (
-  ctx: Expand<HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>>
+export type UseSelector<TCurrentStep extends AnyResolvedStep> = ReturnType<
+  typeof createUseSelector<TCurrentStep>
+>;
+export type SelectorFn<TCurrentStep extends AnyResolvedStep, TSelected> = (
+  ctx: Expand<CurrentStepHelperFnCtx<TCurrentStep>>
 ) => TSelected;
 
-export function createUseSelector<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
->(
-  createCtx: () => Expand<HelperFnCtx<TResolvedStep, TSteps, TChosenSteps>>,
+export function createUseSelector<TCurrentStep extends AnyResolvedStep>(
+  createCtx: () => Expand<CurrentStepHelperFnCtx<TCurrentStep>>,
   subscribe: (listener: () => void) => () => void
 ) {
   return <selected>(
-    selectorFn: SelectorFn<TResolvedStep, TSteps, TChosenSteps, selected>,
+    selectorFn: SelectorFn<TCurrentStep, selected>,
     logger?: MultiStepFormLogger,
     debugOptions?: DebugOptions<selected>
   ) => {

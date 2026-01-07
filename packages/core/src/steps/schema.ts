@@ -568,7 +568,7 @@ export class MultiStepFormStepSchema<
    */
   getValue<
     step extends keyof resolvedStep,
-    field extends fieldsUtils.getDeep<resolvedStep, step>
+    field extends fieldsUtils.getDeepFields<resolvedStep, step>
   >(step: step, field: field) {
     const stepData = this.value[step];
     const baseErrorMessage = `Unable to get the value for "${String(
