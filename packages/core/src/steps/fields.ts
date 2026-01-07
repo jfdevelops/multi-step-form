@@ -1,6 +1,6 @@
 import { path } from '@/internals';
 import type { DeepKeys, Join, Split } from '@/utils';
-import type { AnyResolvedStep, AnyStepField, GetFieldsForStep } from './types';
+import type { AnyResolvedStep } from './types';
 
 export namespace fields {
   type GetDeepFields<TFields> = [keyof TFields] extends [never]
@@ -76,46 +76,6 @@ export namespace fields {
     : never;
 
   export type parentOf<T extends string> = Split<T, '.'>[0];
-
-  type resolvedStep = {
-    step3: {
-      title: string;
-      type: 'string';
-      nameTransformCasing: 'title';
-      fields: {
-        theme: {
-          defaultValue: string;
-          label: string;
-          type: 'string';
-          nameTransformCasing: 'title';
-        };
-        preferences: {
-          defaultValue: {
-            notifications: boolean;
-            fontSize: string;
-            colorScheme: string;
-          };
-          label: string;
-          type: 'object';
-          nameTransformCasing: 'title';
-        };
-        newsLetterOptIn: {
-          type: 'boolean.switch';
-          label: string;
-          nameTransformCasing: 'title';
-          defaultValue: boolean;
-        };
-      };
-    };
-  };
-  // export type resolveDeepPath<
-  //   TResolvedStep extends AnyResolvedStep,
-  //   TTargetStep extends keyof TResolvedStep,
-  //   TField extends getDeepFields<TResolvedStep, TTargetStep>,
-  //   TDefaultValue extends getDeepValue<TResolvedStep, TTargetStep, TField> = getDeepValue<TResolvedStep, TTargetStep, TField>
-  // > = removeParentPath<TField> extends never
-  //   ? TDefaultValue
-  //   : path.pickBy<TDefaultValue, removeParentPath<TField>>;
 
   // TODO add field validation
   export function resolvedDeepPath<
