@@ -885,6 +885,12 @@ export namespace HelperFnChosenSteps {
       : never
     : never;
 
+  export type currentStep<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
+  > = TResolvedStep[resolve<TResolvedStep, TSteps, TChosenSteps>];
+
   export const CATCH_ALL_MESSAGE =
     'The chosen steps must either be set to on of the following: "all", an array of steps (["step1", "step2", ...]), or an object containing the steps to chose ({ step1: true, step2: true, ...})';
 
@@ -1067,6 +1073,19 @@ export type HelperFnCtx<
       >
     : never
   : never;
+export type CurrentStepHelperFnCtx<
+  TCurrentStep extends AnyResolvedStep,
+  TStepNumbers extends StepNumbers<TCurrentStep> = StepNumbers<TCurrentStep>,
+  TChosenSteps extends HelperFnChosenSteps<
+    TCurrentStep,
+    TStepNumbers
+  > = HelperFnChosenSteps<TCurrentStep, TStepNumbers>,
+  TOmitSteps extends HelperFnChosenSteps.resolve<
+    TCurrentStep,
+    TStepNumbers,
+    TChosenSteps
+  > = never
+> = HelperFnCtx<TCurrentStep, TStepNumbers, TChosenSteps, TOmitSteps>;
 
 export namespace HelperFn {
   export type stepSpecificKey<TNumber extends number, TSteps> = Exclude<

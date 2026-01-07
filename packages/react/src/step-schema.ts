@@ -1,5 +1,6 @@
 import {
   type AnyStepField,
+  type AnyStepFieldOption,
   type CasingType,
   type Constrain,
   createCtx,
@@ -8,6 +9,7 @@ import {
   type DefaultCasing,
   type DefaultStorageKey,
   type Expand,
+  fields,
   type GetCurrentStep,
   type GetFieldsForStep,
   type HelperFnChosenSteps,
@@ -27,7 +29,10 @@ import {
   type Updater,
   type ValidStepKey,
 } from '@jfdevelops/multi-step-form-core';
-import { MultiStepFormStepSchemaInternal } from '@jfdevelops/multi-step-form-core/_internals';
+import {
+  MultiStepFormStepSchemaInternal,
+  path,
+} from '@jfdevelops/multi-step-form-core/_internals';
 import { type ComponentPropsWithRef, type ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
@@ -173,6 +178,18 @@ export namespace StepSpecificComponent {
         >;
       }
     : {};
+  type buildCurrentStep<
+    TResolvedStep extends AnyResolvedStep,
+    TSteps extends StepNumbers<TResolvedStep>,
+    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
+    TCurrentStepData extends HelperFnChosenSteps.currentStep<
+      TResolvedStep,
+      TSteps,
+      TChosenSteps
+    > = HelperFnChosenSteps.currentStep<TResolvedStep, TSteps, TChosenSteps>
+  > = TChosenSteps extends HelperFnChosenSteps.tupleNotation<infer tuple>
+    ? { [key in tuple]: TCurrentStepData }
+    : never;
   export type input<
     TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
     TSteps extends StepNumbers<TResolvedStep>,
@@ -186,7 +203,12 @@ export namespace StepSpecificComponent {
       TResolvedStep,
       TSteps,
       TChosenSteps
-    >
+    >,
+    TCurrentStep extends buildCurrentStep<
+      TResolvedStep,
+      TSteps,
+      TChosenSteps
+    > = buildCurrentStep<TResolvedStep, TSteps, TChosenSteps>
   > = HelperFnInputBase<
     TResolvedStep,
     TSteps,
@@ -195,7 +217,7 @@ export namespace StepSpecificComponent {
     TAdditionalCtx
   > &
     updateWrappers<TResolvedStep, TSteps, TChosenSteps, TStepNumber> & {
-      Field: field.component<TResolvedStep, TSteps, TChosenSteps>;
+      Field: field.component<TCurrentStep>;
       /**
        * A hook for reactively selecting a value from the form context.
        * The selector function receives the contextual data for the currently rendered step, and returns any derived value.
@@ -207,7 +229,7 @@ export namespace StepSpecificComponent {
        * @example
        * const someValue = useSelector(ctx => ctx.fields.username.value);
        */
-      useSelector: UseSelector<TResolvedStep, TSteps, TChosenSteps>;
+      useSelector: UseSelector<TCurrentStep>;
       /**
        * A component for reactively displaying a value from the form context.
        * Unlike `useSelector`, this component only re-renders itself, not the parent component.
@@ -221,7 +243,7 @@ export namespace StepSpecificComponent {
        *   {(value) => <p>First name: {value}</p>}
        * </Selector>
        */
-      Selector: selector.component<TResolvedStep, TSteps, TChosenSteps>;
+      Selector: selector.component<TCurrentStep>;
     };
 
   export type callback<
@@ -654,16 +676,14 @@ export class MultiStepFormStepSchema<
       this.value,
       stepData
     );
-    let resolvedCtx = ctx as Expand<
-      HelperFnCtx<resolvedStep, stepNumbers, chosenStep>
-    >;
+    let resolvedCtx = ctx as Expand<typeof ctx>;
 
     if (ctxData) {
       const [targetStep] = stepData;
       const { [targetStep]: _, ...values } = this.value;
       const createResolvedCtx = resolvedCtxCreator(logger, values);
 
-      resolvedCtx = createResolvedCtx({ ctx: resolvedCtx, ctxData });
+      resolvedCtx = createResolvedCtx({ ctx: resolvedCtx, ctxData } as never);
     }
 
     return resolvedCtx;
@@ -742,7 +762,13 @@ export class MultiStepFormStepSchema<
 
         // Memoize Field component to prevent remounting on every render
         // This ensures input focus is maintained when ctx changes
-        const Field = field.create<resolvedStep, stepNumbers, chosenStep>({
+        const Field = field.create<
+          resolvedStep[HelperFnChosenSteps.resolve<
+            resolvedStep,
+            stepNumbers,
+            chosenStep
+          >]
+        >({
           propsCreator: (name) => {
             // Access current step data directly to avoid stale closure
             const currentStep = this.value[
@@ -761,11 +787,15 @@ export class MultiStepFormStepSchema<
             );
             // TODO add support for deep keys (`name`)
 
+            const allAvailableFields = path
+              .createDeep(currentStep.fields)
+              .map((value) => (value as string).replace('.defaultValue.', '.'));
+
             invariant(
-              name in (currentStep.fields as object),
+              allAvailableFields.includes(name),
               (formatter) =>
                 `[${step}:Field]: the field "${name}" doesn't exist for the current step. Available fields include: "${formatter.format(
-                  currentFields
+                  allAvailableFields
                 )}".`
             );
 
@@ -775,11 +805,13 @@ export class MultiStepFormStepSchema<
             );
 
             const defaultValue = this.getValue(step as never, name as never);
+            const builtValuePath = fields.buildValuePath(name);
+            const { label, nameTransformCasing, type } = path.pickBy(
+              currentStep.fields,
+              builtValuePath as never
+            ) as AnyStepFieldOption;
 
-            const { label, nameTransformCasing, type } = (
-              currentStep.fields as AnyStepField
-            )[name];
-            const targetFields = `fields.${name}.defaultValue`;
+            const targetFields = `fields.${builtValuePath}`;
 
             return {
               defaultValue,
@@ -829,14 +861,18 @@ export class MultiStepFormStepSchema<
           },
           subscribe: this.subscribe,
           getValue: (name) => this.getValue(step as never, name as never),
-          selectorCtx: this.createResolvedCtx({ stepData, ctxData, logger }),
+          selectorCtx: this.createResolvedCtx({
+            stepData,
+            ctxData,
+            logger,
+          }) as never,
         });
 
         // Create useSelector hook for reactive value access via selector
         // This allows getting values from ctx reactively without causing re-renders
         // Pass a function that creates fresh ctx on each call to avoid stale closures
         const useSelector = createUseSelector(
-          () => this.createResolvedCtx({ stepData, ctxData, logger }),
+          () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
           this.subscribe
         );
 
@@ -844,7 +880,7 @@ export class MultiStepFormStepSchema<
         // This allows parts of the UI to subscribe to specific values without
         // causing the parent component to re-render
         const Selector = selector.create(
-          () => this.createResolvedCtx({ stepData, ctxData, logger }),
+          () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
           this.subscribe
         );
 
