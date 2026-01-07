@@ -1,5 +1,6 @@
 import {
   invariant,
+  type CurrentStepHelperFnCtx,
   type Expand,
   type HelperFnChosenSteps,
   type HelperFnCtx,
@@ -29,7 +30,11 @@ export function resolvedCtxCreator<
         chosenStep,
         additionalCtx
       >
-    > & { ctx: Expand<HelperFnCtx<resolvedStep, stepNumbers, chosenStep>> }
+    > & {
+      ctx: Expand<
+        CurrentStepHelperFnCtx<resolvedStep, stepNumbers, chosenStep>
+      >;
+    }
   ) {
     const { ctx, ctxData } = options;
 

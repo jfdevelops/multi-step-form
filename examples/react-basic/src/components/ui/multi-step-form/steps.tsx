@@ -252,68 +252,43 @@ export const Step3 = schema.stepSchema.value.step3.createComponent(
             </Selector>
           </Field>
 
-          <FieldComponent name='preferences'>
+          <FieldComponent name='preferences.notifications'>
             {({ defaultValue, label, onInputChange }) => (
               <Field>
                 <FieldLabel>{label}</FieldLabel>
-                <div className='space-y-3 p-4 border rounded-md'>
-                  <div className='flex items-center gap-2'>
-                    <input
-                      type='checkbox'
-                      checked={defaultValue.notifications}
-                      onChange={(e) =>
-                        onInputChange({
-                          ...defaultValue,
-                          notifications: e.target.checked,
-                        })
-                      }
-                      className='h-4 w-4'
-                    />
-                    <label className='text-sm'>Enable Notifications</label>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <label className='text-sm'>Font Size:</label>
-                    <Select
-                      value={defaultValue.fontSize}
-                      onValueChange={(value) =>
-                        onInputChange({
-                          ...defaultValue,
-                          fontSize: value as 'small' | 'medium' | 'large',
-                        })
-                      }
-                    >
-                      <SelectTrigger className='w-32'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='small'>Small</SelectItem>
-                        <SelectItem value='medium'>Medium</SelectItem>
-                        <SelectItem value='large'>Large</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <label className='text-sm'>Color Scheme:</label>
-                    <Select
-                      value={defaultValue.colorScheme}
-                      onValueChange={(value) =>
-                        onInputChange({
-                          ...defaultValue,
-                          colorScheme: value as 'blue' | 'green' | 'purple',
-                        })
-                      }
-                    >
-                      <SelectTrigger className='w-32'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='blue'>Blue</SelectItem>
-                        <SelectItem value='green'>Green</SelectItem>
-                        <SelectItem value='purple'>Purple</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                <input
+                  id={label}
+                  type='checkbox'
+                  checked={defaultValue}
+                  onChange={(e) => onInputChange(e.target.checked)}
+                />
+                <label htmlFor={label}>{label}</label>
+              </Field>
+            )}
+          </FieldComponent>
+
+          <FieldComponent name='preferences.fontSize'>
+            {({ defaultValue, label, onInputChange }) => (
+              <Field>
+                <FieldLabel>{label}</FieldLabel>
+                <input
+                  type='text'
+                  value={defaultValue}
+                  onChange={(e) => onInputChange(e.target.value)}
+                />
+              </Field>
+            )}
+          </FieldComponent>
+
+          <FieldComponent name='preferences.colorScheme'>
+            {({ defaultValue, label, onInputChange }) => (
+              <Field>
+                <FieldLabel>{label}</FieldLabel>
+                <input
+                  type='text'
+                  value={defaultValue}
+                  onChange={(e) => onInputChange(e.target.value)}
+                />
               </Field>
             )}
           </FieldComponent>
