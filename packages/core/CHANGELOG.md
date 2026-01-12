@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.23
+
+### Patch Changes
+
+- 5a99db7: Fixes resovled `type` inference
+
 ## 1.0.0-alpha.22
 
 ### Patch Changes
