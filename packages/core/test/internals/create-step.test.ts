@@ -31,16 +31,16 @@ describe('createStep', () => {
   });
 
   it('should create a step with the type for the field if provided', () => {
+    const now = new Date();
     const step = createStep({
       step1: {
         fields: {
           firstName: {
-            defaultValue: new Date(),
+            defaultValue: now,
             type: 'string',
           },
         },
         title: 'Step 1',
-        
       },
     });
 
@@ -48,7 +48,7 @@ describe('createStep', () => {
       step1: {
         fields: {
           firstName: {
-            defaultValue: new Date(),
+            defaultValue: now,
             type: 'string',
             label: 'First Name',
             nameTransformCasing: 'title',
