@@ -5,6 +5,7 @@ import type {
   InferStepOptions,
   ResolvedStep,
   HelperFnChosenSteps,
+  ResolvedStepBuilder,
 } from '@/steps';
 import {
   type Constrain,
@@ -14,6 +15,7 @@ import {
   invariant,
   type DefaultCasing,
   DEFAULT_CASING,
+  getInferredFieldType,
 } from '@/utils';
 import {
   type AnyValidator,
@@ -58,22 +60,18 @@ export function createStepFields(options: {
       `The value for key ${name} must be an object. Was ${typeof values}`
     );
 
-    const {
-      defaultValue,
-      label,
-      nameTransformCasing,
-      type = DEFAULT_FIELD_TYPE,
-    } = values;
+    const { defaultValue, label, nameTransformCasing, type } = values;
 
     if (validateFields) {
       resolvedFields[name] = defaultValue;
     } else {
       const casing = nameTransformCasing ?? defaultCasing;
+      const resolvedType = getInferredFieldType({ defaultValue, type });
 
       resolvedFields[name] = {
         ...(resolvedFields[name] as Record<string, unknown>),
         nameTransformCasing: casing,
-        type,
+        type: resolvedType,
         defaultValue,
         label: createFieldLabel(label, name, casing),
 
@@ -105,17 +103,14 @@ export function createStepFields(options: {
         `No field found in the fields config for "${name}"`
       );
 
-      const {
-        label,
-        type = DEFAULT_FIELD_TYPE,
-        nameTransformCasing,
-      } = currentField;
+      const { label, type, nameTransformCasing } = currentField;
       const casing = nameTransformCasing ?? defaultCasing;
+      const resolvedType = getInferredFieldType({ defaultValue, type });
 
       resolvedFields[name] = {
         ...(resolvedFields[name] as Record<string, unknown>),
         nameTransformCasing: casing,
-        type,
+        type: resolvedType,
         defaultValue,
         label: createFieldLabel(label, name, casing),
       };
@@ -128,7 +123,7 @@ export function createStep<
   step extends Step<casing>,
   casing extends CasingType = DefaultCasing
 >(stepsConfig: InferStepOptions<step>) {
-  const resolvedSteps = {} as ResolvedStep<step, casing>;
+  const resolvedSteps = {} as ResolvedStepBuilder<step, casing>;
 
   invariant(!!stepsConfig, 'The steps config must be defined', TypeError);
   invariant(
@@ -187,13 +182,13 @@ export function createStep<
     });
 
     resolvedSteps[validStepKey] = {
-      ...resolvedSteps[validStepKey],
+      ...(resolvedSteps[validStepKey] as Record<string, unknown>),
       title,
       nameTransformCasing: defaultCasing,
       // Only add the description if it's defined
       ...(typeof description === 'string' ? { description } : {}),
       fields: resolvedFields,
-    };
+    } as never;
   }
 
   return resolvedSteps;
