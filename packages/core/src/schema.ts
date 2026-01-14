@@ -1,5 +1,5 @@
 import {
-  MultiStepFormStepSchema,
+  StepSchema,
   type MultiStepFormSchemaStepConfig,
   type ResolvedStep,
   type Step,
@@ -37,7 +37,7 @@ export class MultiStepFormSchema<
   storageKey extends string = DefaultStorageKey
 > extends Subscribable<MultiStepFormSchemaListener<step, casing, storageKey>> {
   readonly defaultNameTransformationCasing: casing;
-  readonly stepSchema: MultiStepFormStepSchema<
+  readonly stepSchema: StepSchema<
     step,
     casing,
     resolvedStep,
@@ -63,7 +63,7 @@ export class MultiStepFormSchema<
       nameTransformCasing
     ) as casing;
     // @ts-ignore Type instantiation is excessively deep and possibly infinite
-    this.stepSchema = new MultiStepFormStepSchema({
+    this.stepSchema = new StepSchema({
       steps,
       nameTransformCasing: this.defaultNameTransformationCasing,
     });

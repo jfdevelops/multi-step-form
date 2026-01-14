@@ -3,15 +3,20 @@ import { invariant } from '@/utils/invariant';
 import { MultiStepFormLogger } from '@/utils/logger';
 
 export type DefaultStorageKey = typeof DEFAULT_STORAGE_KEY;
-export type StorageConfig<TData, TKey extends string> = {
+export interface BaseStorageConfig<TKey extends string> {
   key: TKey;
-  data: TData;
   store?: Storage;
   /**
    * An extra option to throw an error when {@linkcode window} is `undefined`
    * @default false
    */
   throwWhenUndefined?: boolean;
+}
+export type StorageConfig<
+  TData,
+  TKey extends string
+> = BaseStorageConfig<TKey> & {
+  data: TData;
 };
 
 const WINDOW_UNDEFINED_MESSAGE =
