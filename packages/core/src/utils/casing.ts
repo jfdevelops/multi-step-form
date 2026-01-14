@@ -1,72 +1,204 @@
 import type { Expand, SetDefaultString } from './types';
 
 export type CasingType = (typeof CASING_TYPES)[number];
-export type ToLower<S extends string> = S extends `${infer F}${infer R}`
-  ? `${Lowercase<F>}${ToLower<R>}`
-  : S;
 
-export type CapitalizeWord<S extends string> = S extends `${infer F}${infer R}`
-  ? `${Uppercase<F>}${ToLower<R>}`
-  : S;
-// Pascal => Capitalize each "word" chunk
-type Pascalize<S extends string> = Capitalize<S>; // naive
+type LowerChar =
+  | 'a'
+  | 'b'
+  | 'c'
+  | 'd'
+  | 'e'
+  | 'f'
+  | 'g'
+  | 'h'
+  | 'i'
+  | 'j'
+  | 'k'
+  | 'l'
+  | 'm'
+  | 'n'
+  | 'o'
+  | 'p'
+  | 'q'
+  | 'r'
+  | 's'
+  | 't'
+  | 'u'
+  | 'v'
+  | 'w'
+  | 'x'
+  | 'y'
+  | 'z';
+type UpperChar = Uppercase<LowerChar>;
+type IsLower<T extends string> = T extends Lowercase<T> ? true : false;
+type IsUpper<T extends string> = T extends Uppercase<T> ? true : false;
+type IsSnake<T extends string> = T extends `${string}_${string}` ? true : false;
+type IsKebab<T extends string> = T extends `${string}-${string}` ? true : false;
+type IsCamel<T extends string> = T extends `${LowerChar}${string}`
+  ? T extends Capitalize<T>
+    ? false
+    : true
+  : false;
+type IsCapitalized<T extends string> = T extends `${UpperChar}${string}`
+  ? true
+  : false;
+type IsTitle<T extends string> = IsCapitalized<
+  SplitSpaces<T>[number]
+> extends true
+  ? true
+  : false;
 
-// SnakeCase: turn spaces/hyphens into underscores, lowercase
-type SnakeCase<S extends string> = Lowercase<
-  S extends `${infer A} ${infer B}`
-    ? `${A}_${SnakeCase<B>}`
-    : S extends `${infer A}-${infer B}`
-    ? `${A}_${SnakeCase<B>}`
-    : S
->;
+type IsSentence<T extends string> = SplitSpaces<T> extends [
+  infer First extends string,
+  ...infer Rest extends string[]
+]
+  ? IsCapitalized<First> extends true
+    ? IsCapitalized<Rest[number]> extends false
+      ? true
+      : false
+    : false
+  : false;
 
-// KebabCase: same as snake but with "-"
-type KebabCase<S extends string> = Lowercase<
-  S extends `${infer A} ${infer B}`
-    ? `${A}-${KebabCase<B>}`
-    : S extends `${infer A}_${infer B}`
-    ? `${A}-${KebabCase<B>}`
-    : S
->;
+type IsPascal<T extends string> = T extends Capitalize<T> ? true : false;
 
-// Flat: just strip spaces/underscores/hyphens
-type RemoveDelimiters<S extends string> = S extends `${infer A} ${infer B}`
-  ? `${A}${RemoveDelimiters<B>}`
-  : S extends `${infer A}_${infer B}`
-  ? `${A}${RemoveDelimiters<B>}`
-  : S extends `${infer A}-${infer B}`
-  ? `${A}${RemoveDelimiters<B>}`
-  : S;
+type DetectCasing<T extends string> = T extends `${string} ${string}`
+  ? IsUpper<T> extends true
+    ? 'upper'
+    : IsSentence<T> extends true
+    ? 'sentence'
+    : IsTitle<T> extends true
+    ? 'title'
+    : IsLower<T> extends true
+    ? 'lower'
+    : IsUpper<T> extends true
+    ? 'upper'
+    : 'unknown'
+  : IsSnake<T> extends true
+  ? IsUpper<T> extends true
+    ? 'screaming-snake'
+    : 'snake'
+  : IsKebab<T> extends true
+  ? 'kebab'
+  : IsCamel<T> extends true
+  ? 'camel'
+  : IsPascal<T> extends true
+  ? 'pascal'
+  : IsLower<T> extends true
+  ? 'flat' | 'lower'
+  : IsUpper<T> extends true
+  ? 'upper'
+  : 'unknown';
 
-// TitleCase: Capitalize the whole thing
-type TitleCase<S extends string> = Capitalize<Lowercase<S>>;
+/* ============================================================
+ * Word Normalization
+ * ============================================================ */
 
-// SentenceCase: First word capped, rest lower
-type SentenceCase<S extends string> = Capitalize<Lowercase<S>>;
+type SplitSnake<T extends string> = T extends `${infer A}_${infer B}`
+  ? [A, ...SplitSnake<B>]
+  : [T];
+
+type SplitKebab<T extends string> = T extends `${infer A}-${infer B}`
+  ? [A, ...SplitKebab<B>]
+  : [T];
+
+type SplitSpaces<T extends string> = T extends `${infer A} ${infer B}`
+  ? [A, ...SplitSpaces<B>]
+  : [T];
+
+type SplitCamel<
+  T extends string,
+  Acc extends string = ''
+> = T extends `${infer C}${infer R}`
+  ? C extends Lowercase<C>
+    ? SplitCamel<R, `${Acc}${C}`>
+    : Acc extends ''
+    ? SplitCamel<R, `${Lowercase<C>}`>
+    : [Acc, ...SplitCamel<R, `${Lowercase<C>}`>]
+  : Acc extends ''
+  ? []
+  : [Acc];
+
+type WordsFrom<T extends string> = DetectCasing<T> extends
+  | 'snake'
+  | 'screaming-snake'
+  ? SplitSnake<Lowercase<T>>
+  : DetectCasing<T> extends 'kebab'
+  ? SplitKebab<Lowercase<T>>
+  : DetectCasing<T> extends 'camel' | 'pascal'
+  ? SplitCamel<T>
+  : DetectCasing<T> extends 'sentence' | 'title' | 'lower' | 'upper'
+  ? SplitSpaces<Lowercase<T>>
+  : [Lowercase<T>];
+
+type JoinCamel<T extends string[]> = T extends [
+  infer H extends string,
+  ...infer R extends string[]
+]
+  ? `${H}${Capitalize<JoinCamel<R>>}`
+  : '';
+type ToTitle<T extends string[]> = T extends [
+  infer H extends string,
+  ...infer R extends string[]
+]
+  ? `${Capitalize<H>}${R extends [] ? '' : ` ${ToTitle<R>}`}`
+  : '';
+type ToSentence<T extends string[]> = T extends [
+  infer H extends string,
+  ...infer R extends string[]
+]
+  ? `${Capitalize<H>}${R extends [] ? '' : ` ${Lowercase<JoinSpaces<R>>}`}`
+  : '';
+
+type JoinPascal<T extends string[]> = Capitalize<JoinCamel<T>>;
+
+type JoinSnake<T extends string[]> = T extends [
+  infer H extends string,
+  ...infer R extends string[]
+]
+  ? `${H}${R extends [] ? '' : `_${JoinSnake<R>}`}`
+  : '';
+
+type JoinKebab<T extends string[]> = T extends [
+  infer H extends string,
+  ...infer R extends string[]
+]
+  ? `${H}${R extends [] ? '' : `-${JoinKebab<R>}`}`
+  : '';
+
+type JoinSpaces<T extends string[]> = T extends [
+  infer H extends string,
+  ...infer R extends string[]
+]
+  ? `${H}${R extends [] ? '' : ` ${JoinSpaces<R>}`}`
+  : '';
+
 export type ChangeCasing<
-  S extends string,
-  T extends CasingType
-> = T extends 'lower'
-  ? Lowercase<S>
-  : T extends 'upper'
-  ? Uppercase<S>
-  : T extends 'camel'
-  ? Uncapitalize<Pascalize<S>>
-  : T extends 'pascal'
-  ? Pascalize<S>
-  : T extends 'snake'
-  ? SnakeCase<S>
-  : T extends 'screaming-snake'
-  ? Uppercase<SnakeCase<S>>
-  : T extends 'kebab'
-  ? KebabCase<S>
-  : T extends 'flat'
-  ? RemoveDelimiters<Lowercase<S>>
-  : T extends 'title'
-  ? TitleCase<S>
-  : T extends 'sentence'
-  ? SentenceCase<S>
-  : S;
+  T extends string,
+  To extends CasingType
+> = WordsFrom<T> extends infer W extends string[]
+  ? To extends 'camel'
+    ? JoinCamel<W>
+    : To extends 'pascal'
+    ? JoinPascal<W>
+    : To extends 'snake'
+    ? JoinSnake<W>
+    : To extends 'screaming-snake'
+    ? Uppercase<JoinSnake<W>>
+    : To extends 'kebab'
+    ? JoinKebab<W>
+    : To extends 'lower'
+    ? JoinSpaces<W>
+    : To extends 'upper'
+    ? Uppercase<JoinSpaces<W>>
+    : To extends 'sentence'
+    ? ToSentence<W>
+    : To extends 'title'
+    ? ToTitle<W>
+    : To extends 'flat'
+    ? Lowercase<JoinCamel<W>>
+    : never
+  : never;
+
 export type ChangeObjectCasing<
   T extends object,
   TCasing extends CasingType
@@ -109,9 +241,9 @@ export function changeCasing<TValue extends string, TType extends CasingType>(
   // Step 1: Normalize to words
   const words = input
     // Replace camelCase boundaries with space
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replaceAll(/([a-z])([A-Z])/g, '$1 $2')
     // Replace separators with space
-    .replace(/[-_]+/g, ' ')
+    .replaceAll(/[-_]+/g, ' ')
     // Trim and split into words
     .trim()
     .split(/\s+/)

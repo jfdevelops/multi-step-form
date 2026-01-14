@@ -7,6 +7,7 @@ import type {
   HelperFnChosenSteps,
   ResolvedStepBuilder,
 } from '@/steps';
+import { createFields } from '@/steps/field';
 import {
   type Constrain,
   type CasingType,
@@ -32,93 +33,7 @@ export function isValidStepKey<T extends AnyResolvedStep>(
   return Object.keys(steps).includes(stepKey);
 }
 
-export function createFieldLabel(
-  label: string | false | undefined,
-  fieldName: string,
-  casingType: CasingType
-) {
-  return label ?? changeCasing(fieldName, casingType);
-}
 
-export function createStepFields(options: {
-  fields: AnyStepField;
-  validateFields:
-    | Constrain<unknown, AnyValidator, DefaultValidator>
-    | undefined;
-  defaultCasing: CasingType;
-}) {
-  const resolvedFields: Record<string, unknown> = {};
-  const { fields, defaultCasing, validateFields } = options;
-
-  for (const [name, values] of Object.entries(fields)) {
-    invariant(
-      typeof name === 'string',
-      `Each key for the "fields" option must be a string. Key ${name} was a ${typeof name}`
-    );
-    invariant(
-      typeof values === 'object',
-      `The value for key ${name} must be an object. Was ${typeof values}`
-    );
-
-    const { defaultValue, label, nameTransformCasing, type } = values;
-
-    if (validateFields) {
-      resolvedFields[name] = defaultValue;
-    } else {
-      const casing = nameTransformCasing ?? defaultCasing;
-      const resolvedType = getInferredFieldType({ defaultValue, type });
-
-      resolvedFields[name] = {
-        ...(resolvedFields[name] as Record<string, unknown>),
-        nameTransformCasing: casing,
-        type: resolvedType,
-        defaultValue,
-        label: createFieldLabel(label, name, casing),
-
-        // TODO add more fields here
-      };
-    }
-  }
-
-  if (validateFields) {
-    const validatedFields = runStandardValidation(
-      validateFields as StandardSchemaValidator,
-      resolvedFields
-    );
-
-    invariant(
-      typeof validatedFields === 'object',
-      `The result of the validated fields must be an object, was (${typeof validatedFields}). This is probably an internal error, so open up an issue about it`
-    );
-    invariant(
-      !!validatedFields,
-      'The result of the validated fields must be defined. This is probably an internal error, so open up an issue about it'
-    );
-
-    for (const [name, defaultValue] of Object.entries(validatedFields)) {
-      const currentField = fields[name];
-
-      invariant(
-        currentField,
-        `No field found in the fields config for "${name}"`
-      );
-
-      const { label, type, nameTransformCasing } = currentField;
-      const casing = nameTransformCasing ?? defaultCasing;
-      const resolvedType = getInferredFieldType({ defaultValue, type });
-
-      resolvedFields[name] = {
-        ...(resolvedFields[name] as Record<string, unknown>),
-        nameTransformCasing: casing,
-        type: resolvedType,
-        defaultValue,
-        label: createFieldLabel(label, name, casing),
-      };
-    }
-  }
-
-  return resolvedFields;
-}
 export function createStep<
   step extends Step<casing>,
   casing extends CasingType = DefaultCasing
@@ -175,7 +90,7 @@ export function createStep<
       `The "fields" property must be an object. Was ${typeof fields}`
     );
 
-    const resolvedFields = createStepFields({
+    const resolvedFields = createFields({
       defaultCasing,
       fields,
       validateFields,
