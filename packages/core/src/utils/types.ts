@@ -116,3 +116,10 @@ export type DeepPartial<T> = T extends Builtin
   : T extends object
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : T;
+export type stripFunctions<T> = Expand<{
+  [key in keyof T]: T[key] extends Function ? never : T[key];
+}>;
+export type IsString<T> = T extends string ? T : never;
+export type Updater<TInput, TOutput = TInput> =
+  | TOutput
+  | ((input: TInput) => TOutput);
