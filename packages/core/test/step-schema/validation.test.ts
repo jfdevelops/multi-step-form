@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { type } from 'arktype';
-import { MultiStepFormStepSchema } from '../../src';
+import { createMultiStepFormSchema } from '../../src';
 
 describe('multi step form step schema: field validation', () => {
   it('should validate fields for a step', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           title: 'Validated Step 1',
@@ -24,24 +24,21 @@ describe('multi step form step schema: field validation', () => {
       },
     });
 
-    expect(stepSchema.first()).toMatchObject({
-      step: 1,
-      data: {
-        title: 'Validated Step 1',
-        nameTransformCasing: 'title',
-        fields: {
-          firstName: {
-            defaultValue: '',
-            type: 'string',
-            nameTransformCasing: 'title',
-            label: 'First Name',
-          },
-          lastName: {
-            defaultValue: '',
-            type: 'string',
-            nameTransformCasing: 'title',
-            label: 'Last Name',
-          },
+    expect(schema.stepSchema.value.step1).toMatchObject({
+      title: 'Validated Step 1',
+      nameTransformCasing: 'title',
+      fields: {
+        firstName: {
+          defaultValue: '',
+          name: 'firstName',
+          nameTransformCasing: 'title',
+          label: 'First Name',
+        },
+        lastName: {
+          defaultValue: '',
+          name: 'lastName',
+          nameTransformCasing: 'title',
+          label: 'Last Name',
         },
       },
     });
@@ -51,7 +48,7 @@ describe('multi step form step schema: field validation', () => {
     expect(
       // This function is needed so that vitest can intercept the value
       () =>
-        new MultiStepFormStepSchema({
+        createMultiStepFormSchema({
           steps: {
             step1: {
               title: 'Validated Step 1',

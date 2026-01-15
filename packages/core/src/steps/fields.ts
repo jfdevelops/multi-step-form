@@ -229,8 +229,8 @@ export namespace fields {
     ? T extends Date
       ? Date
       : T extends ReadonlyArray<infer item>
-      ? Array<inferDefaultValue<item>>
-      : { -readonly [key in keyof T]: inferDefaultValue<T[key]> }
+      ? Array<InferDefaultValue<item>>
+      : { -readonly [key in keyof T]: InferDefaultValue<T[key]> }
     : never;
 
   export type inferDefaultValue<T> = T extends {
@@ -272,14 +272,26 @@ export namespace fields {
       ? {
           -readonly [key in keyof T['fields']]: Expand<
             {
+              /**
+               * The default value for the field.
+               */
               defaultValue: inferDefaultValue<T['fields'][key]>;
+              /**
+               * The casing of the field name.
+               */
               nameTransformCasing: inferNameTransformCasing<
                 T['fields'][key],
                 TDefaultCasing
               >;
+              /**
+               * The name of the field.
+               */
               name: key;
             } & (key extends string
               ? {
+                  /**
+                   * The label for the field.
+                   */
                   label: inferLabel<
                     T['fields'][key],
                     inferNameTransformCasing<T['fields'][key], TDefaultCasing>,
@@ -288,7 +300,10 @@ export namespace fields {
                 }
               : {}) &
               (inferDefaultValue<T['fields'][key]> extends Date
-                ? { type: inferResolvedDateFieldType<T['fields'][key]> }
+                ? /**
+                   * The type of the field.
+                   */
+                  { type: inferResolvedDateFieldType<T['fields'][key]> }
                 : {})
           >;
         }

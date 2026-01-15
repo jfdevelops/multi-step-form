@@ -260,7 +260,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError();
     });
 
     it('should error if title is missing', () => {

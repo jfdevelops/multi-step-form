@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MultiStepFormStepSchema } from '../../src';
+import { createMultiStepFormSchema } from '../../src';
 
 describe('multi step form step schema: name transform casing', () => {
   it('should assign a default name transform casing to the step', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           title: 'Step 1',
@@ -15,7 +15,7 @@ describe('multi step form step schema: name transform casing', () => {
         },
       },
     });
-    const { nameTransformCasing, fields } = stepSchema.value.step1;
+    const { nameTransformCasing, fields } = schema.stepSchema.value.step1;
 
     expect(nameTransformCasing).toBe('title');
     expect(fields.firstName.nameTransformCasing).toBe('title');
@@ -23,7 +23,7 @@ describe('multi step form step schema: name transform casing', () => {
   });
 
   it('should override the default name transform casing for the step', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           title: 'Step 1',
@@ -36,7 +36,7 @@ describe('multi step form step schema: name transform casing', () => {
         },
       },
     });
-    const { nameTransformCasing, fields } = stepSchema.value.step1;
+    const { nameTransformCasing, fields } = schema.stepSchema.value.step1;
 
     expect(nameTransformCasing).toBe('kebab');
     expect(fields.firstName.nameTransformCasing).toBe('kebab');
@@ -44,7 +44,7 @@ describe('multi step form step schema: name transform casing', () => {
   });
 
   it('should override the default name transform casing for a field', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           fields: {
@@ -66,11 +66,11 @@ describe('multi step form step schema: name transform casing', () => {
       },
     });
 
-    expect(stepSchema.value.step1.fields.firstName.nameTransformCasing).toBe(
+    expect(schema.stepSchema.value.step1.fields.firstName.nameTransformCasing).toBe(
       'camel'
     );
-    expect(stepSchema.value.step1.fields.firstName.label).toBe('firstName');
-    expect(stepSchema.value.step2.fields.lastName.nameTransformCasing).toBe(
+    expect(schema.stepSchema.value.step1.fields.firstName.label).toBe('firstName');
+    expect(schema.stepSchema.value.step2.fields.lastName.nameTransformCasing).toBe(
       'title'
     );
   });

@@ -21,7 +21,7 @@ describe('createStep', () => {
             defaultValue: '',
             label: 'First Name',
             nameTransformCasing: 'title',
-            type: 'string',
+            name: 'firstName',
           },
         },
         title: 'Step 1',
@@ -48,10 +48,11 @@ describe('createStep', () => {
       step1: {
         fields: {
           firstName: {
-            defaultValue: now,
-            type: 'string',
+            defaultValue: JSON.stringify(now),
             label: 'First Name',
             nameTransformCasing: 'title',
+            type: 'string',
+            name: 'firstName',
           },
         },
         title: 'Step 1',

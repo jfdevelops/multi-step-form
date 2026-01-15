@@ -1,3 +1,5 @@
+import type { UnionToTuple } from '@/steps';
+
 export function comparePartialArray<T>(
   compareArray: T[],
   actualArray: T[],
@@ -42,6 +44,23 @@ export function printErrors<T>(
   return errors.map((e, i) => mapper?.(e, i) ?? defaultMapper(e, i)).join('\n');
 }
 
-export function typedObjectKeys<T extends Record<string, unknown>, TOverrideKey = keyof T>(value: T) {
+export function typedObjectKeys<
+  T extends Record<string, unknown>,
+  TOverrideKey = keyof T
+>(value: T) {
   return Object.keys(value) as Array<TOverrideKey>;
+}
+
+export function mapToTuple<T, M>(
+  array: T[] | readonly T[],
+  mapper: (value: T) => M
+) {
+  return array.map(mapper) as UnionToTuple<M>;
+}
+
+export function addToTuple<Tuple extends readonly unknown[], const Values>(
+  tuple: Tuple,
+  ...values: Values[]
+) {
+  return [...tuple, ...values] as [...Tuple, ...UnionToTuple<Values>];
 }

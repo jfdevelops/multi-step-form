@@ -20,13 +20,11 @@ export namespace HelperFnChosenSteps {
   > = build<stepNumbers>;
   export type resolveAll<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends main<value, stepNumbers>
+    chosenSteps extends main<value, steps.StepNumbers<value>>
   > = chosenSteps extends 'all' ? steps.StepNumbers<value> : never;
   export type resolveTuple<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends main<value, stepNumbers>
+    chosenSteps extends main<value, steps.StepNumbers<value>>
   > = chosenSteps extends tupleNotation<steps.StepNumbers<value>>
     ? chosenSteps[number] extends steps.StepNumbers<value>
       ? chosenSteps[number]
@@ -34,25 +32,22 @@ export namespace HelperFnChosenSteps {
     : never;
   export type resolveObject<
     value extends steps.instantiateSteps,
-    TSteps extends steps.StepNumbers<value>,
-    TChosenSteps extends main<value, TSteps>
-  > = TChosenSteps extends objectNotation<steps.StepNumbers<value>>
-    ? steps.StepNumbers<value> extends keyof TChosenSteps
+    chosenSteps extends main<value, steps.StepNumbers<value>>
+  > = chosenSteps extends objectNotation<steps.StepNumbers<value>>
+    ? steps.StepNumbers<value> extends keyof chosenSteps
       ? steps.StepNumbers<value>
       : never
     : never;
   export type resolve<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends main<value, stepNumbers>
+    chosenSteps extends main<value, steps.StepNumbers<value>>
   > =
-    | resolveAll<value, stepNumbers, chosenSteps>
-    | resolveTuple<value, stepNumbers, chosenSteps>
-    | resolveObject<value, stepNumbers, chosenSteps>;
+    | resolveAll<value, chosenSteps>
+    | resolveTuple<value, chosenSteps>
+    | resolveObject<value, chosenSteps>;
   export type resolveType<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends main<value, stepNumbers>
+    chosenSteps extends main<value, steps.StepNumbers<value>>
   > = chosenSteps extends 'all'
     ? 'all'
     : chosenSteps extends tupleNotation<steps.StepNumbers<value>>
@@ -63,9 +58,8 @@ export namespace HelperFnChosenSteps {
 
   export type currentStep<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends main<value, stepNumbers>
-  > = value[resolve<value, stepNumbers, chosenSteps>];
+    chosenSteps extends main<value, steps.StepNumbers<value>>
+  > = value[resolve<value, chosenSteps>];
 
   export const CATCH_ALL_MESSAGE =
     'The chosen steps must either be set to on of the following: "all", an array of steps (["step1", "step2", ...]), or an object containing the steps to chose ({ step1: true, step2: true, ...})';
@@ -112,8 +106,7 @@ export namespace HelperFnChosenSteps {
 
   export function resolveType<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends main<value, stepNumbers>
+    chosenSteps extends main<value, steps.StepNumbers<value>>
   >(chosenSteps: chosenSteps) {
     if (isAll(chosenSteps)) {
       return 'all';
@@ -142,92 +135,93 @@ export namespace HelperFnChosenSteps {
 export namespace HelperFn {
   export type buildAllCtx<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
-    omitSteps extends HelperFnChosenSteps.resolve<
+    chosenSteps extends HelperFnChosenSteps.main<
       value,
-      stepNumbers,
-      chosenSteps
-    >
+      steps.StepNumbers<value>
+    >,
+    omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
   > = Expand<
     Omit<
       {
-        [key in stepNumbers]: stripFunctions<steps.getCurrent<value, key>>;
+        [key in steps.StepNumbers<value>]: stripFunctions<
+          steps.getCurrent<value, key>
+        >;
       },
       IsString<omitSteps>
     >
   >;
   export type buildTupleCtx<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
-    omitSteps extends HelperFnChosenSteps.resolve<
+    chosenSteps extends HelperFnChosenSteps.main<
       value,
-      stepNumbers,
-      chosenSteps
-    >
-  > = Expand<
-    Omit<
-      {
-        -readonly [key in keyof chosenSteps]: key extends stepNumbers
-          ? stripFunctions<steps.getCurrent<value, key>>
-          : never;
-      },
-      IsString<omitSteps>
-    >
-  >;
+      steps.StepNumbers<value>
+    >,
+    omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
+  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<
+    steps.StepNumbers<value>
+  >
+    ? Expand<
+        Omit<
+          {
+            -readonly [key in chosenSteps[number]]: key extends steps.StepNumbers<value>
+              ? stripFunctions<steps.getCurrent<value, key>>
+              : never;
+          },
+          IsString<omitSteps>
+        >
+      >
+    : never;
   export type buildObjectCtx<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
-    omitSteps extends HelperFnChosenSteps.resolve<
+    chosenSteps extends HelperFnChosenSteps.main<
       value,
-      stepNumbers,
-      chosenSteps
-    >
-  > = Expand<
-    Omit<
-      {
-        [key in keyof chosenSteps]: key extends stepNumbers
-          ? stripFunctions<steps.getCurrent<value, key>>
-          : never;
-      },
-      IsString<omitSteps>
-    >
-  >;
+      steps.StepNumbers<value>
+    >,
+    omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
+  > = chosenSteps extends HelperFnChosenSteps.objectNotation<
+    steps.StepNumbers<value>
+  >
+    ? Expand<
+        Omit<
+          {
+            [key in keyof chosenSteps]: key extends steps.StepNumbers<value>
+              ? stripFunctions<steps.getCurrent<value, key>>
+              : never;
+          },
+          IsString<omitSteps>
+        >
+      >
+    : never;
   type CtxMap<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
-    omitSteps extends HelperFnChosenSteps.resolve<
+    chosenSteps extends HelperFnChosenSteps.main<
       value,
-      stepNumbers,
-      chosenSteps
-    >
+      steps.StepNumbers<value>
+    >,
+    omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
   > = {
-    all: buildAllCtx<value, stepNumbers, chosenSteps, omitSteps>;
-    tuple: buildTupleCtx<value, stepNumbers, chosenSteps, omitSteps>;
-    object: buildObjectCtx<value, stepNumbers, chosenSteps, omitSteps>;
+    all: buildAllCtx<value, chosenSteps, omitSteps>;
+    tuple: buildTupleCtx<value, chosenSteps, omitSteps>;
+    // tuple: buildTupleCtx<value, chosenSteps, omitSteps>;
+    object: buildObjectCtx<value, chosenSteps, omitSteps>;
   };
   export type buildCtx<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
-    omitSteps extends HelperFnChosenSteps.resolve<
+    chosenSteps extends HelperFnChosenSteps.main<
       value,
-      stepNumbers,
-      chosenSteps
-    > = never
-  > = CtxMap<
+      steps.StepNumbers<value>
+    >,
+    omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps> = never
+  > = CtxMap<value, chosenSteps, omitSteps>[HelperFnChosenSteps.resolveType<
     value,
-    stepNumbers,
-    chosenSteps,
-    omitSteps
-  >[HelperFnChosenSteps.resolveType<value, stepNumbers, chosenSteps>];
+    chosenSteps
+  >];
   export interface BaseOptions<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >
   > {
     /**
      * The step data to use for the function. It can either be an array with the **available**
@@ -240,26 +234,24 @@ export namespace HelperFn {
   }
   export interface BaseInput<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
-    omitSteps extends HelperFnChosenSteps.resolve<
+    chosenSteps extends HelperFnChosenSteps.main<
       value,
-      stepNumbers,
-      chosenSteps
-    > = never,
+      steps.StepNumbers<value>
+    >,
+    omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps> = never,
     TAdditionalCtx extends Record<string, unknown> = {}
   > {
     /**
      * The multi-step form step context.
      */
-    ctx: Expand<
-      buildCtx<value, stepNumbers, chosenSteps, omitSteps> & TAdditionalCtx
-    >;
+    ctx: Expand<buildCtx<value, chosenSteps, omitSteps> & TAdditionalCtx>;
   }
   export interface CtxDataSelector<
     value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >,
     TAdditionalCtx extends Record<string, unknown> = {}
   > {
     /**
@@ -270,15 +262,13 @@ export namespace HelperFn {
     ctxData?: (
       input: BaseInput<
         value,
-        stepNumbers,
         'all',
-        HelperFnChosenSteps.resolve<value, stepNumbers, chosenSteps>
+        HelperFnChosenSteps.resolve<value, chosenSteps>
       >
     ) => TAdditionalCtx;
   }
 }
 export type createStepSpecificHelperFn<
   value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value>,
-  chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
-> = HelperFnChosenSteps.resolve<value, stepNumbers, chosenSteps>;
+  chosenSteps extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>
+> = HelperFnChosenSteps.resolve<value, chosenSteps>;

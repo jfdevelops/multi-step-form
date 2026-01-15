@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MultiStepFormStepSchema } from '../../src';
+import { createMultiStepFormSchema } from '../../src';
 import { titleCreator } from '../utils/title-creator';
 
-
 describe('multi step form step schema: reset', () => {
-  // Note: this test needs to be first otherwise `stepSchema` will be from a different test
+  // Note: this test needs to be first otherwise `schema` will be from a different test
   it('should reset all the fields', () => {
     const title = titleCreator('reset:all');
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           fields: {
@@ -16,12 +15,12 @@ describe('multi step form step schema: reset', () => {
               nameTransformCasing: 'camel',
             },
           },
-          title: title('Step 1') as string,
+          title: title('Step 1'),
         },
       },
     });
 
-    stepSchema.value.step1.update({
+    schema.stepSchema.value.step1.update({
       updater: ({ ctx }) => {
         const { fields, ...rest } = ctx.step1;
 
@@ -39,14 +38,14 @@ describe('multi step form step schema: reset', () => {
       },
     });
 
-    expect(stepSchema.value.step1).toStrictEqual(
+    expect(schema.stepSchema.value.step1).toStrictEqual(
       expect.objectContaining({
         fields: {
           firstName: {
             defaultValue: 'Updated',
             nameTransformCasing: 'camel',
             label: 'firstName',
-            type: 'string',
+            name: 'firstName',
           },
         },
         title: 'Updated Title',
@@ -54,15 +53,15 @@ describe('multi step form step schema: reset', () => {
       })
     );
 
-    stepSchema.value.step1.reset();
-    expect(stepSchema.value.step1).toStrictEqual(
+    schema.stepSchema.value.step1.reset();
+    expect(schema.stepSchema.value.step1).toStrictEqual(
       expect.objectContaining({
         fields: {
           firstName: {
             defaultValue: '',
             nameTransformCasing: 'camel',
             label: 'firstName',
-            type: 'string',
+            name: 'firstName',
           },
         },
         title: title('Step 1'),
@@ -73,7 +72,7 @@ describe('multi step form step schema: reset', () => {
 
   describe('tuple notation', () => {
     it('should reset the specified field', () => {
-      const stepSchema = new MultiStepFormStepSchema({
+      const schema = createMultiStepFormSchema({
         steps: {
           step1: {
             fields: {
@@ -103,22 +102,24 @@ describe('multi step form step schema: reset', () => {
         },
       });
 
-      stepSchema.value.step1.update({
+      schema.stepSchema.value.step1.update({
         fields: ['fields.firstName.defaultValue'],
         updater: 'Updated',
       });
-      expect(stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
         'Updated'
       );
 
-      stepSchema.value.step1.reset({
+      schema.stepSchema.value.step1.reset({
         fields: ['fields.firstName.defaultValue'],
       });
-      expect(stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
+      expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+        ''
+      );
     });
 
     it('should reset the specified fields', () => {
-      const stepSchema = new MultiStepFormStepSchema({
+      const schema = createMultiStepFormSchema({
         steps: {
           step1: {
             fields: {
@@ -148,7 +149,7 @@ describe('multi step form step schema: reset', () => {
         },
       });
 
-      stepSchema.value.step1.update({
+      schema.stepSchema.value.step1.update({
         fields: ['fields.firstName'],
         updater: ({ ctx }) => {
           const { firstName } = ctx.step1.fields;
@@ -156,24 +157,24 @@ describe('multi step form step schema: reset', () => {
           return {
             ...firstName,
             defaultValue: 'Updated',
-            label: 'First Name Updated Label',
+            nameTransformCasing: 'flat',
           };
         },
       });
-      expect(stepSchema.value.step1.fields.firstName).toStrictEqual({
+      expect(schema.stepSchema.value.step1.fields.firstName).toStrictEqual({
         defaultValue: 'Updated',
-        nameTransformCasing: 'camel',
-        type: 'string',
-        label: 'First Name Updated Label',
+        nameTransformCasing: 'flat',
+        name: 'firstName',
+        label: 'firstName',
       });
 
-      stepSchema.value.step1.reset({
+      schema.stepSchema.value.step1.reset({
         fields: ['fields.firstName'],
       });
-      expect(stepSchema.value.step1.fields.firstName).toStrictEqual({
+      expect(schema.stepSchema.value.step1.fields.firstName).toStrictEqual({
         defaultValue: '',
         nameTransformCasing: 'camel',
-        type: 'string',
+        name: 'firstName',
         label: 'firstName',
       });
     });
@@ -182,7 +183,7 @@ describe('multi step form step schema: reset', () => {
   describe('object notation', () => {
     it('should reset the specified field', () => {
       const title = titleCreator('reset:object-notation:field');
-      const stepSchema = new MultiStepFormStepSchema({
+      const schema = createMultiStepFormSchema({
         steps: {
           step1: {
             fields: {
@@ -196,7 +197,7 @@ describe('multi step form step schema: reset', () => {
         },
       });
 
-      stepSchema.value.step1.update({
+      schema.stepSchema.value.step1.update({
         fields: {
           fields: {
             firstName: {
@@ -206,11 +207,11 @@ describe('multi step form step schema: reset', () => {
         },
         updater: 'Updated',
       });
-      expect(stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
         'Updated'
       );
 
-      stepSchema.value.step1.reset({
+      schema.stepSchema.value.step1.reset({
         fields: {
           fields: {
             firstName: {
@@ -219,12 +220,14 @@ describe('multi step form step schema: reset', () => {
           },
         },
       });
-      expect(stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
+      expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+        ''
+      );
     });
 
     it('should reset the specified fields', () => {
       const title = titleCreator('reset:object-notation:fields');
-      const stepSchema = new MultiStepFormStepSchema({
+      const schema = createMultiStepFormSchema({
         steps: {
           step1: {
             fields: {
@@ -254,7 +257,7 @@ describe('multi step form step schema: reset', () => {
         },
       });
 
-      stepSchema.value.step1.update({
+      schema.stepSchema.value.step1.update({
         fields: {
           fields: {
             firstName: true,
@@ -266,28 +269,27 @@ describe('multi step form step schema: reset', () => {
           return {
             ...firstName,
             defaultValue: 'Updated',
-            label: 'First Name Updated Label',
           };
         },
       });
-      expect(stepSchema.value.step1.fields.firstName).toStrictEqual({
+      expect(schema.stepSchema.value.step1.fields.firstName).toStrictEqual({
         defaultValue: 'Updated',
         nameTransformCasing: 'camel',
-        type: 'string',
-        label: 'First Name Updated Label',
+        name: 'firstName',
+        label: 'firstName',
       });
 
-      stepSchema.value.step1.reset({
+      schema.stepSchema.value.step1.reset({
         fields: {
           fields: {
             firstName: true,
           },
         },
       });
-      expect(stepSchema.value.step1.fields.firstName).toStrictEqual({
+      expect(schema.stepSchema.value.step1.fields.firstName).toStrictEqual({
         defaultValue: '',
         nameTransformCasing: 'camel',
-        type: 'string',
+        name: 'firstName',
         label: 'firstName',
       });
     });
