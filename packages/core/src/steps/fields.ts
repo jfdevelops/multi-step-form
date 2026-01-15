@@ -424,6 +424,73 @@ export namespace fields {
 
     return resolvedFields as inst;
   }
+
+  function isValidFieldValue(field: Record<string, unknown>): boolean {
+    // Must have defaultValue
+    if (!('defaultValue' in field)) {
+      return false;
+    }
+
+    // If label is provided, it must be a string or false
+    if ('label' in field) {
+      const label = field.label;
+      if (label !== false && typeof label !== 'string') {
+        return false;
+      }
+    }
+
+    // If nameTransformCasing is provided, it must be a valid casing
+    if ('nameTransformCasing' in field) {
+      const casing = field.nameTransformCasing;
+      if (typeof casing !== 'string' || !isCasingValid(casing)) {
+        return false;
+      }
+    }
+
+    // If defaultValue is a Date, validate type field
+    if (field.defaultValue instanceof Date) {
+      if ('type' in field) {
+        const type = field.type;
+        if (type !== 'date' && type !== 'string') {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  export function isValidFieldConfig(value: unknown): value is FieldConfig {
+    if (value === null || typeof value !== 'object') {
+      return false;
+    }
+
+    const fields = value as Record<string, unknown>;
+
+    // Check if fields has at least one key
+    if (Object.keys(fields).length === 0) {
+      return false;
+    }
+
+    // Validate each field
+    for (const [name, fieldValue] of Object.entries(fields)) {
+      // Each key must be a string
+      if (typeof name !== 'string') {
+        return false;
+      }
+
+      // Each value must be an object
+      if (fieldValue === null || typeof fieldValue !== 'object') {
+        return false;
+      }
+
+      if (!isValidFieldValue(fieldValue as Record<string, unknown>)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }
 
 export const instantiateFields = fields.instantiate;

@@ -218,6 +218,74 @@ export namespace steps {
 
     return resolvedSteps as inst;
   }
+
+  function isValidStepValue(stepValue: unknown): stepValue is AnyConfig {
+    if (stepValue === null || typeof stepValue !== 'object') {
+      return false;
+    }
+
+    const step = stepValue as Record<string, unknown>;
+
+    // Must have title
+    if (!('title' in step) || typeof step.title !== 'string') {
+      return false;
+    }
+
+    // If description is provided, it must be a string
+    if ('description' in step) {
+      if (typeof step.description !== 'string') {
+        return false;
+      }
+    }
+
+    // If nameTransformCasing is provided, it must be a valid casing
+    if ('nameTransformCasing' in step) {
+      const casing = step.nameTransformCasing;
+      if (typeof casing !== 'string' || !isCasingValid(casing)) {
+        return false;
+      }
+    }
+
+    // Must have fields and it must be a valid field config
+    if (!('fields' in step)) {
+      return false;
+    }
+
+    return fields.isValidFieldConfig(step.fields);
+  }
+
+  export function isValidSteps(value: unknown): value is config {
+    if (value === null || typeof value !== 'object') {
+      return false;
+    }
+
+    const steps = value as Record<string, unknown>;
+
+    // Check if steps has at least one key
+    if (Object.keys(steps).length === 0) {
+      return false;
+    }
+
+    // Validate each step
+    for (const [stepKey, stepValue] of Object.entries(steps)) {
+      // Each key must be a string
+      if (typeof stepKey !== 'string') {
+        return false;
+      }
+
+      // Each key must match the step regex pattern
+      if (!VALIDATED_STEP_REGEX.test(stepKey)) {
+        return false;
+      }
+
+      // Each value must be a valid step config
+      if (!isValidStepValue(stepValue)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }
 
 export const instantiateSteps = steps.instantiate;

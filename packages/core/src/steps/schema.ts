@@ -5,13 +5,8 @@ import {
 import { DEFAULT_STORAGE_KEY, MultiStepFormStorage } from '@/storage';
 import {
   isCasingValid,
-  isFieldType,
   setCasingType,
-  type CasingType,
   type Constrain,
-  type DefaultCasing,
-  type Expand,
-  type inferUpdaterReturn,
   type Join,
 } from '@/utils';
 import { addToTuple, mapToTuple } from '@/utils/helpers';
@@ -27,17 +22,10 @@ import type {
 } from './fn-utils/helper-fn/utils';
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
-import { instantiateSteps, type steps } from './steps';
+import { instantiateSteps, steps } from './steps';
 import {
   AnyStepField,
-  AnyStepFieldOption,
   ExtractStepFromKey,
-  GetCurrentStep,
-  InferStepOptions,
-  ResolvedFields,
-  ResolvedStep,
-  Step,
-  StepNumbers,
   StepOptions,
   UnionToTuple,
 } from './types';
@@ -511,76 +499,8 @@ export class MultiStepFormStepSchema<
    * Validates that a given object is the proper shape for step data.
    * @param value
    */
-  static hasData<
-    step extends Step<casing>,
-    resolvedStep extends ResolvedStep<step, casing>,
-    stepNumbers extends StepNumbers<resolvedStep>,
-    casing extends CasingType = DefaultCasing
-  >(
-    value: unknown,
-    options?: {
-      optionalKeysToCheck?: FieldChecks<
-        Pick<StepOptions, 'description' | 'validateFields'>
-      >;
-    }
-  ): value is GetCurrentStep<resolvedStep, stepNumbers> {
-    if (value === null || typeof value !== 'object') {
-      return false;
-    }
-
-    return assertObjectFields<
-      | GetCurrentStep<resolvedStep, stepNumbers>
-      | (Omit<StepOptions, 'fields'> & {
-          fields: Expand<
-            ResolvedFields<InferStepOptions<step>, keyof InferStepOptions<step>>
-          >;
-        })
-    >(value, {
-      title: (v) => typeof v === 'string',
-      fields: (
-        v
-      ): v is Expand<
-        ResolvedFields<InferStepOptions<step>, keyof InferStepOptions<step>>
-      > => {
-        if (v === null || typeof v !== 'object') {
-          return false;
-        }
-
-        for (const key of Object.keys(v)) {
-          if (typeof key !== 'string' || !(key in v)) {
-            return false;
-          }
-
-          const current = (v as Record<string, unknown>)[key];
-
-          if (current === null || typeof current !== 'object') {
-            return false;
-          }
-
-          const hasField = assertObjectFields<AnyStepFieldOption>(current, {
-            defaultValue: (v): v is {} => v !== 'undefined' && v !== null,
-            label: (v) =>
-              typeof v === 'string' || (typeof v === 'boolean' && !v),
-            nameTransformCasing: isCasingValid,
-            type: isFieldType,
-          });
-
-          if (!hasField) {
-            return false;
-          }
-        }
-
-        return true;
-      },
-      createHelperFn: (
-        v
-      ): v is GetCurrentStep<resolvedStep, stepNumbers>['createHelperFn'] =>
-        typeof v === 'function',
-      // update: (v): v is GetCurrentStep<resolvedStep, stepNumbers>['update'] =>
-      //   typeof v === 'function',
-      nameTransformCasing: isCasingValid,
-      ...options?.optionalKeysToCheck,
-    });
+  static hasData(value: unknown): value is steps.config {
+    return steps.isValidSteps(value);
   }
 
   /**
@@ -601,7 +521,6 @@ export class MultiStepFormStepSchema<
     const errorSuffix = "This shouldn't be the case, so please open an issue";
     const createErrorMessage = (reason: string) =>
       `${baseErrorMessage} because ${reason}. ${errorSuffix}`;
-    const t = '';
 
     invariant(
       typeof stepData === 'object' && stepData !== null,
