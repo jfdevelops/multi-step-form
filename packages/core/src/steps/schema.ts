@@ -2,13 +2,7 @@ import {
   MultiStepFormStepSchemaInternal,
   type StepSchema,
 } from '@/internals/step-schema';
-import {
-  DEFAULT_STORAGE_KEY,
-  DefaultStorageKey,
-  MultiStepFormStorage,
-  type BaseStorageConfig,
-  type StorageConfig,
-} from '@/storage';
+import { DEFAULT_STORAGE_KEY, MultiStepFormStorage } from '@/storage';
 import {
   isCasingValid,
   isFieldType,
@@ -17,73 +11,73 @@ import {
   type Constrain,
   type DefaultCasing,
   type Expand,
+  type inferUpdaterReturn,
   type Join,
 } from '@/utils';
+import { addToTuple, mapToTuple } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import { Subscribable } from '../subscribable';
-import { fields as fieldsUtils, type fields } from './fields';
-import {
-  AnyResolvedStep,
-  AnyStepField,
-  AnyStepFieldOption,
-  CreateHelperFunctionOptionsWithCustomCtxOptions,
-  CreateHelperFunctionOptionsWithValidator,
-  CreateHelperFunctionOptionsWithoutValidator,
-  CreateStepHelperFn,
-  CreatedHelperFnWithInput,
-  CreatedHelperFnWithoutInput,
-  ExtractStepFromKey,
-  FirstStep,
-  GetCurrentStep,
-  HelperFnWithValidator,
-  HelperFnWithoutValidator,
-  InferStepOptions,
-  LastStep,
-  MultiStepFormSchemaStepConfig,
-  ResolvedFields,
-  ResolvedStep,
-  Step,
-  StepData,
-  StepNumbers,
-  StepOptions,
-  UnionToTuple,
-  ValidStepKey,
-} from './types';
-import { getStep, type GetStepOptions } from './utils';
-import { createStep, isValidStepKey } from '@/internals/utils';
-import { instantiateSteps, type steps } from './steps';
-import type { UpdateFn } from './fn-utils/update-fn';
-import type { ResetFn } from './fn-utils/reset-fn';
+import { fields as fieldsUtils } from './fields';
+import type { HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type {
   GeneralHelperFn,
   HelperFnInput,
   HelperFnOptions,
   HelperFnOutput,
 } from './fn-utils/helper-fn/utils';
-import type { HelperFnChosenSteps } from './fn-utils/helper-fn';
+import type { ResetFn } from './fn-utils/reset-fn';
+import type { UpdateFn } from './fn-utils/update-fn';
+import { instantiateSteps, type steps } from './steps';
+import {
+  AnyStepField,
+  AnyStepFieldOption,
+  ExtractStepFromKey,
+  GetCurrentStep,
+  InferStepOptions,
+  ResolvedFields,
+  ResolvedStep,
+  Step,
+  StepNumbers,
+  StepOptions,
+  UnionToTuple,
+} from './types';
+import { getStep, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
-  value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value>
+  value extends steps.instantiateSteps
 > {
-  update: UpdateFn.general<value, stepNumbers>;
-  createHelperFn: GeneralHelperFn<value, stepNumbers>;
+  update: UpdateFn.general<value>;
+  reset: ResetFn.general<value>;
+  createHelperFn: GeneralHelperFn<value>;
 }
 export type AsType = (typeof AS_TYPES)[number];
 type Quote<T extends string[]> = {
   [K in keyof T]: T[K] extends string ? `'${T[K]}'` : never;
 };
 export type AsTypeMap<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
+  stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>
 > = {
   // Exclude is needed due to all the Constrains
   string: Exclude<
     Join<
       Constrain<
-        Quote<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
+        Quote<
+          Constrain<
+            UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>,
+            string[]
+          >
+        >,
         string[]
       >,
+      ' | '
+    >,
+    ''
+  >;
+  'string.keys': Exclude<
+    Join<
+      Constrain<UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>, string[]>,
       ' | '
     >,
     ''
@@ -92,56 +86,64 @@ export type AsTypeMap<
     Join<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
     ''
   >;
-  'array.string': UnionToTuple<`${stepNumbers}`>;
+  'array.number': UnionToTuple<ExtractStepFromKey<stepNumbers>>;
+  'array.string': UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>;
+  'array.string.keys': UnionToTuple<`${stepNumbers}`>;
   'array.string.untyped': string[];
 };
 export type AsFunctionReturn<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>,
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
   asType extends AsType
-> = AsTypeMap<resolvedStep, stepNumbers>[asType];
+> = AsTypeMap<def, value>[asType];
 export type AsFunction<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends ExtractStepFromKey<Constrain<keyof resolvedStep, string>>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>
 > = <asType extends AsType>(
   asType: asType
-) => AsFunctionReturn<resolvedStep, stepNumbers, asType>;
-export type MultiStepFormStepStepsConfig<
-  TStep extends Step<TCasing>,
-  TCasing extends CasingType,
-  TResolvedStep extends ResolvedStep<TStep, TCasing> = ResolvedStep<
-    TStep,
-    TCasing
-  >,
-  TStepNumbers extends StepNumbers<TResolvedStep> = StepNumbers<TResolvedStep>
+) => AsFunctionReturn<def, value, asType>;
+
+export type IsValidStepFn<
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>
 > = {
-  first: FirstStep<TResolvedStep>;
-  last: LastStep<TResolvedStep>;
-  value: ReadonlyArray<TStepNumbers>;
-  as: AsFunction<TResolvedStep, TStepNumbers>;
-  isValidStepNumber: (stepNumber: number) => stepNumber is TStepNumbers;
-  isValidStepKey: (
-    value: string
-  ) => value is Constrain<keyof TResolvedStep, string>;
+  /**
+   * Checks if a given string is a valid step key.
+   */
+  (value: string): value is steps.StepNumbers<value>;
+  /**
+   * Checks if a given number is a valid step number.
+   */
+  (value: number): value is ExtractStepFromKey<steps.StepNumbers<value>>;
 };
-export type MultiStepFormStepSchemaListener<
-  TStep extends Step<TCasing>,
-  TCasing extends CasingType
-> = (data: {
-  original: InferStepOptions<TStep>;
-  value: ResolvedStep<TStep, TCasing>;
-  steps: MultiStepFormStepStepsConfig<TStep, TCasing>;
-  defaultNameTransformationCasing: TCasing;
-}) => void;
+export type MultiStepFormStepStepsConfig<
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>
+> = {
+  value: ReadonlyArray<steps.StepNumbers<value>>;
+  as: AsFunction<def, value>;
+  isValidStep: IsValidStepFn<def, value>;
+};
+
+const STRING_KEYS = ['string', 'string.keys'] as const;
+const NUMBER_KEYS = ['number'] as const;
+const ARRAY_STRING_KEYS = addToTuple(
+  mapToTuple(STRING_KEYS, (key) => `array.${key}` as const),
+  'array.string.untyped'
+);
+const ARRAY_NUMBER_KEYS = mapToTuple(
+  NUMBER_KEYS,
+  (key) => `array.${key}` as const
+);
 
 /**
  * Available transformation types for the step numbers.
  */
 const AS_TYPES = [
-  'string',
-  'number',
-  'array.string',
-  'array.string.untyped',
+  ...STRING_KEYS,
+  ...NUMBER_KEYS,
+  ...ARRAY_STRING_KEYS,
+  ...ARRAY_NUMBER_KEYS,
 ] as const;
 
 type ValueCheck<T> = (v: unknown) => v is T;
@@ -169,10 +171,59 @@ function assertObjectFields<T extends object>(
   return true;
 }
 
+function createIsValidStepFn<
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>
+>(stepNumbers: Array<number>): IsValidStepFn<def, value> {
+  function isValidStep(value: string): value is steps.StepNumbers<value>;
+  function isValidStep(
+    value: number
+  ): value is ExtractStepFromKey<steps.StepNumbers<value>>;
+  function isValidStep(value: string | number) {
+    const invariant: Invariant = createInvariant('[isValidStep]');
+
+    invariant(
+      typeof value === 'string' || typeof value === 'number',
+      `The value must be a string or a number, was ${typeof value}`
+    );
+
+    if (typeof value === 'string') {
+      if (!value.includes('step')) {
+        return false;
+      }
+
+      return stepNumbers.includes(Number.parseInt(value.replace('step', '')));
+    }
+
+    if (typeof value === 'number') {
+      return stepNumbers.includes(value);
+    }
+
+    return false;
+  }
+
+  return isValidStep;
+}
+
+export namespace MultiStepFormStepSchema {
+  export type ListenerOptions<
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>
+  > = {
+    original: def['steps'];
+    value: value;
+    steps: MultiStepFormStepStepsConfig<def, value>;
+    defaultNameTransformationCasing: def['nameTransformCasing'];
+  };
+  export type Listener<
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>
+  > = (data: ListenerOptions<def, value>) => void;
+}
+
 export class MultiStepFormStepSchema<
     const def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
-    stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>
+    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>
     // step extends Step<casing>,
     // casing extends CasingType = DefaultCasing,
     // resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<
@@ -182,8 +233,8 @@ export class MultiStepFormStepSchema<
     // stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>,
     // storageKey extends string = DefaultStorageKey
   >
-  extends Subscribable<MultiStepFormStepSchemaListener<step, casing>>
-  implements MultiStepFormStepSchemaFunctions<value, stepNumbers>
+  extends Subscribable<MultiStepFormStepSchema.Listener<def, value>>
+  implements MultiStepFormStepSchemaFunctions<value>
 {
   /**
    * The original config before any validation or transformations have been applied.
@@ -193,14 +244,14 @@ export class MultiStepFormStepSchema<
    * The resolved step values.
    */
   value: value;
-  readonly steps: MultiStepFormStepStepsConfig<step, casing>;
+  readonly steps: MultiStepFormStepStepsConfig<def, value>;
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
   private readonly stepNumbers: Array<number>;
   private readonly storage: MultiStepFormStorage<
     value,
     StepSchema.inferStorageKey<def>
   >;
-  readonly #internal: MultiStepFormStepSchemaInternal<def, value, stepNumbers>;
+  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
 
   constructor(config: def) {
     super();
@@ -214,13 +265,6 @@ export class MultiStepFormStepSchema<
     this.original = steps;
 
     this.value = instantiateSteps({ steps });
-    this.storage = new MultiStepFormStorage({
-      data: this.value,
-      key: (storage?.key ??
-        DEFAULT_STORAGE_KEY) as StepSchema.inferStorageKey<def>,
-      store: storage?.store,
-      throwWhenUndefined: storage?.throwWhenUndefined ?? false,
-    });
     this.#internal = new MultiStepFormStepSchemaInternal({
       originalValue: this.original,
       getValue: () => this.value,
@@ -228,12 +272,21 @@ export class MultiStepFormStepSchema<
     });
 
     this.value = this.#internal.enrichValues(this.value);
+    this.storage = new MultiStepFormStorage({
+      data: this.value,
+      key: (storage?.key ??
+        DEFAULT_STORAGE_KEY) as StepSchema.inferStorageKey<def>,
+      store: storage?.store,
+      throwWhenUndefined: storage?.throwWhenUndefined,
+    });
     this.stepNumbers = Object.keys(this.value).map((key) =>
       Number.parseInt(key.replace('step', ''))
     );
 
     this.steps = {
-      value: this.stepNumbers as unknown as ReadonlyArray<stepNumbers>,
+      value: this.stepNumbers as unknown as ReadonlyArray<
+        steps.StepNumbers<value>
+      >,
       as: (asType): any => {
         invariant(
           typeof asType === 'string',
@@ -244,12 +297,24 @@ export class MultiStepFormStepSchema<
           return this.stepNumbers.map((value) => `'${value}'`).join(' | ');
         }
 
+        if (asType === 'string.keys') {
+          return this.stepNumbers.map((value) => `'step${value}'`).join(' | ');
+        }
+
         if (asType === 'number') {
           return this.stepNumbers.join(' | ');
         }
 
         if (asType.includes('array.string')) {
+          if (asType.includes('keys')) {
+            return this.stepNumbers.map((value) => `step${value}`);
+          }
+
           return this.stepNumbers.map((value) => `${value}`);
+        }
+
+        if (asType.includes('array.number')) {
+          return this.stepNumbers;
         }
 
         throw new Error(
@@ -258,10 +323,7 @@ export class MultiStepFormStepSchema<
           ).join(', ')}`
         );
       },
-      isValidStepNumber: (stepNumber): stepNumber is stepNumbers =>
-        this.stepNumbers.includes(stepNumber),
-      isValidStepKey: (value) =>
-        isValidStepKey<resolvedStep>(this.value, value),
+      isValidStep: createIsValidStepFn(this.stepNumbers),
     };
 
     this.sync();
@@ -308,8 +370,8 @@ export class MultiStepFormStepSchema<
    * @param options The options for getting the step data.
    * @returns The step data for the target step.
    */
-  get<stepNumber extends stepNumbers>(
-    options: GetStepOptions<value, stepNumbers, stepNumber>
+  get<stepNumber extends steps.StepNumbers<value>>(
+    options: GetStepOptions<value, steps.StepNumbers<value>, stepNumber>
   ) {
     return getStep(this.value)(options);
   }
@@ -322,10 +384,15 @@ export class MultiStepFormStepSchema<
     this.notify();
   }
 
+  /**
+   * Updates the step with the given options.
+   * @param options The options for updating the step.
+   * @returns The return value of the updater function.
+   */
   update<
-    targetStep extends stepNumbers,
+    targetStep extends steps.StepNumbers<value>,
     field extends UpdateFn.chosenFields<
-      UpdateFn.resolvedStep<value, stepNumbers, targetStep>
+      UpdateFn.resolvedStep<value, targetStep>
     > = 'all',
     strict extends boolean = true,
     partial extends boolean = false,
@@ -334,7 +401,6 @@ export class MultiStepFormStepSchema<
   >(
     options: UpdateFn.options<
       value,
-      stepNumbers,
       targetStep,
       field,
       strict,
@@ -347,18 +413,10 @@ export class MultiStepFormStepSchema<
   }
 
   reset<
-    targetStep extends stepNumbers,
+    targetStep extends steps.StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
-    currentStep extends UpdateFn.resolvedStep<value, stepNumbers, targetStep>
-  >(
-    options: ResetFn.Options<
-      value,
-      stepNumbers,
-      targetStep,
-      fields,
-      currentStep
-    >
-  ) {
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>
+  >(options: ResetFn.Options<value, targetStep, fields, currentStep>) {
     this.#internal.reset(options);
   }
 
@@ -366,21 +424,22 @@ export class MultiStepFormStepSchema<
    * Create a helper function with validated input.
    */
   createHelperFn<
-    const chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
+    const chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >,
     validator,
     additionalCtx extends Record<string, unknown>,
     response
   >(
     options: HelperFnOptions.WithValidator<
       value,
-      stepNumbers,
       chosenSteps,
       validator,
       additionalCtx
     >,
     fn: HelperFnInput.WithValidator<
       value,
-      stepNumbers,
       chosenSteps,
       validator,
       additionalCtx,
@@ -391,19 +450,20 @@ export class MultiStepFormStepSchema<
    * Create a helper function without input.
    */
   createHelperFn<
-    const chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
+    const chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >,
     additionalCtx extends Record<string, unknown>,
     response
   >(
     options: HelperFnOptions.WithoutValidator<
       value,
-      stepNumbers,
       chosenSteps,
       additionalCtx
     >,
     fn: HelperFnInput.WithoutValidator<
       value,
-      stepNumbers,
       chosenSteps,
       additionalCtx,
       response
@@ -411,7 +471,10 @@ export class MultiStepFormStepSchema<
   ): HelperFnOutput.WithoutInput<response>;
   // Implementation
   createHelperFn<
-    const chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
+    const chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >,
     response,
     additionalCtx extends Record<string, unknown>,
     validator = never
@@ -419,21 +482,14 @@ export class MultiStepFormStepSchema<
     options:
       | HelperFnOptions.WithValidator<
           value,
-          stepNumbers,
           chosenSteps,
           validator,
           additionalCtx
         >
-      | HelperFnOptions.WithoutValidator<
-          value,
-          stepNumbers,
-          chosenSteps,
-          additionalCtx
-        >,
+      | HelperFnOptions.WithoutValidator<value, chosenSteps, additionalCtx>,
     fn:
       | HelperFnInput.WithValidator<
           value,
-          stepNumbers,
           chosenSteps,
           validator,
           additionalCtx,
@@ -441,7 +497,6 @@ export class MultiStepFormStepSchema<
         >
       | HelperFnInput.WithoutValidator<
           value,
-          stepNumbers,
           chosenSteps,
           additionalCtx,
           response
@@ -535,7 +590,7 @@ export class MultiStepFormStepSchema<
    * @returns The value of the {@linkcode field}.
    */
   getValue<
-    step extends stepNumbers,
+    step extends steps.StepNumbers<value>,
     field extends fieldsUtils.getDeepFields<value, step>
   >(step: step, field: field) {
     const stepData = this.value[step];
@@ -573,24 +628,3 @@ export class MultiStepFormStepSchema<
     return defaultValue;
   }
 }
-
-const test = new MultiStepFormStepSchema({
-  steps: {
-    step1: {
-      title: 'Step 1',
-      fields: {
-        firstName: {
-          defaultValue: '',
-        },
-      },
-    },
-  },
-  storage: {
-    key: 'test',
-  },
-});
-const t = test.update({
-  targetStep: 'step1',
-  fields: ['fields.firstName.defaultValue'],
-  updater: '',
-});

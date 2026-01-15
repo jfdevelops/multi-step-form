@@ -6,10 +6,18 @@ import {
   isCasingValid,
   CASING_TYPES,
   type Expand,
+  type RemoveReadonly,
+  type Show,
 } from '@/utils';
 import { createInvariant, type Invariant } from '@/utils/invariant';
 import type { AnyValidator, DefaultValidator } from '@/utils/validator';
 import { fields } from './fields';
+import type { UpdateFn } from './fn-utils/update-fn';
+import type {
+  GeneralHelperFn,
+  StepSpecificHelperFn,
+} from './fn-utils/helper-fn/utils';
+import type { ResetFn } from './fn-utils/reset-fn';
 
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
 
@@ -38,9 +46,34 @@ export namespace steps {
   > = Record<ValidStepKey, Config<TCasing, TFields, TValidator>>;
 
   export type instantiateConfig<TMap extends config = config> = {
+    /**
+     * The steps that this multi step form will include.
+     * @example
+     * ```ts
+     * {
+     *   step1: {
+     *     title: 'Step 1',
+     *     fields: {
+     *       name: {
+     *         defaultValue: '',
+     *       },
+     *     },
+     *  },
+     *   step2: {
+     *     title: 'Step 2',
+     *     fields: {
+     *       dateOfBirth: {
+     *         defaultValue: new Date(),
+     *         // `type` is automatically set to `date` if the defaultValue is a Date
+     *       },
+     *     },
+     *   },
+     * }
+     * ```
+     */
     steps: TMap;
   };
-  export type instantiateSteps<T = unknown> = [T] extends [object]
+  export type _instantiateSteps<T = unknown> = [T] extends [object]
     ? T extends instantiateConfig
       ? {
           -readonly [key in keyof T['steps']]: Expand<
@@ -63,6 +96,23 @@ export namespace steps {
         }
       : {}
     : {};
+  export type instantiateSteps<
+    t = unknown,
+    value = _instantiateSteps<t>
+  > = Expand<{
+    [key in keyof value]: Show<
+      value[key] &
+        (value extends {}
+          ? key extends StepNumbers<value>
+            ? {
+                update: UpdateFn.stepSpecific<value, key>;
+                reset: ResetFn.stepSpecific<value, key>;
+                createHelperFn: StepSpecificHelperFn<value, key>;
+              }
+            : {}
+          : {})
+    >;
+  }>;
   export type Any = instantiateSteps<instantiateConfig>;
   export type StepNumbers<T> = keyof T extends string ? keyof T : never;
   export type getCurrent<

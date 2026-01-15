@@ -1,29 +1,18 @@
 import type {
   AnyResolvedStep,
-  AnyStepField,
-  Step,
-  InferStepOptions,
-  ResolvedStep,
   HelperFnChosenSteps,
+  InferStepOptions,
   ResolvedStepBuilder,
+  Step
 } from '@/steps';
-import { createFields } from '@/steps/field';
+import { instantiateFields } from '@/steps/fields';
 import {
-  type Constrain,
   type CasingType,
-  changeCasing,
-  DEFAULT_FIELD_TYPE,
-  invariant,
-  type DefaultCasing,
+  type Constrain,
   DEFAULT_CASING,
-  getInferredFieldType,
+  type DefaultCasing,
+  invariant
 } from '@/utils';
-import {
-  type AnyValidator,
-  type DefaultValidator,
-  runStandardValidation,
-  type StandardSchemaValidator,
-} from '@/utils/validator';
 
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
 export function isValidStepKey<T extends AnyResolvedStep>(
@@ -32,7 +21,6 @@ export function isValidStepKey<T extends AnyResolvedStep>(
 ): stepKey is Constrain<keyof T, string> {
   return Object.keys(steps).includes(stepKey);
 }
-
 
 export function createStep<
   step extends Step<casing>,
@@ -90,7 +78,7 @@ export function createStep<
       `The "fields" property must be an object. Was ${typeof fields}`
     );
 
-    const resolvedFields = createFields({
+    const resolvedFields = instantiateFields({
       defaultCasing,
       fields,
       validateFields,

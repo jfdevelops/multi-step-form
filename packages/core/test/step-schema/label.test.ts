@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MultiStepFormStepSchema } from '../../src';
+import { createMultiStepFormSchema } from '../../src';
 
 describe('multi step form step schema: label', () => {
   it('should have label=false when specified', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           title: 'Step 1',
@@ -18,11 +18,13 @@ describe('multi step form step schema: label', () => {
       },
     });
 
-    expect(stepSchema.get({ step: 1 }).data.fields.firstName.label).toBeFalsy();
+    expect(
+      schema.stepSchema.get({ step: 'step1' }).data.fields.firstName.label
+    ).toBeFalsy();
   });
 
   it('should have a default label when no label is specified', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           title: 'Step 1',
@@ -36,13 +38,15 @@ describe('multi step form step schema: label', () => {
       },
     });
 
-    expect(stepSchema.get({ step: 1 }).data.fields.firstName.label).toBe(
-      'first-name'
-    );
+    expect(
+      schema.stepSchema.get({
+        step: 'step1',
+      }).data.fields.firstName.label
+    ).toBe('first-name');
   });
 
   it('should have a custom label when specified', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           title: 'Step 1',
@@ -57,8 +61,10 @@ describe('multi step form step schema: label', () => {
       },
     });
 
-    expect(stepSchema.get({ step: 1 }).data.fields.firstName.label).toBe(
-      'First Name'
-    );
+    expect(
+      schema.stepSchema.get({
+        step: 'step1',
+      }).data.fields.firstName.label
+    ).toBe('First Name');
   });
 });
