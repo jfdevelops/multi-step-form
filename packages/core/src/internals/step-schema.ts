@@ -5,7 +5,7 @@ import {
   type fields,
   type InferStepOptions,
   type Step,
-  type StepNumbers
+  type StepNumbers,
 } from '@/steps';
 import { HelperFn, HelperFnChosenSteps } from '@/steps/fn-utils/helper-fn';
 import type {
@@ -132,6 +132,9 @@ export namespace StepSchema {
     TStorageKey extends string = string
   > extends steps.instantiateConfig,
       fields.NameTransformCasingOptions<TCasing> {
+    /**
+     * The options for the storage module.
+     */
     storage?: BaseStorageConfig<TStorageKey>;
   }
 
@@ -164,7 +167,6 @@ export namespace StepSchema {
 export class MultiStepFormStepSchemaInternal<
   const def extends StepSchema.Config,
   value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
-  stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>,
   additionalEnrichedProps extends Record<string, unknown> = {}
 > {
   readonly #originalValue: def['steps'];
@@ -197,12 +199,15 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   private buildCtxData<
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>,
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >,
     values,
     additionalCtx extends Record<string, unknown>
   >(
     options: Required<
-      HelperFn.CtxDataSelector<value, stepNumbers, chosenSteps, additionalCtx>
+      HelperFn.CtxDataSelector<value, chosenSteps, additionalCtx>
     > & {
       values: values;
       logger: MultiStepFormLogger;
@@ -237,9 +242,9 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   private createStepUpdaterFnImpl<
-    targetStep extends stepNumbers,
+    targetStep extends steps.StepNumbers<value>,
     fields extends UpdateFn.chosenFields<
-      UpdateFn.resolvedStep<value, stepNumbers, targetStep>
+      UpdateFn.resolvedStep<value, targetStep>
     >,
     strict extends boolean,
     partial extends boolean,
@@ -248,7 +253,6 @@ export class MultiStepFormStepSchemaInternal<
   >(
     options: UpdateFn.options<
       value,
-      stepNumbers,
       targetStep,
       fields,
       strict,
@@ -487,18 +491,18 @@ export class MultiStepFormStepSchemaInternal<
     );
   }
 
-  createStepUpdaterFn<targetStep extends stepNumbers>(
+  createStepUpdaterFn<targetStep extends steps.StepNumbers<value>>(
     targetStep: targetStep
-  ): UpdateFn.stepSpecific<value, stepNumbers, targetStep> {
+  ): UpdateFn.stepSpecific<value, targetStep> {
     return (options) => {
       this.createStepUpdaterFnImpl({ targetStep, ...options });
     };
   }
 
   update<
-    targetStep extends stepNumbers,
+    targetStep extends steps.StepNumbers<value>,
     field extends UpdateFn.chosenFields<
-      UpdateFn.resolvedStep<value, stepNumbers, targetStep>
+      UpdateFn.resolvedStep<value, targetStep>
     > = 'all',
     strict extends boolean = true,
     partial extends boolean = false,
@@ -507,7 +511,6 @@ export class MultiStepFormStepSchemaInternal<
   >(
     options: UpdateFn.options<
       value,
-      stepNumbers,
       targetStep,
       field,
       strict,
@@ -520,8 +523,8 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   private resetFields<
-    targetStep extends stepNumbers,
-    currentStep extends UpdateFn.resolvedStep<value, stepNumbers, targetStep>
+    targetStep extends steps.StepNumbers<value>,
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>
   >(config: {
     targetStep: targetStep;
     values: AnyResolvedStep;
@@ -562,18 +565,10 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   private createStepResetterFnImpl<
-    targetStep extends stepNumbers,
+    targetStep extends steps.StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
-    currentStep extends UpdateFn.resolvedStep<value, stepNumbers, targetStep>
-  >(
-    options: ResetFn.Options<
-      value,
-      stepNumbers,
-      targetStep,
-      fields,
-      currentStep
-    >
-  ) {
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>
+  >(options: ResetFn.Options<value, targetStep, fields, currentStep>) {
     const { fields = 'all', targetStep, debug } = options;
     const logger = new MultiStepFormLogger({
       debug,
@@ -617,9 +612,9 @@ export class MultiStepFormStepSchemaInternal<
     }
   }
 
-  createStepResetterFn<targetStep extends stepNumbers>(
+  createStepResetterFn<targetStep extends steps.StepNumbers<value>>(
     targetStep: targetStep
-  ): ResetFn.stepSpecific<value, stepNumbers, targetStep> {
+  ): ResetFn.stepSpecific<value, targetStep> {
     return (options) => {
       return this.createStepResetterFnImpl({
         targetStep,
@@ -630,23 +625,18 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   reset<
-    targetStep extends stepNumbers,
+    targetStep extends steps.StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
-    currentStep extends UpdateFn.resolvedStep<value, stepNumbers, targetStep>
-  >(
-    options: ResetFn.Options<
-      value,
-      stepNumbers,
-      targetStep,
-      fields,
-      currentStep
-    >
-  ) {
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>
+  >(options: ResetFn.Options<value, targetStep, fields, currentStep>) {
     this.createStepResetterFnImpl(options);
   }
 
   createHelperFnInputUpdate<
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >
   >(chosenSteps: chosenSteps) {
     if (HelperFnChosenSteps.isAll(chosenSteps)) {
       const stepSpecificUpdateFn = typedObjectKeys(this.value).reduce(
@@ -655,16 +645,12 @@ export class MultiStepFormStepSchemaInternal<
 
           return acc;
         },
-        {} as UpdateFn.createHelperFnForAllSteps<
-          value,
-          stepNumbers,
-          chosenSteps
-        >
+        {} as UpdateFn.createHelperFnForAllSteps<value, chosenSteps>
       );
       const update = Object.assign(
         this.update,
         stepSpecificUpdateFn
-      ) as UpdateFn.HelperFn<value, stepNumbers, chosenSteps>;
+      ) as UpdateFn.HelperFn<value, chosenSteps>;
 
       return update;
     }
@@ -676,11 +662,11 @@ export class MultiStepFormStepSchemaInternal<
         (acc as any)[step] = this.createStepUpdaterFn(step);
 
         return acc;
-      }, {} as UpdateFn.createHelperFnForTupleSteps<value, stepNumbers, chosenSteps>);
+      }, {} as UpdateFn.createHelperFnForTupleSteps<value, chosenSteps>);
       const update = Object.assign(
         this.update,
         stepSpecificUpdateFn
-      ) as UpdateFn.HelperFn<value, stepNumbers, chosenSteps>;
+      ) as UpdateFn.HelperFn<value, chosenSteps>;
 
       return update;
     }
@@ -692,16 +678,12 @@ export class MultiStepFormStepSchemaInternal<
 
           return acc;
         },
-        {} as UpdateFn.createHelperFnForObjectSteps<
-          value,
-          stepNumbers,
-          chosenSteps
-        >
+        {} as UpdateFn.createHelperFnForObjectSteps<value, chosenSteps>
       );
       const update = Object.assign(
         this.update,
         stepSpecificUpdateFn
-      ) as UpdateFn.HelperFn<value, stepNumbers, chosenSteps>;
+      ) as UpdateFn.HelperFn<value, chosenSteps>;
 
       return update;
     }
@@ -710,7 +692,10 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   createHelperFnInputReset<
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >
   >(chosenSteps: chosenSteps) {
     if (HelperFnChosenSteps.isAll(chosenSteps)) {
       const stepSpecificUpdateFn = typedObjectKeys(this.value).reduce(
@@ -719,12 +704,12 @@ export class MultiStepFormStepSchemaInternal<
 
           return acc;
         },
-        {} as ResetFn.createHelperFnForAllSteps<value, stepNumbers, chosenSteps>
+        {} as ResetFn.createHelperFnForAllSteps<value, chosenSteps>
       );
       const reset = Object.assign(
         this.reset,
         stepSpecificUpdateFn
-      ) as ResetFn.HelperFn<value, stepNumbers, chosenSteps>;
+      ) as ResetFn.HelperFn<value, chosenSteps>;
 
       return reset;
     }
@@ -736,11 +721,11 @@ export class MultiStepFormStepSchemaInternal<
         (acc as any)[step] = this.createStepResetterFn(step as never);
 
         return acc;
-      }, {} as ResetFn.createHelperFnForTupleSteps<value, stepNumbers, chosenSteps>);
+      }, {} as ResetFn.createHelperFnForTupleSteps<value, chosenSteps>);
       const reset = Object.assign(
         this.reset,
         stepSpecificUpdateFn
-      ) as ResetFn.HelperFn<value, stepNumbers, chosenSteps>;
+      ) as ResetFn.HelperFn<value, chosenSteps>;
 
       return reset;
     }
@@ -752,16 +737,12 @@ export class MultiStepFormStepSchemaInternal<
 
           return acc;
         },
-        {} as ResetFn.createHelperFnForObjectSteps<
-          value,
-          stepNumbers,
-          chosenSteps
-        >
+        {} as ResetFn.createHelperFnForObjectSteps<value, chosenSteps>
       );
       const reset = Object.assign(
         this.reset,
         stepSpecificUpdateFn
-      ) as ResetFn.HelperFn<value, stepNumbers, chosenSteps>;
+      ) as ResetFn.HelperFn<value, chosenSteps>;
 
       return reset;
     }
@@ -770,14 +751,16 @@ export class MultiStepFormStepSchemaInternal<
   }
 
   createStepHelperFn<
-    chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
+    >
   >(stepData: chosenSteps) {
     return <validator, additionalCtx extends Record<string, unknown>, response>(
       optionsOrFunction:
         | Omit<
             HelperFnOptions.WithValidator<
               value,
-              stepNumbers,
               chosenSteps,
               validator,
               additionalCtx
@@ -785,17 +768,11 @@ export class MultiStepFormStepSchemaInternal<
             'stepData'
           >
         | Omit<
-            HelperFnOptions.WithoutValidator<
-              value,
-              stepNumbers,
-              chosenSteps,
-              additionalCtx
-            >,
+            HelperFnOptions.WithoutValidator<value, chosenSteps, additionalCtx>,
             'stepData'
           >
         | HelperFnInput.WithoutValidator<
             value,
-            stepNumbers,
             chosenSteps,
             additionalCtx,
             response
@@ -803,7 +780,6 @@ export class MultiStepFormStepSchemaInternal<
       fn:
         | HelperFnInput.WithValidator<
             value,
-            stepNumbers,
             chosenSteps,
             validator,
             additionalCtx,
@@ -811,7 +787,6 @@ export class MultiStepFormStepSchemaInternal<
           >
         | HelperFnInput.WithoutValidator<
             value,
-            stepNumbers,
             chosenSteps,
             additionalCtx,
             response
@@ -852,7 +827,6 @@ export class MultiStepFormStepSchemaInternal<
             if (optionsOrFunction.ctxData) {
               const chosenStepsType = HelperFnChosenSteps.resolveType<
                 value,
-                stepNumbers,
                 chosenSteps
               >(stepData);
               const ctxData = optionsOrFunction.ctxData;
@@ -880,7 +854,9 @@ export class MultiStepFormStepSchemaInternal<
               if (chosenStepsType === 'tuple') {
                 // Allow the non-selected steps to be selected
                 const targetSteps = HelperFnChosenSteps.createTupleNotation(
-                  ...(stepData as HelperFnChosenSteps.tupleNotation<stepNumbers>)
+                  ...(stepData as HelperFnChosenSteps.tupleNotation<
+                    steps.StepNumbers<value>
+                  >)
                 );
                 const values = omit(this.value, targetSteps);
 
@@ -893,7 +869,9 @@ export class MultiStepFormStepSchemaInternal<
 
               if (chosenStepsType === 'object') {
                 // Allow the non-selected steps to be selected
-                const targetSteps = Object.keys(stepData) as stepNumbers[];
+                const targetSteps = Object.keys(
+                  stepData
+                ) as steps.StepNumbers<value>[];
                 const values = omit(this.value, targetSteps);
 
                 additionalCtx = this.buildCtxData({
@@ -919,7 +897,6 @@ export class MultiStepFormStepSchemaInternal<
           return (
             fn as HelperFnInput.WithoutValidator<
               value,
-              stepNumbers,
               chosenSteps,
               additionalCtx,
               response
@@ -958,7 +935,7 @@ export class MultiStepFormStepSchemaInternal<
     let enriched = { ...values };
 
     for (const [key, stepValue] of Object.entries(enriched)) {
-      const targetStep = key as stepNumbers;
+      const targetStep = key as steps.StepNumbers<value>;
       const step = Number.parseInt(targetStep.replace('step', ''));
       // const { step, targetStep } = this.extractStepFromKey(key);
 

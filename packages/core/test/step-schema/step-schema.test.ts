@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MultiStepFormStepSchema } from '../../src/';
+import { createMultiStepFormSchema } from '../../src/';
 
 describe('multi step form step schema', () => {
   it('should create a valid step schema', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           fields: {
@@ -16,7 +16,7 @@ describe('multi step form step schema', () => {
       },
     });
 
-    expect(stepSchema.value).toMatchObject({
+    expect(schema.stepSchema.value).toMatchObject({
       step1: {
         title: 'Step 1',
         nameTransformCasing: 'title',
@@ -24,7 +24,7 @@ describe('multi step form step schema', () => {
           firstName: {
             defaultValue: '',
             nameTransformCasing: 'title',
-            type: 'string',
+            name: 'firstName',
             label: 'First Name',
           },
         },
@@ -32,90 +32,8 @@ describe('multi step form step schema', () => {
     });
   });
 
-  it('should return the data for the first step', () => {
-    const stepSchema = new MultiStepFormStepSchema({
-      steps: {
-        step1: {
-          fields: {
-            firstName: {
-              defaultValue: '',
-              nameTransformCasing: 'camel',
-            },
-          },
-          title: 'Step 1',
-        },
-        step2: {
-          fields: {
-            lastName: {
-              defaultValue: '',
-            },
-          },
-          title: 'Step 2',
-        },
-      },
-    });
-    const step1 = stepSchema.first();
-
-    expect(step1).toMatchObject({
-      step: 1,
-      data: {
-        title: 'Step 1',
-        nameTransformCasing: 'title',
-        fields: {
-          firstName: {
-            nameTransformCasing: 'camel',
-            defaultValue: '',
-            type: 'string',
-            label: 'firstName',
-          },
-        },
-      },
-    });
-  });
-
-  it('should return the data for the last step', () => {
-    const stepSchema = new MultiStepFormStepSchema({
-      steps: {
-        step1: {
-          fields: {
-            firstName: {
-              defaultValue: '',
-              nameTransformCasing: 'camel',
-            },
-          },
-          title: 'Step 1',
-        },
-        step2: {
-          fields: {
-            lastName: {
-              defaultValue: '',
-            },
-          },
-          title: 'Step 2',
-        },
-      },
-    });
-    const step2 = stepSchema.last();
-
-    expect(step2).toMatchObject({
-      step: 2,
-      data: {
-        title: 'Step 2',
-        nameTransformCasing: 'title',
-        fields: {
-          lastName: {
-            nameTransformCasing: 'title',
-            defaultValue: '',
-            type: 'string',
-            label: 'Last Name',
-          },
-        },
-      },
-    });
-  });
-
   it('should return the data for the specified step', () => {
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       steps: {
         step1: {
           fields: {
@@ -144,10 +62,12 @@ describe('multi step form step schema', () => {
         },
       },
     });
-    const step2 = stepSchema.get({ step: 2 });
+    const step2 = schema.stepSchema.get({
+      step: 'step2',
+    });
 
     expect(step2).toMatchObject({
-      step: 2,
+      step: 'step2',
       data: {
         title: 'Step 2',
         nameTransformCasing: 'title',
@@ -155,7 +75,7 @@ describe('multi step form step schema', () => {
           lastName: {
             nameTransformCasing: 'title',
             defaultValue: '',
-            type: 'string',
+            name: 'lastName',
             label: 'Last Name',
           },
         },

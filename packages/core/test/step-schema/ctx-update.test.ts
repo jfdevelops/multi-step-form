@@ -1,8 +1,7 @@
 import { type } from 'arktype';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { MultiStepFormStepSchema } from '../../src';
 import { createMockStorage } from '../utils/create-mock-storage';
-
+import { createMultiStepFormSchema } from '@/schema';
 
 describe('multi step form step schema: ctx update', () => {
   // Generate unique storage keys for each test to prevent data persistence
@@ -14,7 +13,7 @@ describe('multi step form step schema: ctx update', () => {
 
   it('should have up-to-date ctx when helper function is called after updates', () => {
     const mockStorage = createMockStorage();
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       storage: {
         key: `ctx-update-test-${testCounter}-1-${Date.now()}`,
         store: mockStorage,
@@ -40,7 +39,7 @@ describe('multi step form step schema: ctx update', () => {
     });
 
     // Create a helper function that reads from ctx
-    const getStep1Title = stepSchema.value.step1.createHelperFn(
+    const getStep1Title = schema.stepSchema.value.step1.createHelperFn(
       ({ ctx }) => ctx.step1.title
     );
 
@@ -48,7 +47,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getStep1Title()).toBe('Step 1');
 
     // Update step1's title
-    stepSchema.value.step1.update({
+    schema.stepSchema.value.step1.update({
       fields: ['title'],
       updater: () => 'Step 1 Updated',
     });
@@ -57,7 +56,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getStep1Title()).toBe('Step 1 Updated');
 
     // Update again
-    stepSchema.value.step1.update({
+    schema.stepSchema.value.step1.update({
       fields: ['title'],
       updater: () => 'Step 1 Updated Again',
     });
@@ -68,7 +67,7 @@ describe('multi step form step schema: ctx update', () => {
 
   it('should have up-to-date ctx when helper function accesses multiple steps', () => {
     const mockStorage = createMockStorage();
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       storage: {
         key: `ctx-update-test-${testCounter}-2-${Date.now()}`,
         store: mockStorage,
@@ -94,7 +93,7 @@ describe('multi step form step schema: ctx update', () => {
     });
 
     // Create a helper function that reads from multiple steps in ctx
-    const getCombinedTitle = stepSchema.createHelperFn(
+    const getCombinedTitle = schema.stepSchema.createHelperFn(
       { stepData: ['step1', 'step2'] },
       ({ ctx }) => `${ctx.step1.title} - ${ctx.step2.title}`
     );
@@ -103,7 +102,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getCombinedTitle()).toBe('Step 1 - Step 2');
 
     // Update step1's title
-    stepSchema.value.step1.update({
+    schema.stepSchema.value.step1.update({
       fields: ['title'],
       updater: () => 'Step 1 Updated',
     });
@@ -112,7 +111,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getCombinedTitle()).toBe('Step 1 Updated - Step 2');
 
     // Update step2's title
-    stepSchema.value.step2.update({
+    schema.stepSchema.value.step2.update({
       fields: ['title'],
       updater: () => 'Step 2 Updated',
     });
@@ -123,7 +122,7 @@ describe('multi step form step schema: ctx update', () => {
 
   it('should have up-to-date ctx when helper function accesses field values', () => {
     const mockStorage = createMockStorage();
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       storage: {
         key: `ctx-update-test-${testCounter}-3-${Date.now()}`,
         store: mockStorage,
@@ -149,7 +148,7 @@ describe('multi step form step schema: ctx update', () => {
     });
 
     // Create a helper function that reads field values from ctx
-    const getFullName = stepSchema.createHelperFn(
+    const getFullName = schema.stepSchema.createHelperFn(
       { stepData: ['step1', 'step2'] },
       ({ ctx }) => {
         const firstName = ctx.step1.fields.firstName.defaultValue;
@@ -162,7 +161,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getFullName()).toBe('John Doe');
 
     // Update step1's firstName field
-    stepSchema.value.step1.update({
+    schema.stepSchema.value.step1.update({
       fields: ['fields.firstName.defaultValue'],
       updater: () => 'Jane',
     });
@@ -171,7 +170,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getFullName()).toBe('Jane Doe');
 
     // Update step2's lastName field
-    stepSchema.value.step2.update({
+    schema.stepSchema.value.step2.update({
       fields: ['fields.lastName.defaultValue'],
       updater: () => 'Smith',
     });
@@ -182,7 +181,7 @@ describe('multi step form step schema: ctx update', () => {
 
   it('should have up-to-date ctx when helper function is created at schema level', () => {
     const mockStorage = createMockStorage();
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       storage: {
         key: `ctx-update-test-${testCounter}-4-${Date.now()}`,
         store: mockStorage,
@@ -208,7 +207,7 @@ describe('multi step form step schema: ctx update', () => {
     });
 
     // Create a helper function at the schema level
-    const getStep1Title = stepSchema.createHelperFn(
+    const getStep1Title = schema.stepSchema.createHelperFn(
       { stepData: ['step1'] },
       ({ ctx }) => ctx.step1.title
     );
@@ -217,7 +216,7 @@ describe('multi step form step schema: ctx update', () => {
     expect(getStep1Title()).toBe('Step 1');
 
     // Update step1's title
-    stepSchema.update({
+    schema.stepSchema.update({
       targetStep: 'step1',
       fields: ['title'],
       updater: () => 'Step 1 Updated',
@@ -229,7 +228,7 @@ describe('multi step form step schema: ctx update', () => {
 
   it('should have up-to-date ctx when helper function has validator and input', () => {
     const mockStorage = createMockStorage();
-    const stepSchema = new MultiStepFormStepSchema({
+    const schema = createMultiStepFormSchema({
       storage: {
         key: `ctx-update-test-${testCounter}-5-${Date.now()}`,
         store: mockStorage,
@@ -255,7 +254,7 @@ describe('multi step form step schema: ctx update', () => {
     });
 
     // Create a helper function with validator
-    const combineTitleWithInput = stepSchema.value.step1.createHelperFn(
+    const combineTitleWithInput = schema.stepSchema.value.step1.createHelperFn(
       {
         validator: type({ suffix: 'string' }),
       },
@@ -268,7 +267,7 @@ describe('multi step form step schema: ctx update', () => {
     );
 
     // Update step1's title
-    stepSchema.value.step1.update({
+    schema.stepSchema.value.step1.update({
       fields: ['title'],
       updater: () => 'Step 1 Updated',
     });

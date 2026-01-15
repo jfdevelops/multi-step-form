@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { MultiStepFormStepSchema } from '../../src';
+import { createMultiStepFormSchema } from '../../src';
 import { type } from 'arktype';
 
 describe('multi step form step schema: reusable functions', () => {
   describe('step specific', () => {
     it('should create a step specific reusable function with input', () => {
-      const stepSchema = new MultiStepFormStepSchema({
+      const schema = createMultiStepFormSchema({
         steps: {
           step1: {
             fields: {
@@ -34,7 +34,7 @@ describe('multi step form step schema: reusable functions', () => {
           },
         },
       });
-      const addToStep1Title = stepSchema.value.step1.createHelperFn(
+      const addToStep1Title = schema.stepSchema.value.step1.createHelperFn(
         {
           validator: type('string'),
         },
@@ -45,7 +45,7 @@ describe('multi step form step schema: reusable functions', () => {
     });
 
     it('should create a step specific reusable function without input', () => {
-      const stepSchema = new MultiStepFormStepSchema({
+      const schema = createMultiStepFormSchema({
         steps: {
           step1: {
             fields: {
@@ -74,7 +74,7 @@ describe('multi step form step schema: reusable functions', () => {
           },
         },
       });
-      const addToStep1Title = stepSchema.value.step1.createHelperFn(
+      const addToStep1Title = schema.stepSchema.value.step1.createHelperFn(
         ({ ctx }) => ctx.step1.title
       );
 
@@ -85,7 +85,7 @@ describe('multi step form step schema: reusable functions', () => {
   describe('general', () => {
     describe('stepData array version', () => {
       it('should create a reusable function without any input', () => {
-        const stepSchema = new MultiStepFormStepSchema({
+        const schema = createMultiStepFormSchema({
           steps: {
             step1: {
               fields: {
@@ -114,7 +114,7 @@ describe('multi step form step schema: reusable functions', () => {
             },
           },
         });
-        const getStep1Title = stepSchema.createHelperFn(
+        const getStep1Title = schema.stepSchema.createHelperFn(
           { stepData: ['step1'] },
           ({ ctx }) => {
             return ctx.step1.title;
@@ -125,7 +125,7 @@ describe('multi step form step schema: reusable functions', () => {
       });
 
       it('should create a reusable function with input', () => {
-        const stepSchema = new MultiStepFormStepSchema({
+        const schema = createMultiStepFormSchema({
           steps: {
             step1: {
               fields: {
@@ -154,7 +154,7 @@ describe('multi step form step schema: reusable functions', () => {
             },
           },
         });
-        const addToTitle = stepSchema.createHelperFn(
+        const addToTitle = schema.stepSchema.createHelperFn(
           {
             stepData: ['step1'],
             validator: type({ word: 'string > 1' }),
@@ -174,7 +174,7 @@ describe('multi step form step schema: reusable functions', () => {
 
     describe('stepData object version', () => {
       it('should create a reusable function without any input', () => {
-        const stepSchema = new MultiStepFormStepSchema({
+        const schema = createMultiStepFormSchema({
           steps: {
             step1: {
               fields: {
@@ -203,7 +203,7 @@ describe('multi step form step schema: reusable functions', () => {
             },
           },
         });
-        const getStep1Title = stepSchema.createHelperFn(
+        const getStep1Title = schema.stepSchema.createHelperFn(
           {
             stepData: {
               step1: true,
@@ -218,7 +218,7 @@ describe('multi step form step schema: reusable functions', () => {
       });
 
       it('should create a reusable function with input', () => {
-        const stepSchema = new MultiStepFormStepSchema({
+        const schema = createMultiStepFormSchema({
           steps: {
             step1: {
               fields: {
@@ -247,7 +247,7 @@ describe('multi step form step schema: reusable functions', () => {
             },
           },
         });
-        const addToTitle = stepSchema.createHelperFn(
+        const addToTitle = schema.stepSchema.createHelperFn(
           {
             stepData: {
               step1: true,

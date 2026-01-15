@@ -47,9 +47,8 @@ export function getStep<
     options: GetStepOptions<value, stepNumbers, targetStep>
   ) {
     const { step } = options;
-    const stepKey = `step${step}` as keyof value;
 
-    const data = resolvedStepValues[stepKey] as steps.getCurrent<
+    const data = resolvedStepValues[step] as steps.getCurrent<
       value,
       targetStep
     >;
@@ -64,9 +63,10 @@ function createCtxHelper<
   chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
 >(values: value, data: string[]) {
   const invariant: Invariant = createInvariant('[createCtxHelper]');
+  const getTargetStep = getStep(values);
 
   return data.reduce((acc, curr) => {
-    const { data } = getStep(values)({
+    const { data } = getTargetStep({
       step: curr as stepNumbers,
     });
 
@@ -85,7 +85,7 @@ function createCtxHelper<
     acc[curr as keyof typeof acc] = data as never;
 
     return acc;
-  }, {} as HelperFn.buildCtx<value, stepNumbers, chosenSteps>);
+  }, {} as HelperFn.buildCtx<value, chosenSteps>);
 }
 
 export function createCtx<

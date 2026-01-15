@@ -7,6 +7,7 @@ export type Expand<T> = T extends object
         }
     : never
   : T;
+export type Show<T> = Expand<{ [k in keyof T]: T[k] }>;
 export type Constrain<T, TConstraint, TDefault = TConstraint> =
   | (T extends TConstraint ? T : never)
   | TDefault;
@@ -123,3 +124,9 @@ export type IsString<T> = T extends string ? T : never;
 export type Updater<TInput, TOutput = TInput> =
   | TOutput
   | ((input: TInput) => TOutput);
+export type inferUpdaterReturn<t> = t extends Updater<infer _, infer r>
+  ? r
+  : never;
+export type RemoveReadonly<T> = Expand<{
+  -readonly [K in keyof T]: T[K] extends object ? RemoveReadonly<T[K]> : T[K];
+}>;
