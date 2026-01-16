@@ -130,3 +130,17 @@ export type inferUpdaterReturn<t> = t extends Updater<infer _, infer r>
 export type RemoveReadonly<T> = Expand<{
   -readonly [K in keyof T]: T[K] extends object ? RemoveReadonly<T[K]> : T[K];
 }>;
+export type UnionToTuple<T> = (
+  (T extends any ? (t: T) => T : never) extends infer U
+    ? (U extends any ? (u: U) => any : never) extends (v: infer V) => any
+      ? V
+      : never
+    : never
+) extends (_: any) => infer W
+  ? [...UnionToTuple<Exclude<T, W>>, W]
+  : [];
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = {
+  // For each key K in the desired set of keys...
+  [K in Keys]-?: Required<Pick<T, K>> & Partial<Omit<T, K>>;
+  // ...create a union of all those possible objects.
+}[Keys];

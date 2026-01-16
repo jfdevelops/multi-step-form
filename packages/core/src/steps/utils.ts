@@ -2,13 +2,19 @@ import { comparePartialArray, printErrors } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import type { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type { steps } from './steps';
-import type { Updater } from './types';
+import type { Updater } from '@/utils/types';
 
 export type GetStepOptions<
   value extends steps.instantiateSteps,
   stepNumbers extends steps.StepNumbers<value>,
   targetStep extends stepNumbers
 > = { step: targetStep };
+export type ValidStepKey<N extends number = number> = `step${N}`;
+export type ExtractStepFromKey<T> = T extends string
+  ? T extends ValidStepKey<infer N>
+    ? N
+    : never
+  : never;
 
 /**
  * Gets the step number from an input string.
