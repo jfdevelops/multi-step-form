@@ -1,15 +1,15 @@
+import type { path } from '@/utils/path';
 import type {
   DeepKeys,
   DeepPartial,
   Expand,
   objectHelpers,
+  Relaxed,
   stripFunctions,
   Updater,
 } from '@/utils/types';
 import type { steps } from '../steps';
 import type { HelperFn, HelperFnChosenSteps } from './helper-fn';
-import type { path } from '@/utils/path';
-import type { Relaxed } from '../types';
 
 export namespace UpdateFn {
   export type chosenFields<TCurrentStep extends steps.Any> =
@@ -96,10 +96,6 @@ export namespace UpdateFn {
      * @default false
      */
     partial: boolean;
-  };
-  export type defaultMode = {
-    strict: true;
-    partial: false;
   };
   export type additionalUpdaterData =
     | Record<string, unknown>
@@ -223,13 +219,6 @@ export namespace UpdateFn {
         >
       >;
     };
-
-  export type availableFields<
-    value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>,
-    targetStep extends stepNumbers
-  > = HelperFnChosenSteps.build<DeepKeys<resolvedStep<value, targetStep>>>;
-
   export type general<value extends steps.instantiateSteps> = <
     targetStep extends steps.StepNumbers<value>,
     field extends chosenFields<resolvedStep<value, targetStep>> = 'all',

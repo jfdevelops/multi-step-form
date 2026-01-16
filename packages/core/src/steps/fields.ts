@@ -21,7 +21,7 @@ import {
   type DefaultValidator,
   type StandardSchemaValidator,
 } from '@/utils/validator';
-import type { AnyResolvedStep } from './types';
+import type { steps } from './steps';
 
 export namespace fields {
   type GetDeepFields<TFields> = [keyof TFields] extends [never]
@@ -37,21 +37,17 @@ export namespace fields {
           : never;
       }[keyof TFields];
   export type getFieldsForStep<
-    TResolvedStep extends AnyResolvedStep,
-    TStep extends keyof TResolvedStep
-  > = TResolvedStep[TStep] extends {
+    steps extends steps.instantiateSteps,
+    step extends steps.StepNumbers<steps>
+  > = steps[step] extends {
     fields: infer fields extends object;
   }
     ? fields
     : never;
   export type get<
-    TResolvedStep extends AnyResolvedStep,
-    TStep extends keyof TResolvedStep,
-    TFields extends getFieldsForStep<TResolvedStep, TStep> = getFieldsForStep<
-      TResolvedStep,
-      TStep
-    >
-  > = TFields;
+    steps extends steps.instantiateSteps,
+    step extends steps.StepNumbers<steps>
+  > = getFieldsForStep<steps, step>;
   export type removeParentPath<T extends string> = Split<T, '.'> extends [
     infer _,
     ...infer rest
@@ -61,49 +57,47 @@ export namespace fields {
       : never
     : never;
   export type getConfig<
-    TResolvedStep extends AnyResolvedStep,
-    TStep extends keyof TResolvedStep,
-    TField extends getDeepFields<TResolvedStep, TStep>
-  > = parentOf<TField> extends keyof get<TResolvedStep, TStep>
-    ? get<TResolvedStep, TStep>[parentOf<TField>]
+    steps extends steps.instantiateSteps,
+    step extends steps.StepNumbers<steps>,
+    field extends getDeepFields<steps, step>
+  > = parentOf<field> extends keyof get<steps, step>
+    ? get<steps, step>[parentOf<field>]
     : never;
   export type getDeepFields<
-    TResolvedStep extends AnyResolvedStep,
-    TStep extends keyof TResolvedStep = keyof TResolvedStep
-  > = GetDeepFields<
-    get<TResolvedStep, TStep>
-  > extends infer value extends string
+    steps extends steps.instantiateSteps,
+    step extends steps.StepNumbers<steps>
+  > = GetDeepFields<get<steps, step>> extends infer value extends string
     ? value
     : never;
 
   type buildValuePath<
-    TField extends string,
-    TValuePropertyName extends string = 'defaultValue',
-    TSplit extends Split<TField, '.'> = Split<TField, '.'>
-  > = TSplit extends [infer field extends string, ...infer rest]
+    field extends string,
+    valuePropertyName extends string = 'defaultValue',
+    split extends Split<field, '.'> = Split<field, '.'>
+  > = split extends [infer field extends string, ...infer rest]
     ? rest extends []
-      ? `${field}.${TValuePropertyName}`
+      ? `${field}.${valuePropertyName}`
       : rest extends string[]
-      ? `${field}.${TValuePropertyName}.${Join<rest, '.'>}`
+      ? `${field}.${valuePropertyName}.${Join<rest, '.'>}`
       : never
     : never;
   export type resolveDeepPath<
-    TResolvedStep extends AnyResolvedStep,
-    TStep extends keyof TResolvedStep,
-    TField extends getDeepFields<TResolvedStep, TStep>,
-    TValue extends get<TResolvedStep, TStep> = get<TResolvedStep, TStep>
-  > = buildValuePath<TField> extends DeepKeys<TValue>
-    ? path.pickBy<TValue, buildValuePath<TField>>
+    steps extends steps.instantiateSteps,
+    step extends steps.StepNumbers<steps>,
+    field extends getDeepFields<steps, step>,
+    value extends get<steps, step> = get<steps, step>
+  > = buildValuePath<field> extends DeepKeys<value>
+    ? path.pickBy<value, buildValuePath<field>>
     : never;
 
   export type parentOf<T extends string> = Split<T, '.'>[0];
 
   // TODO add field validation
   export function resolvedDeepPath<
-    resolvedStep extends AnyResolvedStep,
-    targetStep extends keyof resolvedStep,
-    fields extends get<resolvedStep, targetStep>,
-    fieldPath extends getDeepFields<resolvedStep, targetStep>
+    steps extends steps.instantiateSteps,
+    step extends steps.StepNumbers<steps>,
+    fields extends get<steps, step>,
+    fieldPath extends getDeepFields<steps, step>
   >(fieldPath: fieldPath, fields: fields, filler = 'defaultValue') {
     const [parent, ...children] = fieldPath.split('.');
     const shared = `${parent}.${filler}`;
@@ -112,8 +106,8 @@ export namespace fields {
     ) as DeepKeys<fields>;
 
     const resolvedValue = path.pickBy(fields, fullPath) as resolveDeepPath<
-      resolvedStep,
-      targetStep,
+      steps,
+      step,
       fieldPath
     >;
 
