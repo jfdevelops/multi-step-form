@@ -1,6 +1,10 @@
-import type { Expand, IsString, stripFunctions } from '@/utils';
+import type {
+  Expand,
+  IsString,
+  RequireAtLeastOne,
+  stripFunctions,
+} from '@/utils';
 import type { steps } from '../steps';
-import type { RequireAtLeastOne } from '../types';
 
 export namespace HelperFnChosenSteps {
   export type defaultStringOption = 'all';
@@ -61,17 +65,31 @@ export namespace HelperFnChosenSteps {
     chosenSteps extends main<value, steps.StepNumbers<value>>
   > = value[resolve<value, chosenSteps>];
 
-  export const CATCH_ALL_MESSAGE =
-    'The chosen steps must either be set to on of the following: "all", an array of steps (["step1", "step2", ...]), or an object containing the steps to chose ({ step1: true, step2: true, ...})';
+  export function createCatchAllMessage(availableSteps: string[]) {
+    const formatter = new Intl.ListFormat('en', {
+      style: 'long',
+      type: 'disjunction',
+    });
+
+    return `The chosen steps must either be set to on of the following: "all", an array of steps (${formatter.format(
+      availableSteps.map((step) => `"${step}"`)
+    )}), or an object containing the steps to chose ({ ${availableSteps
+      .map((step) => `${step}: true`)
+      .join(', ')} })`;
+  }
 
   export function isAll(value: unknown): value is defaultStringOption {
     return Boolean(value && typeof value === 'string' && value === 'all');
   }
 
+  export function isTuple<t>(
+    value: unknown
+  ): value is tupleNotation<steps.StepNumbers<t>>;
   export function isTuple<def, steps extends steps.instantiateSteps<def>>(
     value: unknown,
     validValues?: Array<unknown>
-  ): value is tupleNotation<steps.StepNumbers<steps>> {
+  ): value is tupleNotation<steps.StepNumbers<steps>>;
+  export function isTuple(value: unknown, validValues?: Array<unknown>) {
     if (!Array.isArray(value)) {
       return false;
     }
@@ -107,22 +125,212 @@ export namespace HelperFnChosenSteps {
   export function resolveType<
     value extends steps.instantiateSteps,
     chosenSteps extends main<value, steps.StepNumbers<value>>
-  >(chosenSteps: chosenSteps) {
+  >(chosenSteps: chosenSteps, validValues?: Array<string>) {
     if (isAll(chosenSteps)) {
       return 'all';
     }
 
-    if (isTuple(chosenSteps)) {
+    if (isTuple(chosenSteps, validValues)) {
       return 'tuple';
     }
 
-    if (isObject(chosenSteps)) {
+    if (isObject(chosenSteps, validValues)) {
       return 'object';
     }
 
     throw new Error(
       'Unable to resolve the type of the chosen steps. Valid values are: "all", an array of steps, or an object containing the steps to chose.'
     );
+  }
+
+  export interface MatchContextBase {
+    /**
+     * The chosen steps.
+     */
+    chosenSteps: main<
+      steps.instantiateSteps,
+      steps.StepNumbers<steps.instantiateSteps>
+    >;
+  }
+  export interface AllMatchContext extends MatchContextBase {
+    chosenSteps: 'all';
+  }
+  export interface TupleMatchContext extends MatchContextBase {
+    chosenSteps: tupleNotation<steps.StepNumbers<steps.instantiateSteps>>;
+  }
+  export interface ObjectMatchContext extends MatchContextBase {
+    chosenSteps: objectNotation<steps.StepNumbers<steps.instantiateSteps>>;
+  }
+  export type MatchContextWithMeta<meta extends Record<string, unknown>> = [
+    meta
+  ] extends [never]
+    ? {}
+    : {
+        /**
+         * Meta data that's available in the match function.
+         */
+        meta: meta;
+      };
+  export type MatchContextWithValidValues<validValues extends Array<string>> = [
+    validValues
+  ] extends [never]
+    ? {}
+    : validValues extends Array<infer value>
+    ? value extends string
+      ? {
+          /**
+           * The values that the tuple or object keys can be.
+           */
+          validValues: validValues;
+        }
+      : {}
+    : {};
+  export type MatchContext<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>,
+    additionalCtx = {}
+  > = Expand<
+    MatchContextWithMeta<meta> &
+      MatchContextWithValidValues<validValues> &
+      additionalCtx
+  >;
+  export type MatchHandlerWithoutValidValues<
+    meta extends Record<string, unknown>,
+    ret = void
+  > = [meta] extends [never]
+    ? () => ret
+    : (context: MatchContext<meta, never>) => ret;
+  export type DefaultMatchContext<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>
+  > = MatchContext<
+    meta,
+    validValues,
+    MatchContextBase &
+      ([validValues] extends [never]
+        ? {}
+        : {
+            /**
+             * A detailed error message that includes all ways to match the chosen steps.
+             *
+             * This is derived from {@linkcode createCatchAllMessage}.
+             */
+            errorMessage: string;
+          })
+  >;
+  export type DefaultMatchHandler<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>,
+    ret = void
+  > = (context: DefaultMatchContext<meta, validValues>) => ret;
+  export type MatchHandler<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>,
+    ret = void
+  > = (context: MatchContext<meta, validValues>) => ret;
+  type AllMatchHandler<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>,
+    ret = void
+  > = (context: MatchContext<meta, validValues, AllMatchContext>) => ret;
+  type TupleMatchHandler<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>,
+    ret = void
+  > = (context: MatchContext<meta, validValues, TupleMatchContext>) => ret;
+  type ObjectMatchHandler<
+    meta extends Record<string, unknown>,
+    validValues extends Array<string>,
+    ret = void
+  > = (context: MatchContext<meta, validValues, ObjectMatchContext>) => ret;
+  export type MatchOptions<
+    meta extends Record<string, unknown> = never,
+    validValues extends Array<string> = never,
+    ret = void,
+    defaultMatch = void
+  > = {
+    /**
+     * Optionally provide data that will be available in the match functions.
+     */
+    meta?: meta;
+    /**
+     * Optionally provide valid values that will be used to validate the chosen steps.
+     *
+     * Note: if provided, the values will be used to match against `tuple` and `object` handlers.
+     */
+    validValues?: MatchHandlerWithoutValidValues<meta, validValues>;
+    /**
+     * A function to match against when the chosen steps are set to `'all'`.
+     * @param meta The meta data to match against.
+     * @returns
+     */
+    all?: AllMatchHandler<meta, validValues, ret>;
+    /**
+     * A function to match against when the chosen steps are set to a tuple.
+     * @param meta The meta data to match against.
+     * @returns
+     */
+    tuple?: TupleMatchHandler<meta, validValues, ret>;
+    /**
+     * A function to match against when the chosen steps are set to an object.
+     * @param meta The meta data to match against.
+     * @returns
+     */
+    object?: ObjectMatchHandler<meta, validValues, ret>;
+    /**
+     * The default handler to match against when no other handler matches.
+     */
+    default: DefaultMatchHandler<meta, validValues, defaultMatch>;
+  };
+  export type inferMatch<reg, defaultMatch> = [defaultMatch] extends [never]
+    ? reg
+    : reg | defaultMatch;
+
+  export function match<
+    meta extends Record<string, unknown> = never,
+    validValues extends Array<string> = never,
+    ret = void,
+    defaultMatch = void
+  >(options: MatchOptions<meta, validValues, ret, defaultMatch>) {
+    const { meta, validValues, default: defaultHandler, ...handlers } = options;
+
+    return <
+      value extends steps.instantiateSteps,
+      chosenSteps extends main<value, steps.StepNumbers<value>>
+    >(
+      chosenSteps: chosenSteps
+    ) => {
+      let context: Record<string, unknown> = { chosenSteps };
+      let defaultContext: Record<string, unknown> = context;
+
+      if (meta) {
+        context = { ...context, meta };
+      }
+
+      if (validValues) {
+        context = { ...context, validValues };
+      }
+
+      const values = validValues?.(context as never);
+
+      if (values) {
+        defaultContext = {
+          ...defaultContext,
+          errorMessage: createCatchAllMessage(values),
+        };
+      }
+
+      const type = resolveType<value, chosenSteps>(chosenSteps, values);
+      const handler = handlers[type];
+
+      return (
+        handler?.(context as never) ??
+        (defaultHandler(defaultContext as never) as inferMatch<
+          ret,
+          defaultMatch
+        >)
+      );
+    };
   }
 
   export function createTupleNotation<T extends string>(...values: T[]) {

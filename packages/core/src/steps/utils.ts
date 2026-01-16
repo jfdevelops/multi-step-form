@@ -1,6 +1,6 @@
 import { comparePartialArray, printErrors } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
-import type { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
+import { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type { steps } from './steps';
 import type { Updater } from '@/utils/types';
 
@@ -110,72 +110,63 @@ export function createCtx<
       validStepKeys
     )})`;
   };
+  const match = HelperFnChosenSteps.match({
+    validValues: () => validStepKeys,
+    all: () => {
+      return createCtxHelper(values, validStepKeys);
+    },
+    tuple: ({ chosenSteps }) => {
+      invariant(
+        chosenSteps.every((step) => validStepKeys.includes(step)),
+        () => {
+          const comparedResults = comparePartialArray(
+            chosenSteps,
+            validStepKeys.map((key) => extractNumber(key)),
+            formatter
+          );
 
-  if (stepData === 'all') {
-    // TODO determine if this is needed
-    // let ctx = {} as HelperFn.buildCtx<value, stepNumbers, chosenSteps>;
+          if (comparedResults.status === 'error') {
+            return `${baseErrorMessage()}. See errors:\n ${printErrors(
+              comparedResults.errors
+            )}`;
+          }
 
-    // for (const key of validStepKeys) {
-    //   ctx = {
-    //     ...ctx,
-    //     [key]: getStep(values)({
-    //       step: extractNumber(key) as never,
-    //     }),
-    //   };
-    // }
-
-    return createCtxHelper(values, validStepKeys);
-  }
-
-  if (Array.isArray(stepData)) {
-    invariant(
-      stepData.every((step) => validStepKeys.includes(step)),
-      () => {
-        const comparedResults = comparePartialArray(
-          stepData,
-          validStepKeys.map((key) => extractNumber(key)),
-          formatter
-        );
-
-        if (comparedResults.status === 'error') {
-          return `${baseErrorMessage()}. See errors:\n ${printErrors(
-            comparedResults.errors
-          )}`;
+          return baseErrorMessage();
         }
+      );
 
-        return baseErrorMessage();
-      }
-    );
+      return createCtxHelper(values, chosenSteps);
+    },
+    object: ({ chosenSteps }) => {
+      const keys = Object.keys(chosenSteps);
 
-    return createCtxHelper(values, stepData);
-  }
+      invariant(
+        keys.every((key) => validStepKeys.includes(key)),
+        () => {
+          const comparedResults = comparePartialArray(
+            keys,
+            validStepKeys,
+            formatter
+          );
 
-  if (typeof stepData === 'object') {
-    const keys = Object.keys(stepData);
+          if (comparedResults.status === 'error') {
+            return `${baseErrorMessage()}. See errors:\n ${printErrors(
+              comparedResults.errors
+            )}`;
+          }
 
-    invariant(
-      keys.every((key) => validStepKeys.includes(key)),
-      () => {
-        const comparedResults = comparePartialArray(
-          keys,
-          validStepKeys,
-          formatter
-        );
-
-        if (comparedResults.status === 'error') {
-          return `${baseErrorMessage()}. See errors:\n ${printErrors(
-            comparedResults.errors
-          )}`;
+          return baseErrorMessage();
         }
+      );
 
-        return baseErrorMessage();
-      }
-    );
+      return createCtxHelper(values, keys);
+    },
+    default: ({ errorMessage }) => {
+      throw new Error(`[createCtx]: ${errorMessage}`);
+    },
+  });
 
-    return createCtxHelper(values, keys);
-  }
-
-  throw new Error(`${baseErrorMessage()} OR to "all"`);
+  return match<value, chosenSteps>(stepData);
 }
 
 export function functionalUpdate<TInput, TOutput>(
