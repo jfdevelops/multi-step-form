@@ -5,9 +5,9 @@ import type {
   DefaultValidator,
   ResolveValidatorOutput,
 } from '@/utils/validator';
-import type { HelperFn, HelperFnChosenSteps } from '../helper-fn';
 import type { ResetFn } from '../reset-fn';
 import type { UpdateFn } from '../update-fn';
+import type { HelperFn, HelperFnChosenSteps } from '.';
 
 type RequiredInputFn<input, response> = (input: input) => response;
 type OptionalInputFn<input, response> = (input?: input) => response;
