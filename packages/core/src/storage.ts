@@ -1,4 +1,4 @@
-import type { Updater } from '@/steps/types';
+import type { Updater } from '@/utils/types';
 import { invariant } from '@/utils/invariant';
 import { MultiStepFormLogger } from '@/utils/logger';
 
