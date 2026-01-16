@@ -171,7 +171,6 @@ describe('multi step form step schema: update', () => {
         },
       },
     });
-    const t = schema.stepSchema.value.step1;
 
     expect(
       schema.stepSchema.value.step1.fields.userInfo.defaultValue

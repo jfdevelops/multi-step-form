@@ -28,7 +28,6 @@ import {
   runStandardValidation,
   type StandardSchemaValidator,
 } from '@/utils/validator';
-import { isValidStepKey } from './utils';
 
 function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   strict: boolean;
@@ -233,7 +232,7 @@ export class MultiStepFormStepSchemaInternal<
 
     logger.info(`${targetStep} will be updated`);
     invariant(
-      isValidStepKey(this.value, targetStep),
+      targetStep in this.value,
       `[update]: The target step ${targetStep} isn't a valid step. Please select a valid step`
     );
 
@@ -710,9 +709,7 @@ export class MultiStepFormStepSchemaInternal<
         return reset;
       },
       default: ({ errorMessage }) => {
-        throw new TypeError(
-          `[reset]: ${errorMessage}`
-        );
+        throw new TypeError(`[reset]: ${errorMessage}`);
       },
     });
 
@@ -854,9 +851,7 @@ export class MultiStepFormStepSchemaInternal<
                   });
                 },
                 default: ({ errorMessage }) => {
-                  throw new TypeError(
-                    `[ctxData]: ${errorMessage}`
-                  );
+                  throw new TypeError(`[ctxData]: ${errorMessage}`);
                 },
               });
               const additionalCtx = match<value, chosenSteps>(stepData);
