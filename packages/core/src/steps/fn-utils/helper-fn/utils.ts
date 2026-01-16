@@ -1,18 +1,13 @@
 import type { steps } from '@/steps/steps';
-import type { HelperFn, HelperFnChosenSteps } from '../helper-fn';
-import type { UpdateFn } from '../update-fn';
-import type { ResetFn } from '../reset-fn';
-import type {
-  DefaultValidator,
-  AnyValidator,
-  ResolveValidatorOutput,
-} from '@/utils/validator';
 import type { Constrain, Expand } from '@/utils';
 import type {
-  CreatedHelperFnWithInput,
-  HelperFnWithValidator,
-  ValidStepKey,
-} from '@/steps/types';
+  AnyValidator,
+  DefaultValidator,
+  ResolveValidatorOutput,
+} from '@/utils/validator';
+import type { HelperFn, HelperFnChosenSteps } from '../helper-fn';
+import type { ResetFn } from '../reset-fn';
+import type { UpdateFn } from '../update-fn';
 
 type RequiredInputFn<input, response> = (input: input) => response;
 type OptionalInputFn<input, response> = (input?: input) => response;

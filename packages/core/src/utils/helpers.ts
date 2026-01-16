@@ -1,4 +1,4 @@
-import type { UnionToTuple } from '@/steps';
+import type { UnionToTuple } from './types';
 
 export function comparePartialArray<T>(
   compareArray: T[],
