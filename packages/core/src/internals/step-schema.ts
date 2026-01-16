@@ -1,16 +1,9 @@
-import {
-  createCtx,
-  type AnyResolvedStep,
-  type CreatedHelperFnInput,
-  type fields,
-  type InferStepOptions,
-  type Step,
-  type StepNumbers,
-} from '@/steps';
+import { createCtx, type fields } from '@/steps';
 import { HelperFn, HelperFnChosenSteps } from '@/steps/fn-utils/helper-fn';
 import type {
   HelperFnInput,
   HelperFnOptions,
+  HelperFnOutput,
 } from '@/steps/fn-utils/helper-fn/utils';
 import type { ResetFn } from '@/steps/fn-utils/reset-fn';
 import type { UpdateFn } from '@/steps/fn-utils/update-fn';
@@ -35,28 +28,7 @@ import {
   runStandardValidation,
   type StandardSchemaValidator,
 } from '@/utils/validator';
-import { isTupleNotation, isValidStepKey } from './utils';
-
-export type InternalOptions<
-  TStep extends Step<TCasing>,
-  TCasing extends CasingType,
-  TResolvedStep extends AnyResolvedStep,
-  additionalEnrichedProps extends Record<string, unknown>
-> = {
-  originalValue: InferStepOptions<TStep>;
-  additionalEnrichedProps?: (step: number) => additionalEnrichedProps;
-  /**
-   * The resolved multi step form values.
-   */
-  getValue: () => TResolvedStep;
-  /**
-   * A function used for setting the `value`. It is called after the
-   * `value` is updated successfully.
-   * @param value The updated and enriched multi step form values.
-   * @returns
-   */
-  setValue: (value: TResolvedStep) => void;
-};
+import { isValidStepKey } from './utils';
 
 function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   strict: boolean;
@@ -145,23 +117,6 @@ export namespace StepSchema {
       ? key
       : DefaultStorageKey
     : DefaultStorageKey;
-
-  export type inferStepNumbers<T> = T extends Config
-    ? T['steps'] extends Record<string, unknown>
-      ? StepNumbers<T['steps']>
-      : never
-    : never;
-  export type inferStepKeys<T> = T extends Config
-    ? T['steps'] extends Record<string, unknown>
-      ? keyof T['steps']
-      : never
-    : never;
-
-  export type instantiateStepSchema<T> = [T] extends [object]
-    ? T extends Config
-      ? {}
-      : {}
-    : {};
 }
 
 export class MultiStepFormStepSchemaInternal<
@@ -334,7 +289,6 @@ export class MultiStepFormStepSchemaInternal<
       );
 
       for (const stepKey of stepKeys) {
-        // TODO create proper type for this
         // @ts-expect-error - we know the keys are present
         const { update, reset, createHelperFn, ...currentStep } =
           this.value[stepKey as keyof value];
@@ -527,8 +481,8 @@ export class MultiStepFormStepSchemaInternal<
     currentStep extends UpdateFn.resolvedStep<value, targetStep>
   >(config: {
     targetStep: targetStep;
-    values: AnyResolvedStep;
-    updatedValues: AnyResolvedStep;
+    values: value;
+    updatedValues: value;
     logger: MultiStepFormLogger;
   }) {
     return <
@@ -547,7 +501,7 @@ export class MultiStepFormStepSchemaInternal<
         ...config.updatedValues,
         ...path.updateAt({
           obj: values,
-          paths: resolvedFields,
+          paths: resolvedFields as DeepKeys<value>[],
           value: picked,
         }),
       };
@@ -574,22 +528,17 @@ export class MultiStepFormStepSchemaInternal<
       debug,
       prefix: (value) => `${value}:reset${targetStep}`,
     });
-    invariant(
-      fields,
-      '[update]: "fields" must have a value when "type" is "reset"'
-    );
-
     const originalValues = steps.instantiate({
       steps: this.#originalValue,
     });
     const enrichedOriginalValues = this.enrichValues(
       originalValues,
       this.#additionalEnrichedProps
-    );
+    ) as value;
 
     if (fields === 'all') {
       logger.info(`Resetting all fields for ${targetStep}`);
-      this.handlePostUpdate(enrichedOriginalValues as value);
+      this.handlePostUpdate(enrichedOriginalValues);
       logger.info(`Reset all fields for ${targetStep}`);
     }
 
@@ -601,8 +550,8 @@ export class MultiStepFormStepSchemaInternal<
       values: enrichedOriginalValues,
     });
 
-    if (isTupleNotation<DeepKeys<currentStep>>(fields)) {
-      reset(fields);
+    if (HelperFnChosenSteps.isTuple<DeepKeys<currentStep>>(fields)) {
+      reset(fields as never);
     }
 
     if (typeof fields === 'object' && Object.keys(fields).length > 0) {
@@ -638,57 +587,68 @@ export class MultiStepFormStepSchemaInternal<
       steps.StepNumbers<value>
     >
   >(chosenSteps: chosenSteps) {
-    if (HelperFnChosenSteps.isAll(chosenSteps)) {
-      const stepSpecificUpdateFn = typedObjectKeys(this.value).reduce(
-        (acc, key) => {
-          (acc as any)[key] = this.createStepUpdaterFn(key as never);
+    const match = HelperFnChosenSteps.match({
+      meta: {
+        value: this.value,
+      },
+      validValues: ({ meta }) => Object.keys(meta.value),
+      all: ({ meta }) => {
+        const stepSpecificUpdateFn = typedObjectKeys(meta.value).reduce(
+          (acc, key) => {
+            (acc as any)[key] = this.createStepUpdaterFn(key as never);
+
+            return acc;
+          },
+          {} as UpdateFn.createHelperFnForAllSteps<value, chosenSteps>
+        );
+        const update = Object.assign(
+          this.update,
+          stepSpecificUpdateFn
+        ) as UpdateFn.HelperFn<value, chosenSteps>;
+
+        return update;
+      },
+      object: ({ chosenSteps }) => {
+        const stepSpecificUpdateFn = Object.keys(chosenSteps).reduce(
+          (acc, key) => {
+            (acc as any)[key] = this.createStepUpdaterFn(key as never);
+
+            return acc;
+          },
+          {} as UpdateFn.createHelperFnForObjectSteps<value, chosenSteps>
+        );
+        const update = Object.assign(
+          this.update,
+          stepSpecificUpdateFn
+        ) as UpdateFn.HelperFn<value, chosenSteps>;
+
+        return update;
+      },
+      tuple: () => {
+        const stepSpecificUpdateFn = (
+          chosenSteps as HelperFnChosenSteps.tupleNotation<
+            steps.StepNumbers<value>
+          >
+        ).reduce((acc, step) => {
+          (acc as any)[step] = this.createStepUpdaterFn(step);
 
           return acc;
-        },
-        {} as UpdateFn.createHelperFnForAllSteps<value, chosenSteps>
-      );
-      const update = Object.assign(
-        this.update,
-        stepSpecificUpdateFn
-      ) as UpdateFn.HelperFn<value, chosenSteps>;
+        }, {} as UpdateFn.createHelperFnForTupleSteps<value, chosenSteps>);
+        const update = Object.assign(
+          this.update,
+          stepSpecificUpdateFn
+        ) as UpdateFn.HelperFn<value, chosenSteps>;
 
-      return update;
-    }
+        return update;
+      },
+      default: ({ validValues }) => {
+        throw new TypeError(
+          `[update]: ${HelperFnChosenSteps.createCatchAllMessage(validValues)}`
+        );
+      },
+    });
 
-    const validKeys = Object.keys(this.value);
-
-    if (HelperFnChosenSteps.isTuple<def, value>(chosenSteps, validKeys)) {
-      const stepSpecificUpdateFn = chosenSteps.reduce((acc, step) => {
-        (acc as any)[step] = this.createStepUpdaterFn(step);
-
-        return acc;
-      }, {} as UpdateFn.createHelperFnForTupleSteps<value, chosenSteps>);
-      const update = Object.assign(
-        this.update,
-        stepSpecificUpdateFn
-      ) as UpdateFn.HelperFn<value, chosenSteps>;
-
-      return update;
-    }
-
-    if (HelperFnChosenSteps.isObject<def, value>(chosenSteps, validKeys)) {
-      const stepSpecificUpdateFn = typedObjectKeys(chosenSteps).reduce(
-        (acc, key) => {
-          (acc as any)[key] = this.createStepUpdaterFn(key as never);
-
-          return acc;
-        },
-        {} as UpdateFn.createHelperFnForObjectSteps<value, chosenSteps>
-      );
-      const update = Object.assign(
-        this.update,
-        stepSpecificUpdateFn
-      ) as UpdateFn.HelperFn<value, chosenSteps>;
-
-      return update;
-    }
-
-    throw new TypeError(`[update]: ${HelperFnChosenSteps.CATCH_ALL_MESSAGE}`);
+    return match<value, chosenSteps>(chosenSteps);
   }
 
   createHelperFnInputReset<
@@ -697,57 +657,68 @@ export class MultiStepFormStepSchemaInternal<
       steps.StepNumbers<value>
     >
   >(chosenSteps: chosenSteps) {
-    if (HelperFnChosenSteps.isAll(chosenSteps)) {
-      const stepSpecificUpdateFn = typedObjectKeys(this.value).reduce(
-        (acc, key) => {
-          (acc as any)[key] = this.createStepResetterFn(key as never);
+    const match = HelperFnChosenSteps.match({
+      meta: {
+        value: this.value,
+      },
+      validValues: ({ meta }) => Object.keys(meta.value),
+      all: () => {
+        const stepSpecificUpdateFn = typedObjectKeys(this.value).reduce(
+          (acc, key) => {
+            (acc as any)[key] = this.createStepResetterFn(key as never);
+
+            return acc;
+          },
+          {} as ResetFn.createHelperFnForAllSteps<value, chosenSteps>
+        );
+        const reset = Object.assign(
+          this.reset,
+          stepSpecificUpdateFn
+        ) as ResetFn.HelperFn<value, chosenSteps>;
+
+        return reset;
+      },
+      tuple: () => {
+        const stepSpecificUpdateFn = (
+          chosenSteps as HelperFnChosenSteps.tupleNotation<
+            steps.StepNumbers<value>
+          >
+        ).reduce((acc, step) => {
+          (acc as any)[step] = this.createStepResetterFn(step as never);
 
           return acc;
-        },
-        {} as ResetFn.createHelperFnForAllSteps<value, chosenSteps>
-      );
-      const reset = Object.assign(
-        this.reset,
-        stepSpecificUpdateFn
-      ) as ResetFn.HelperFn<value, chosenSteps>;
+        }, {} as ResetFn.createHelperFnForTupleSteps<value, chosenSteps>);
+        const reset = Object.assign(
+          this.reset,
+          stepSpecificUpdateFn
+        ) as ResetFn.HelperFn<value, chosenSteps>;
 
-      return reset;
-    }
+        return reset;
+      },
+      object: ({ chosenSteps }) => {
+        const stepSpecificUpdateFn = Object.keys(chosenSteps).reduce(
+          (acc, key) => {
+            (acc as any)[key] = this.createStepResetterFn(key as never);
 
-    const validKeys = Object.keys(this.value);
+            return acc;
+          },
+          {} as ResetFn.createHelperFnForObjectSteps<value, chosenSteps>
+        );
+        const reset = Object.assign(
+          this.reset,
+          stepSpecificUpdateFn
+        ) as ResetFn.HelperFn<value, chosenSteps>;
 
-    if (HelperFnChosenSteps.isTuple<def, value>(chosenSteps, validKeys)) {
-      const stepSpecificUpdateFn = chosenSteps.reduce((acc, step) => {
-        (acc as any)[step] = this.createStepResetterFn(step as never);
+        return reset;
+      },
+      default: ({ validValues }) => {
+        throw new TypeError(
+          `[reset]: ${HelperFnChosenSteps.createCatchAllMessage(validValues)}`
+        );
+      },
+    });
 
-        return acc;
-      }, {} as ResetFn.createHelperFnForTupleSteps<value, chosenSteps>);
-      const reset = Object.assign(
-        this.reset,
-        stepSpecificUpdateFn
-      ) as ResetFn.HelperFn<value, chosenSteps>;
-
-      return reset;
-    }
-
-    if (HelperFnChosenSteps.isObject<def, value>(chosenSteps, validKeys)) {
-      const stepSpecificUpdateFn = typedObjectKeys(chosenSteps).reduce(
-        (acc, key) => {
-          (acc as any)[key] = this.createStepResetterFn(key as never);
-
-          return acc;
-        },
-        {} as ResetFn.createHelperFnForObjectSteps<value, chosenSteps>
-      );
-      const reset = Object.assign(
-        this.reset,
-        stepSpecificUpdateFn
-      ) as ResetFn.HelperFn<value, chosenSteps>;
-
-      return reset;
-    }
-
-    throw new TypeError(`[update]: ${HelperFnChosenSteps.CATCH_ALL_MESSAGE}`);
+    return match<value, chosenSteps>(chosenSteps);
   }
 
   createStepHelperFn<
@@ -809,7 +780,7 @@ export class MultiStepFormStepSchemaInternal<
       }
 
       if (typeof optionsOrFunction === 'object') {
-        return (input?: CreatedHelperFnInput<validator>) => {
+        return (input?: HelperFnOutput.Input<validator>) => {
           // Create ctx fresh each time the function is called to ensure it has the latest this.value
           let ctx = createCtx(this.value, stepData);
 
@@ -825,10 +796,6 @@ export class MultiStepFormStepSchemaInternal<
             );
 
             if (optionsOrFunction.ctxData) {
-              const chosenStepsType = HelperFnChosenSteps.resolveType<
-                value,
-                chosenSteps
-              >(stepData);
               const ctxData = optionsOrFunction.ctxData;
 
               invariant(
@@ -840,46 +807,63 @@ export class MultiStepFormStepSchemaInternal<
                 debug: false,
                 prefix: (value) => `${value}:ctxData`,
               });
-              let additionalCtx: Record<string, unknown> = {};
-
-              if (chosenStepsType === 'all') {
-                // Allow **all** steps to be selected
-                additionalCtx = this.buildCtxData({
+              const match = HelperFnChosenSteps.match({
+                meta: {
+                  value: this.value,
+                  stepData,
                   ctxData,
-                  values: this.value,
                   logger,
-                });
-              }
+                },
+                validValues: ({ meta }) => Object.keys(meta.value),
+                all: ({ meta }) => {
+                  // Allow all steps to be selected
+                  const { value, ctxData, logger } = meta;
 
-              if (chosenStepsType === 'tuple') {
-                // Allow the non-selected steps to be selected
-                const targetSteps = HelperFnChosenSteps.createTupleNotation(
-                  ...(stepData as HelperFnChosenSteps.tupleNotation<
-                    steps.StepNumbers<value>
-                  >)
-                );
-                const values = omit(this.value, targetSteps);
+                  return this.buildCtxData({
+                    ctxData,
+                    values: value,
+                    logger,
+                  });
+                },
+                tuple: ({ meta }) => {
+                  // Allow the non-selected steps to be selected
+                  const { value, stepData, ctxData, logger } = meta;
+                  const targetSteps = HelperFnChosenSteps.createTupleNotation(
+                    ...(stepData as HelperFnChosenSteps.tupleNotation<
+                      steps.StepNumbers<value>
+                    >)
+                  );
+                  const values = omit(value, targetSteps);
 
-                additionalCtx = this.buildCtxData({
-                  ctxData,
-                  values,
-                  logger,
-                });
-              }
+                  return this.buildCtxData({
+                    ctxData,
+                    values,
+                    logger,
+                  });
+                },
+                object: ({ meta }) => {
+                  // Allow the non-selected steps to be selected
+                  const { value, stepData, ctxData, logger } = meta;
+                  const targetSteps = Object.keys(
+                    stepData
+                  ) as steps.StepNumbers<value>[];
+                  const values = omit(value, targetSteps);
 
-              if (chosenStepsType === 'object') {
-                // Allow the non-selected steps to be selected
-                const targetSteps = Object.keys(
-                  stepData
-                ) as steps.StepNumbers<value>[];
-                const values = omit(this.value, targetSteps);
-
-                additionalCtx = this.buildCtxData({
-                  ctxData,
-                  values,
-                  logger,
-                });
-              }
+                  return this.buildCtxData({
+                    ctxData,
+                    values,
+                    logger,
+                  });
+                },
+                default: ({ validValues }) => {
+                  throw new TypeError(
+                    `[ctxData]: ${HelperFnChosenSteps.createCatchAllMessage(
+                      validValues
+                    )}`
+                  );
+                },
+              });
+              const additionalCtx = match<value, chosenSteps>(stepData);
 
               ctx = {
                 ...ctx,
@@ -891,7 +875,7 @@ export class MultiStepFormStepSchemaInternal<
               ctx: ctx as never,
               ...functions,
               ...input,
-            });
+            } as never);
           }
 
           return (
@@ -937,7 +921,6 @@ export class MultiStepFormStepSchemaInternal<
     for (const [key, stepValue] of Object.entries(enriched)) {
       const targetStep = key as steps.StepNumbers<value>;
       const step = Number.parseInt(targetStep.replace('step', ''));
-      // const { step, targetStep } = this.extractStepFromKey(key);
 
       invariant(
         typeof stepValue === 'object' && stepValue !== null,
