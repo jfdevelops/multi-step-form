@@ -4,15 +4,15 @@ import {
 } from '@/internals/step-schema';
 import { DEFAULT_STORAGE_KEY, MultiStepFormStorage } from '@/storage';
 import {
-  isCasingValid,
   setCasingType,
   type Constrain,
   type Join,
+  type UnionToTuple,
 } from '@/utils';
 import { addToTuple, mapToTuple } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import { Subscribable } from '../subscribable';
-import { fields as fieldsUtils } from './fields';
+import { fields } from './fields';
 import type { HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type {
   GeneralHelperFn,
@@ -23,13 +23,7 @@ import type {
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
 import { instantiateSteps, steps } from './steps';
-import {
-  AnyStepField,
-  ExtractStepFromKey,
-  StepOptions,
-  UnionToTuple,
-} from './types';
-import { getStep, type GetStepOptions } from './utils';
+import { getStep, type ExtractStepFromKey, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
   value extends steps.instantiateSteps
@@ -511,7 +505,7 @@ export class MultiStepFormStepSchema<
    */
   getValue<
     step extends steps.StepNumbers<value>,
-    field extends fieldsUtils.getDeepFields<value, step>
+    field extends fields.getDeepFields<value, step>
   >(step: step, field: field) {
     const stepData = this.value[step];
     const invariant: Invariant = createInvariant('[getValue]');
@@ -535,14 +529,12 @@ export class MultiStepFormStepSchema<
       createErrorMessage('"fields" is not an object')
     );
 
-    const fields = stepData.fields as AnyStepField;
-
-    const defaultValue = fieldsUtils.resolvedDeepPath<
+    const defaultValue = fields.resolvedDeepPath<
       value,
       step,
-      fieldsUtils.get<value, step>,
+      fields.get<value, step>,
       field
-    >(field, fields as fieldsUtils.get<value, step>);
+    >(field, stepData.fields as fields.get<value, step>);
 
     return defaultValue;
   }
