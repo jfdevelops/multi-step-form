@@ -86,9 +86,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
         },
       });
 
-      // @ts-expect-error - TypeScript can't infer types for null/undefined defaultValues
       expect(schema.stepSchema.getValue('step1', 'nullValue')).toBeNull();
-      // @ts-expect-error - TypeScript can't infer types for null/undefined defaultValues
       expect(schema.stepSchema.getValue('step1', 'undefinedValue')).toBeUndefined();
     });
 
