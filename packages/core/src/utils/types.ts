@@ -1,3 +1,5 @@
+import type { CasingType } from './casing';
+
 export type Expand<T> = T extends object
   ? T extends infer O
     ? O extends Function
@@ -144,3 +146,18 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = {
   [K in Keys]-?: Required<Pick<T, K>> & Partial<Omit<T, K>>;
   // ...create a union of all those possible objects.
 }[Keys];
+export type WidenSpecial<T> = T extends CasingType
+  ? CasingType // e.g. "title" → "camel" | "snake" | "title"
+  : T;
+export type Relaxed<T> =
+  // If it's an array, recurse into elements
+  T extends (infer U)[]
+    ? Relaxed<U>[]
+    : // If it's a function, leave alone
+    T extends (...args: any[]) => any
+    ? T
+    : // If it's an object (record), recurse into props
+    T extends object
+    ? { [K in keyof T]: Relaxed<T[K]> }
+    : // Otherwise widen scalars
+      WidenSpecial<T>;

@@ -46,9 +46,7 @@ describe('multi step form step schema: update', () => {
     schema.stepSchema.update({
       targetStep: 'step1',
       fields: ['nameTransformCasing'],
-      updater() {
-        return 'camel' as const;
-      },
+      updater: 'camel'
     });
 
     // ✅ Verify that the outer object reference is stable

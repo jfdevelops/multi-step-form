@@ -641,10 +641,8 @@ export class MultiStepFormStepSchemaInternal<
 
         return update;
       },
-      default: ({ validValues }) => {
-        throw new TypeError(
-          `[update]: ${HelperFnChosenSteps.createCatchAllMessage(validValues)}`
-        );
+      default: ({ errorMessage }) => {
+        throw new TypeError(`[update]: ${errorMessage}`);
       },
     });
 
@@ -711,9 +709,9 @@ export class MultiStepFormStepSchemaInternal<
 
         return reset;
       },
-      default: ({ validValues }) => {
+      default: ({ errorMessage }) => {
         throw new TypeError(
-          `[reset]: ${HelperFnChosenSteps.createCatchAllMessage(validValues)}`
+          `[reset]: ${errorMessage}`
         );
       },
     });
@@ -855,11 +853,9 @@ export class MultiStepFormStepSchemaInternal<
                     logger,
                   });
                 },
-                default: ({ validValues }) => {
+                default: ({ errorMessage }) => {
                   throw new TypeError(
-                    `[ctxData]: ${HelperFnChosenSteps.createCatchAllMessage(
-                      validValues
-                    )}`
+                    `[ctxData]: ${errorMessage}`
                   );
                 },
               });
