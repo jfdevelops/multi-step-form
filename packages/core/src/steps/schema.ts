@@ -128,32 +128,7 @@ const AS_TYPES = [
   ...ARRAY_NUMBER_KEYS,
 ] as const;
 
-type ValueCheck<T> = (v: unknown) => v is T;
-
-type FieldChecks<T extends object> = {
-  [K in keyof T]: ValueCheck<T[K]>;
-};
-
-function assertObjectFields<T extends object>(
-  obj: unknown,
-  checks: FieldChecks<T>
-): obj is T {
-  if (typeof obj !== 'object' || obj === null) return false;
-
-  for (const key of Object.keys(checks) as (keyof T)[]) {
-    // Check that the property exists
-    if (!(key in obj)) return false;
-
-    // Now check the type
-    const checkFn = checks[key];
-    const value = (obj as any)[key];
-    if (!checkFn(value)) return false;
-  }
-
-  return true;
-}
-
-function createIsValidStepFn<
+export function createIsValidStepFn<
   def extends StepSchema.Config,
   value extends steps.instantiateSteps<def>
 >(stepNumbers: Array<number>): IsValidStepFn<def, value> {

@@ -1,5 +1,5 @@
 import { changeCasing } from '@/utils';
-import { describe, it, expect } from 'vitest';
+import { it, expect } from 'vitest';
 
 it('should change the casing of a string', () => {
   const result = changeCasing('hello world', 'title');
