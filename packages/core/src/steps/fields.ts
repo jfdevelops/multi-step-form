@@ -89,7 +89,17 @@ export namespace fields {
   > = buildValuePath<field> extends DeepKeys<value>
     ? path.pickBy<value, buildValuePath<field>>
     : never;
-
+  export type getDefaultValues<
+    steps extends steps.instantiateSteps,
+    targetStep extends steps.StepNumbers<steps>,
+    fields extends get<steps, targetStep> = get<steps, targetStep>
+  > = {
+    -readonly [key in keyof fields]: fields[key] extends {
+      defaultValue: infer defaultValue;
+    }
+      ? defaultValue
+      : never;
+  };
   export type parentOf<T extends string> = Split<T, '.'>[0];
 
   // TODO add field validation

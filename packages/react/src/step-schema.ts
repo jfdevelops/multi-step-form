@@ -1,101 +1,96 @@
 import {
-  type AnyStepField,
-  type AnyStepFieldOption,
-  type CasingType,
-  type Constrain,
   createCtx,
-  type CreateHelperFunctionOptionsBase,
-  createStep,
-  type DefaultCasing,
-  type DefaultStorageKey,
+  createInvariant,
   type Expand,
   fields,
-  type GetCurrentStep,
-  type GetFieldsForStep,
+  type HelperFn,
   type HelperFnChosenSteps,
-  type HelperFnCtx,
-  type HelperFnInputBase,
-  invariant,
+  type HelperFnInput,
+  type Invariant,
   MultiStepFormLogger,
-  type MultiStepFormSchemaStepConfig as MultiStepFormSchemaStepBaseConfig,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
-  type Relaxed,
   type ResetFn,
-  type ResolvedStep as ResolvedCoreStep,
-  type Step,
-  type StepNumbers,
-  type StrippedResolvedStep,
-  type UpdateFn,
-  type Updater,
-  type ValidStepKey,
+  steps,
+  type UpdateFn
 } from '@jfdevelops/multi-step-form-core';
 import {
   MultiStepFormStepSchemaInternal,
   path,
+  type StepSchema,
 } from '@jfdevelops/multi-step-form-core/_internals';
-import { type ComponentPropsWithRef, type ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { createUseSelector, type UseSelector } from './hooks/use-selector';
 import { selector } from './selector';
-import { getValidatedCustomInputHooks, resolvedCtxCreator } from './utils';
+import {
+  createComponent,
+  type CreateComponent,
+  type CreateComponentCallback,
+  type CreatedMultiStepFormComponent,
+  getValidatedCustomInputHooks,
+  resolvedCtxCreator,
+} from './utils';
 
-export interface MultiStepFormSchemaStepConfig<
-  TStep extends Step<TCasing>,
-  TCasing extends CasingType,
-  TStorageKey extends string,
-  TFormAlias extends string,
-  TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-  TFormProps extends object,
-  TResolvedStep extends ResolvedStep<TStep, TCasing> = ResolvedStep<
-    TStep,
-    TCasing
-  >
-> extends MultiStepFormSchemaStepBaseConfig<TStep, TCasing, TStorageKey>,
-    MultiStepFormSchemaConfig.Form<
-      TResolvedStep,
-      TFormAlias,
-      TFormEnabledFor,
-      TFormProps
-    > {}
-
-export type CreateFunction<TArgs extends any[], TReturn = void> = (
-  ...args: TArgs
-) => TReturn;
-export type CreateComponent<TInput, TProps> = CreateFunction<
-  [input: TInput, props: TProps],
-  ReactNode
->;
-
-export type CreateComponentCallback<
-  TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TProps
-> = CreateComponent<
-  HelperFnInputBase<TResolvedStep, TSteps, TChosenSteps>,
-  TProps
->;
-export type CreatedMultiStepFormComponent<TProps> = TProps extends undefined
-  ? () => ReactNode
-  : (props: TProps) => ReactNode;
 export type CreateComponentFn<
-  TResolvedStep extends AnyResolvedStep,
-  // This is needed to make TS happy with all types
-  TStepNumbers extends StepNumbers<TResolvedStep>
-> = <
-  chosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>,
-  props = undefined
->(
-  options: CreateHelperFunctionOptionsBase<
-    TResolvedStep,
-    TStepNumbers,
-    chosenSteps
-  >,
-  fn: CreateComponentCallback<TResolvedStep, TStepNumbers, chosenSteps, props>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
+> = <targetStep extends steps.StepNumbers<value>, props = undefined>(
+  options: HelperFn.BaseOptions<value, [targetStep]>,
+  fn: CreateComponentCallback<value, [targetStep], props>
 ) => CreatedMultiStepFormComponent<props>;
 
 export namespace StepSpecificComponent {
+  type instantiateFormComponentForAllSteps<
+    def extends StepSchema.Config,
+    value = MultiStepFormSchemaConfig.instantiateFormConfig<def>,
+  > =
+    MultiStepFormSchemaConfig.EnabledForSteps.get<value> extends MultiStepFormSchemaConfig.defaultEnabledFor
+      ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+      : {};
+  type instantiateFormComponentForTuple<
+    def extends StepSchema.Config,
+    steps extends steps.instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<
+      steps.StepNumbers<steps>
+    >,
+  > =
+    MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.tupleNotation<
+      steps.StepNumbers<steps>
+    >
+      ? chosenSteps[number] extends steps.StepNumbers<steps>
+        ? chosenSteps[number] extends MultiStepFormSchemaConfig.EnabledForSteps.get<def>[number]
+          ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+          : {}
+        : {}
+      : {};
+
+  type instantiateFormComponentForObject<
+    def extends StepSchema.Config,
+    steps extends steps.instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<
+      steps.StepNumbers<steps>
+    >,
+  > =
+    MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.objectNotation<
+      steps.StepNumbers<steps>
+    >
+      ? chosenSteps[number] extends steps.StepNumbers<steps>
+        ? chosenSteps[number] extends keyof MultiStepFormSchemaConfig.EnabledForSteps.get<def>
+          ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+          : {}
+        : {}
+      : {};
+  type instantiateFormComponent<
+    def extends StepSchema.Config,
+    steps extends steps.instantiateSteps<def>,
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<
+      steps.StepNumbers<steps>
+    >,
+  > = {
+    all: instantiateFormComponentForAllSteps<def>;
+    tuple: instantiateFormComponentForTuple<def, steps, chosenSteps>;
+    object: instantiateFormComponentForObject<def, steps, chosenSteps>;
+  };
   // The logic for getting the formCtx only works for step specific `createComponent`
   // (i.e: step1.createComponent(...)) as of now. Reason is because I can't think of a good API for integrating the form
   // ctx into the main `createComponent` since multiple steps can be chosen. In that case
@@ -103,121 +98,47 @@ export namespace StepSpecificComponent {
   // Ideas:
   //  - Make the main `createComponent` return a function that accepts the current step
   export type formComponent<
-    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TFormAlias extends string,
-    TFormProps extends object,
-    TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>
-  > = TFormEnabledFor extends MultiStepFormSchemaConfig.defaultEnabledFor
-    ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
-    : TFormEnabledFor extends HelperFnChosenSteps.tupleNotation<
-        ValidStepKey<TSteps>
-      >
-    ? TFormEnabledFor[number] extends keyof TResolvedStep
-      ? TChosenSteps extends HelperFnChosenSteps.tupleNotation<
-          ValidStepKey<TSteps>
-        >
-        ? TChosenSteps[number] extends keyof TResolvedStep
-          ? TChosenSteps[number] extends TFormEnabledFor[number]
-            ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
-            : {}
-          : {}
-        : {}
-      : {}
-    : keyof TFormEnabledFor extends keyof TResolvedStep
-    ? TChosenSteps extends HelperFnChosenSteps.tupleNotation<
-        ValidStepKey<TSteps>
-      >
-      ? TChosenSteps[number] extends keyof TResolvedStep
-        ? TChosenSteps[number] extends keyof TFormEnabledFor
-          ? MultiStepFormSchemaConfig.formCtx<TFormAlias, TFormProps>
-          : {}
-        : {}
-      : {}
-    : {};
-  export type onInputChange<
-    TResolvedStep extends AnyResolvedStep,
-    TStepNumbers extends StepNumbers<TResolvedStep>,
-    TTargetStep extends TStepNumbers
-  > = <
-    CurrentStepData extends GetCurrentStep<TResolvedStep, TTargetStep>,
-    Field extends keyof CurrentStepData
-  >(
-    field: Field,
-    updater: Updater<CurrentStepData[Field], Relaxed<CurrentStepData[Field]>>
-  ) => void;
-  export type updateWrappers<
-    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TStepNumber extends HelperFnChosenSteps.extractStepNumber<
-      TResolvedStep,
-      TSteps,
-      TChosenSteps
-    >
-  > = TStepNumber extends TSteps
-    ? {
-        /**
-         * A useful wrapper around `update` to update the specific field.
-         */
-        onInputChange: UpdateFn.stepSpecific<
-          TResolvedStep,
-          TSteps,
-          ValidStepKey<TStepNumber>
-        >;
-        /**
-         * A useful wrapper for `update` to reset a specific field's value to its
-         * original config value.
-         * @resetFn
-         */
-        reset: ResetFn.stepSpecific<
-          TResolvedStep,
-          TSteps,
-          ValidStepKey<TStepNumber>
-        >;
-      }
-    : {};
-  type buildCurrentStep<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TCurrentStepData extends HelperFnChosenSteps.currentStep<
-      TResolvedStep,
-      TSteps,
-      TChosenSteps
-    > = HelperFnChosenSteps.currentStep<TResolvedStep, TSteps, TChosenSteps>
-  > = TChosenSteps extends HelperFnChosenSteps.tupleNotation<infer tuple>
-    ? { [key in tuple]: TCurrentStepData }
-    : never;
-  export type input<
-    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TAdditionalCtx extends Record<string, unknown>,
-    TStepNumber extends HelperFnChosenSteps.extractStepNumber<
-      TResolvedStep,
-      TSteps,
-      TChosenSteps
-    > = HelperFnChosenSteps.extractStepNumber<
-      TResolvedStep,
-      TSteps,
-      TChosenSteps
+    def extends StepSchema.Config,
+    steps extends steps.instantiateSteps<def>,
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<
+      steps.StepNumbers<steps>
     >,
-    TCurrentStep extends buildCurrentStep<
-      TResolvedStep,
-      TSteps,
-      TChosenSteps
-    > = buildCurrentStep<TResolvedStep, TSteps, TChosenSteps>
-  > = HelperFnInputBase<
-    TResolvedStep,
-    TSteps,
-    TChosenSteps,
-    never,
-    TAdditionalCtx
-  > &
-    updateWrappers<TResolvedStep, TSteps, TChosenSteps, TStepNumber> & {
-      Field: field.component<TCurrentStep>;
+  > = instantiateFormComponent<
+    def,
+    steps,
+    chosenSteps
+  >[MultiStepFormSchemaConfig.EnabledForSteps.resolveType<def, steps>];
+  export type updateWrappers<
+    value extends steps.instantiateSteps,
+    targetStep extends steps.StepNumbers<value>,
+  > = {
+    /**
+     * A useful wrapper around `update` to update the specific field.
+     */
+    onInputChange: UpdateFn.stepSpecific<value, targetStep>;
+    /**
+     * A useful wrapper for `update` to reset a specific field's value to its
+     * original config value.
+     * @resetFn
+     */
+    reset: ResetFn.stepSpecific<value, targetStep>;
+  };
+  type buildCurrentStep<
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
+    targetStep extends steps.StepNumbers<value>,
+  > = Expand<{
+    [key in targetStep]: HelperFnChosenSteps.currentStep<value, [key]>;
+  }>;
+
+  export type input<
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
+    targetStep extends steps.StepNumbers<value>,
+    additionalCtx extends Record<string, unknown>,
+  > = HelperFnInput.BaseInput<value, [targetStep], never, additionalCtx> &
+    updateWrappers<value, targetStep> & {
+      Field: field.component<buildCurrentStep<def, value, targetStep>>;
       /**
        * A hook for reactively selecting a value from the form context.
        * The selector function receives the contextual data for the currently rendered step, and returns any derived value.
@@ -229,7 +150,7 @@ export namespace StepSpecificComponent {
        * @example
        * const someValue = useSelector(ctx => ctx.fields.username.value);
        */
-      useSelector: UseSelector<TCurrentStep>;
+      useSelector: UseSelector<buildCurrentStep<def, value, targetStep>>;
       /**
        * A component for reactively displaying a value from the form context.
        * Unlike `useSelector`, this component only re-renders itself, not the parent component.
@@ -243,45 +164,30 @@ export namespace StepSpecificComponent {
        *   {(value) => <p>First name: {value}</p>}
        * </Selector>
        */
-      Selector: selector.component<TCurrentStep>;
+      Selector: selector.component<buildCurrentStep<def, value, targetStep>>;
     };
 
   export type callback<
-    TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TProps,
-    TFormAlias extends string,
-    TFormProps extends object,
-    TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-    TAdditionalInput extends object,
-    TAdditionalCtx extends Record<string, unknown>
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
+    targetStep extends steps.StepNumbers<value>,
+    props,
+    additionalCtx extends Record<string, unknown> = {},
   > = CreateComponent<
     Expand<
-      input<TResolvedStep, TSteps, TChosenSteps, TAdditionalCtx> &
-        formComponent<
-          TResolvedStep,
-          TSteps,
-          TChosenSteps,
-          TFormAlias,
-          TFormProps,
-          TFormEnabledFor
-        > &
-        TAdditionalInput
+      input<def, value, targetStep, additionalCtx> &
+        formComponent<def, value, [targetStep]> &
+        additionalCtx
     >,
-    TProps
+    props
   >;
   export const DEFAULT_FORM_INSTANCE_ALIAS = 'form';
   export type defaultFormInstanceAlias = typeof DEFAULT_FORM_INSTANCE_ALIAS;
-  export type formInstanceOptions<
-    TAlias extends string,
-    TRenderInput,
-    TReturn
-  > = {
+  export type formInstanceOptions<alias extends string, input, ret> = {
     /**
      * The name of the return value of the `render` method.
      */
-    alias?: TAlias;
+    alias?: alias;
     /**
      * A function that renders/creates the form instance. This function will be called
      * at the top level of the component, ensuring hooks are called in a valid React context.
@@ -305,115 +211,44 @@ export namespace StepSpecificComponent {
      * - In development, hook calls are logged to console.debug
      * - The hook must be called at the component top level (enforced by the framework)
      */
-    render: CreateFunction<[input: TRenderInput], TReturn>;
+    render: (input: input) => ret;
   };
 
-  export interface CtxSelector<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TTargetStep extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TCtx
-  > {
-    /**
-     * A function to select the data that will be available in the `fn`'s ctx.
-     * @param input The available input to create the context with.
-     * @returns The created ctx.
-     */
-    ctxData?: (
-      input: HelperFnInputBase<
-        TResolvedStep,
-        TSteps,
-        'all',
-        HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TTargetStep>
-      >
-    ) => TCtx;
-  }
-
   export type options<
-    TResolvedStep extends AnyResolvedStep,
-    TSteps extends StepNumbers<TResolvedStep>,
-    TTargetStep extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TFormInstanceAlias extends string,
-    TFormInstance,
-    TCtx
-  > = CtxSelector<TResolvedStep, TSteps, TTargetStep, TCtx> & {
+    value extends steps.instantiateSteps,
+    targetStep extends steps.StepNumbers<value>,
+    formAlias extends string,
+    formInstance,
+    additionalCtx extends Record<string, unknown> = {},
+  > = HelperFn.CtxDataSelector<value, [targetStep], additionalCtx> & {
     /**
      * If set to `true`, you'll be able to open the {@linkcode console} to view logs.
      */
     debug?: boolean;
     useFormInstance?: formInstanceOptions<
-      TFormInstanceAlias,
-      Pick<HelperFnInputBase<TResolvedStep, TSteps, TTargetStep>, 'ctx'> & {
+      formAlias,
+      Pick<HelperFnInput.BaseInput<value, [targetStep]>, 'ctx'> & {
         /**
          * An object containing all the default values for the current step.
          */
-        defaultValues: Expand<
-          ExtractedDefaultValues<TResolvedStep, TSteps, TTargetStep>
-        >;
+        defaultValues: Expand<fields.getDefaultValues<value, [targetStep]>>;
       },
-      TFormInstance
+      formInstance
     >;
   };
 }
 
-export type CreateStepSpecificComponentCallback<
-  TResolvedStep extends StrippedResolvedStep<AnyResolvedStep>,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TProps,
-  TFormAlias extends string,
-  TFormProps extends object,
-  TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-  TAdditionalInput extends object = {},
-  TAdditionalCtx extends Record<string, unknown> = {}
-> = StepSpecificComponent.callback<
-  TResolvedStep,
-  TSteps,
-  TChosenSteps,
-  TProps,
-  TFormAlias,
-  TFormProps,
-  TFormEnabledFor,
-  TAdditionalInput,
-  TAdditionalCtx
->;
-
-export type ExtractedDefaultValues<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TTargetStep extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TExtractedStepNumber extends number = HelperFnChosenSteps.extractStepNumber<
-    TResolvedStep,
-    TSteps,
-    TTargetStep
-  >,
-  TFields extends GetFieldsForStep<
-    TResolvedStep,
-    ValidStepKey<TExtractedStepNumber>
-  > = GetFieldsForStep<TResolvedStep, ValidStepKey<TExtractedStepNumber>>
-> = { [field in keyof TFields]: TFields[field]['defaultValue'] };
 export interface StepSpecificCreateComponentFn<
-  TResolvedStep extends AnyResolvedStep,
-  TSteps extends StepNumbers<TResolvedStep>,
-  TTargetStep extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  TFormAlias extends string,
-  TFormProps extends object,
-  TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
+  targetStep extends steps.StepNumbers<value>,
 > {
   /**
    * A utility function to easily create a component for the current step.
    * @param fn The callback function where the component is defined.
    */
   <props = undefined>(
-    fn: CreateStepSpecificComponentCallback<
-      TResolvedStep,
-      TSteps,
-      TTargetStep,
-      props,
-      TFormAlias,
-      TFormProps,
-      TFormEnabledFor
-    >
+    fn: StepSpecificComponent.callback<def, value, targetStep, props>
   ): CreatedMultiStepFormComponent<props>;
   /**
    * A utility function to easily create a component for the current step.
@@ -424,79 +259,41 @@ export interface StepSpecificCreateComponentFn<
   <
     formInstance,
     additionalCtx extends Record<string, unknown> = {},
-    formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-    props = undefined
+    formInstanceAlias extends string =
+      StepSpecificComponent.defaultFormInstanceAlias,
+    props = undefined,
   >(
     options: StepSpecificComponent.options<
-      TResolvedStep,
-      TSteps,
-      TTargetStep,
-      formInstanceAlias,
+      value,
+      targetStep,
+      MultiStepFormSchemaConfig.inferFormAlias<value>,
       formInstance,
       additionalCtx
     >,
-    fn: CreateStepSpecificComponentCallback<
-      TResolvedStep,
-      TSteps,
-      TTargetStep,
-      props,
-      TFormAlias,
-      TFormProps,
-      TFormEnabledFor,
-      { [_ in formInstanceAlias]: formInstance },
-      additionalCtx
+    fn: StepSpecificComponent.callback<
+      def,
+      value,
+      targetStep,
+      MultiStepFormSchemaConfig.inferFormProps<value>,
+      { [_ in formInstanceAlias]: formInstance }
     >
   ): CreatedMultiStepFormComponent<props>;
 }
 
-export type ResolvedStep<
-  TStep extends Step<TDefaultCasing>,
-  TDefaultCasing extends CasingType = DefaultCasing,
-  TResolvedStep extends ResolvedCoreStep<
-    TStep,
-    TDefaultCasing
-  > = ResolvedCoreStep<TStep, TDefaultCasing>,
-  TFormAlias extends string = MultiStepFormSchemaConfig.defaultFormAlias,
-  TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep> = MultiStepFormSchemaConfig.defaultEnabledFor,
-  TFormProps extends object = ComponentPropsWithRef<'form'>
-> = {
-  [stepKey in keyof TResolvedStep]: TResolvedStep[stepKey] &
-    (stepKey extends ValidStepKey<StepNumbers<TResolvedStep>>
-      ? {
-          createComponent: StepSpecificCreateComponentFn<
-            TResolvedStep,
-            StepNumbers<TResolvedStep>,
-            [stepKey],
-            TFormAlias,
-            TFormProps,
-            TFormEnabledFor
-          >;
-        }
-      : {});
-};
-
-export type AnyResolvedStep = ResolvedStep<any, any, any>;
 export interface HelperFunctions<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
 > {
-  createComponent: CreateComponentFn<TResolvedStep, TStepNumbers>;
+  createComponent: CreateComponentFn<def, value>;
 }
 namespace CreateComponentImplConfig {
   export type stepSpecificConfig<
-    TResolvedStep extends AnyResolvedStep,
-    TFormAlias extends string,
-    TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-    TFormProps extends object
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
   > = {
     isStepSpecific: true;
     defaultId: string;
-    form?: MultiStepFormSchemaConfig.FormConfig<
-      TResolvedStep,
-      TFormAlias,
-      TFormEnabledFor,
-      TFormProps
-    >;
+    form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
   };
 
   export type nonStepSpecific = {
@@ -504,144 +301,87 @@ namespace CreateComponentImplConfig {
   };
 
   export type config<
-    TResolvedStep extends AnyResolvedStep,
-    TFormAlias extends string,
-    TFormEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<TResolvedStep>,
-    TFormProps extends object
-  > =
-    | nonStepSpecific
-    | stepSpecificConfig<
-        TResolvedStep,
-        TFormAlias,
-        TFormEnabledFor,
-        TFormProps
-      >;
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
+  > = nonStepSpecific | stepSpecificConfig<def, value>;
 }
 
-/**
- * Creates a default values object for the target step.
- * @param steps The steps schema.
- * @param targetStep The step to create the default values for.
- * @returns An object containing the field names and their default values.
- */
-export function createDefaultValues<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends StepNumbers<resolvedStep>,
-  targetStep extends ValidStepKey<stepNumbers>
->(steps: resolvedStep, targetStep: targetStep) {
-  invariant(
-    targetStep in steps,
-    `The target step ${targetStep} is not a valid step key`
-  );
+export namespace MultiStepFormStepSchema {
+  export type config<
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
+  > = def & {
+    /**
+     * The form configuration.
+     *
+     * This is a private property and is not meant to be used directly.
+     * If you want to configure the form, do so with the {@linkcode instantiateFormConfig} method.
+     * @private
+     * @internal
+     */
+    form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
+  };
+}
 
-  const current = steps[targetStep as unknown as keyof resolvedStep];
-
-  invariant('fields' in current, `No "fields" were found for ${targetStep}`);
-
-  let defaultValues = {};
-
-  for (const [fieldName, fieldValues] of Object.entries(
-    current.fields as Record<string, Record<string, unknown>>
-  )) {
-    defaultValues = {
-      ...defaultValues,
-      [fieldName]: fieldValues.defaultValue,
-    };
+declare module '@jfdevelops/multi-step-form-core' {
+  namespace steps {
+    interface ExtendedStepSpecificFunctions<
+      def extends StepSchema.Config,
+      value extends steps.instantiateSteps<def>,
+      key extends steps.StepNumbers<value>,
+    > {
+      createComponent: StepSpecificCreateComponentFn<def, value, key>;
+    }
   }
-
-  return defaultValues as Expand<
-    ExtractedDefaultValues<resolvedStep, stepNumbers, [targetStep]>
-  >;
 }
-export class MultiStepFormStepSchema<
-    step extends Step<casing>,
-    casing extends CasingType = DefaultCasing,
-    storageKey extends string = DefaultStorageKey,
-    formAlias extends string = MultiStepFormSchemaConfig.defaultFormAlias,
-    formEnabledFor extends MultiStepFormSchemaConfig.formEnabledFor<resolvedStep> = MultiStepFormSchemaConfig.defaultEnabledFor,
-    formProps extends object = ComponentPropsWithRef<'form'>,
-    core extends ResolvedCoreStep<step, casing> = ResolvedCoreStep<
-      step,
-      casing
-    >,
-    resolvedStep extends ResolvedStep<
-      step,
-      casing,
-      core,
-      formAlias,
-      formEnabledFor,
-      formProps
-    > = ResolvedStep<step, casing, core, formAlias, formEnabledFor, formProps>,
-    stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
-  >
-  extends MultiStepFormStepSchemaBase<step, casing>
-  implements HelperFunctions<resolvedStep, stepNumbers>
-{
-  // @ts-ignore type doesn't match `MultiStepFormSchemaBase.value`
-  value: resolvedStep;
-  readonly #internal: MultiStepFormStepSchemaInternal<
-    step,
-    casing,
-    resolvedStep,
-    stepNumbers
-  >;
 
-  constructor(
-    config: MultiStepFormSchemaStepConfig<
-      step,
-      Constrain<casing, CasingType>,
-      storageKey,
-      formAlias,
-      formEnabledFor,
-      formProps
-    >
-  ) {
+export class MultiStepFormStepSchema<
+  const def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+>
+  extends MultiStepFormStepSchemaBase<def, value>
+  implements HelperFunctions<def, value>
+{
+  value: value;
+  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+
+  constructor(config: MultiStepFormStepSchema.config<def, value>) {
     const { form, ...rest } = config;
 
     super(rest as never);
 
-    this.value = createStep(this.original);
+    this.value = steps.instantiate({ steps: this.original });
 
-    this.#internal = new MultiStepFormStepSchemaInternal<
-      step,
-      casing,
-      resolvedStep,
-      stepNumbers
-    >({
+    this.#internal = new MultiStepFormStepSchemaInternal({
       originalValue: this.original,
       getValue: () => this.value,
-      setValue: (next) => this.handlePostUpdate(next as never),
+      setValue: (next) => this.handlePostUpdate(next),
     });
 
-    // this.value = this.#internal.enrichValues(resolvedValues);
     this.sync();
+    const availableSteps = this.steps.value;
+    const createFormConfig = MultiStepFormSchemaConfig.instantiateFormConfig(
+      this.value,
+      availableSteps
+    );
+    const instantiatedForm = createFormConfig(form);
     this.value = this.#internal.enrichValues(this.value, (step) => {
-      const key = `step${step as stepNumbers}`;
-      const stepData = [key] as HelperFnChosenSteps.tupleNotation<
-        ValidStepKey<stepNumbers>
-      >;
-      const id = form?.id ?? key;
+      const targetStep = `step${step}` as steps.StepNumbers<value>;
+
+      const id = form?.id ?? targetStep;
 
       return {
-        createComponent: this.createStepSpecificComponentFactory(stepData, {
+        createComponent: this.createStepSpecificComponentFactory(targetStep, {
           isStepSpecific: true,
           defaultId: id,
-          form: form as never,
+          form: instantiatedForm as never,
         }),
       };
     });
   }
 
   private createFormComponent(
-    form: Omit<
-      MultiStepFormSchemaConfig.FormConfig<
-        resolvedStep,
-        formAlias,
-        formEnabledFor,
-        formProps
-      >,
-      'alias'
-    >,
+    form: Omit<MultiStepFormSchemaConfig.FormConfig<def, value>, 'alias'>,
     defaultId: string
   ) {
     const { render, enabledForSteps = 'all', id = defaultId } = form;
@@ -651,69 +391,73 @@ export class MultiStepFormStepSchema<
       steps: createCtx(this.value, enabledForSteps as never),
     };
 
-    return (props: formProps) => render(ctx, props);
+    return (props: MultiStepFormSchemaConfig.inferFormProps<value>) => {
+      const Component = render(ctx as never);
+      const invariant: Invariant = createInvariant('[createFormComponent]');
+
+      invariant(
+        typeof Component === 'function',
+        'The "render" property must be a function'
+      );
+
+      const C = Component(props);
+
+      invariant(
+        typeof C === 'function',
+        'The "render" function must return a valid React component'
+      );
+
+      return C;
+    };
   }
 
   private createResolvedCtx<
+    // Safe to use tuple notation here since the step specific `createComponent` will always have
+    // `stepData` as a tuple
     chosenStep extends HelperFnChosenSteps.tupleNotation<
-      ValidStepKey<stepNumbers>
+      steps.StepNumbers<value>
     >,
-    additionalCtx
+    additionalCtx extends Record<string, unknown>,
   >(
     options: {
       stepData: chosenStep;
       logger: MultiStepFormLogger;
-    } & StepSpecificComponent.CtxSelector<
-      resolvedStep,
-      stepNumbers,
-      chosenStep,
-      additionalCtx
-    >
+    } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
   ) {
     const { logger, stepData, ctxData } = options;
     // Create ctx fresh each time to ensure it has the latest this.value
-    const ctx = createCtx<resolvedStep, stepNumbers, chosenStep>(
-      this.value,
-      stepData
-    );
-    let resolvedCtx = ctx as Expand<typeof ctx>;
+    const ctx = createCtx(this.value, stepData);
 
     if (ctxData) {
       const [targetStep] = stepData;
       const { [targetStep]: _, ...values } = this.value;
-      const createResolvedCtx = resolvedCtxCreator(logger, values);
+      const createResolvedCtx = resolvedCtxCreator(logger, values as value);
 
-      resolvedCtx = createResolvedCtx({ ctx: resolvedCtx, ctxData } as never);
+      return createResolvedCtx({ ctx, ctxData } as never);
     }
 
-    return resolvedCtx;
+    return ctx;
   }
 
   private createStepSpecificComponentImpl<
+    // Safe to use tuple notation here since the step specific `createComponent` will always have
+    // `stepData` as a tuple
     chosenStep extends HelperFnChosenSteps.tupleNotation<
-      ValidStepKey<stepNumbers>
+      steps.StepNumbers<value>
     >,
-    additionalCtx = {}
+    additionalCtx extends Record<string, unknown> = {},
   >(
     stepData: chosenStep,
-    config: CreateComponentImplConfig.stepSpecificConfig<
-      resolvedStep,
-      formAlias,
-      formEnabledFor,
-      formProps
-    >,
+    config: CreateComponentImplConfig.stepSpecificConfig<def, value>,
     extraConfig?: {
       logger?: MultiStepFormLogger;
       input?: (
-        ctx: Expand<HelperFnCtx<resolvedStep, stepNumbers, chosenStep>>
+        ctx: Expand<HelperFn.buildCtx<value, chosenStep>>
       ) => Record<string, unknown>;
-    } & StepSpecificComponent.CtxSelector<
-      resolvedStep,
-      stepNumbers,
-      chosenStep,
-      additionalCtx
-    >
+    } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
   ) {
+    const [step] = stepData;
+    const invariant: Invariant = createInvariant(`[${step}:createComponent]`);
     return <props>(fn: Function) =>
       ((props: props) => {
         const ctxData = extraConfig?.ctxData;
@@ -723,60 +467,51 @@ export class MultiStepFormStepSchema<
           ctxData,
           logger,
         });
-        const extraInput = extraConfig?.input?.(resolvedCtx) ?? {};
+        const extraInput = extraConfig?.input?.(resolvedCtx as never) ?? {};
         // Call hook functions from extraInput at the top level of the component
         // This ensures hooks are called in a valid React context (before any conditionals)
         const hookResults = getValidatedCustomInputHooks(extraInput);
-
         const { defaultId, form } = config;
 
-        // Safe cast here since the step specific `createComponent` will always have
-        // `stepData` as a tuple
-        const [step] =
-          stepData as HelperFnChosenSteps.tupleNotation<`step${stepNumbers}`>;
-
         invariant(
-          this.steps.isValidStepKey(step),
-          `[createComponent]: the target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
+          this.steps.isValidStep(step),
+          `The target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
         );
 
         const stepNumber = Number.parseInt(step.replace('step', ''));
 
         invariant(
           !Number.isNaN(stepNumber),
-          `[${step}:"createComponent"]: an error occurred while extracting the number`
+          `An error occurred while extracting the number`
         );
-        const current = this.value[step as keyof resolvedStep];
+        const current = this.value[step];
 
+        invariant(
+          typeof current === 'object' && current !== null,
+          `The current step must be an object, was ${typeof current}`
+        );
         // These checks are mostly for type safety. `current` should _always_ be in the proper format.
         // On the off chance that it's not, we have the checks here to help, but these checks are basically
         // just for type safety.
         invariant(
           'fields' in current,
-          `[${step}:createComponent]: unable to find the "fields" for the current step`
+          `Unable to find the "fields" for the current step`
         );
         invariant(
           typeof current.fields === 'object',
-          `[${step}:createComponent]: the "fields" property must be an object, was ${typeof current.fields}`
+          `The "fields" property must be an object, was ${typeof current.fields}`
         );
 
         // Memoize Field component to prevent remounting on every render
         // This ensures input focus is maintained when ctx changes
-        const Field = field.create<
-          resolvedStep[HelperFnChosenSteps.resolve<
-            resolvedStep,
-            stepNumbers,
-            chosenStep
-          >]
-        >({
+        const Field = field.create({
           propsCreator: (name) => {
             // Access current step data directly to avoid stale closure
-            const currentStep = this.value[
-              step as keyof resolvedStep
-            ] as typeof current;
+            const currentStep = this.value[step] as typeof current;
             const currentFields = Object.keys(
               currentStep.fields as Record<string, unknown>
             );
+            const invariant: Invariant = createInvariant(`[${step}:Field]`);
 
             invariant(
               typeof name === 'string',
@@ -804,12 +539,12 @@ export class MultiStepFormStepSchema<
               `[${step}:Field]: No "update" function was found`
             );
 
-            const defaultValue = this.getValue(step as never, name as never);
+            const defaultValue = this.getValue(step as never, name);
             const builtValuePath = fields.buildValuePath(name);
             const { label, nameTransformCasing, type } = path.pickBy(
               currentStep.fields,
-              builtValuePath as never
-            ) as AnyStepFieldOption;
+              builtValuePath
+            );
 
             const targetFields = `fields.${builtValuePath}`;
 
@@ -821,7 +556,7 @@ export class MultiStepFormStepSchema<
               name,
               onInputChange: <
                 strict extends boolean = true,
-                partial extends boolean = false
+                partial extends boolean = false,
               >(
                 value: unknown,
                 options?: field.onInputChangeOptions<strict, partial>
@@ -830,10 +565,7 @@ export class MultiStepFormStepSchema<
                 let resolvedValue;
 
                 if (typeof value === 'function') {
-                  const defaultValue = this.getValue(
-                    step as never,
-                    name as never
-                  );
+                  const defaultValue = this.getValue(step as never, name);
 
                   resolvedValue = value(defaultValue);
                 } else {
@@ -901,6 +633,8 @@ export class MultiStepFormStepSchema<
           } = form;
           const enabledFor = rest.enabledForSteps ?? 'all';
 
+          invariant(typeof alias === 'string', 'The alias must be a string');
+
           if (
             MultiStepFormSchemaConfig.isFormAvailable(
               stepData as never,
@@ -928,110 +662,55 @@ export class MultiStepFormStepSchema<
   }
 
   private createStepSpecificComponentFactory<
-    chosenStep extends HelperFnChosenSteps.tupleNotation<
-      ValidStepKey<stepNumbers>
-    >
+    targetStep extends steps.StepNumbers<value>,
   >(
-    stepData: chosenStep,
-    config: CreateComponentImplConfig.stepSpecificConfig<
-      resolvedStep,
-      formAlias,
-      formEnabledFor,
-      formProps
-    >
-    // ctx: HelperFnCtx<resolvedStep, stepNumbers, chosenStep>
-  ): StepSpecificCreateComponentFn<
-    resolvedStep,
-    stepNumbers,
-    chosenStep,
-    formAlias,
-    formProps,
-    formEnabledFor
-  > {
-    const createStepSpecificComponentImpl =
-      this.createStepSpecificComponentImpl.bind(this);
-    const createDefaultValues = this.createDefaultValues.bind(this);
-    const [targetStep] = stepData;
-
-    function impl<props = undefined>(
-      fn: CreateStepSpecificComponentCallback<
-        resolvedStep,
-        stepNumbers,
-        chosenStep,
-        props,
-        formAlias,
-        formProps,
-        formEnabledFor
-      >
-    ): CreatedMultiStepFormComponent<props>;
-    function impl<
+    targetStep: targetStep,
+    config: CreateComponentImplConfig.stepSpecificConfig<def, value>
+  ) {
+    const impl = <
       formInstance,
-      formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-      props = undefined,
-      additionalCtx = {}
-    >(
-      options: StepSpecificComponent.options<
-        resolvedStep,
-        stepNumbers,
-        chosenStep,
-        formInstanceAlias,
-        formInstance,
-        additionalCtx
-      >,
-      fn: CreateStepSpecificComponentCallback<
-        resolvedStep,
-        stepNumbers,
-        chosenStep,
-        props,
-        formAlias,
-        formProps,
-        formEnabledFor,
-        { [_ in formInstanceAlias]: formInstance }
-      >
-    ): CreatedMultiStepFormComponent<props>;
-    function impl<
-      formInstance,
-      formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-      props = undefined,
-      additionalCtx = {}
+      formInstanceAlias extends string =
+        StepSpecificComponent.defaultFormInstanceAlias,
+      additionalCtx extends Record<string, unknown> = {},
     >(
       optionsOrFn:
         | StepSpecificComponent.options<
-            resolvedStep,
-            stepNumbers,
-            chosenStep,
-            formInstanceAlias,
+            value,
+            targetStep,
+            MultiStepFormSchemaConfig.inferFormAlias<value>,
             formInstance,
             additionalCtx
           >
-        | CreateStepSpecificComponentCallback<
-            resolvedStep,
-            stepNumbers,
-            chosenStep,
-            props,
-            formAlias,
-            formProps,
-            formEnabledFor
+        | StepSpecificComponent.callback<
+            def,
+            value,
+            targetStep,
+            MultiStepFormSchemaConfig.inferFormProps<value>,
+            { [_ in formInstanceAlias]: formInstance }
           >,
-      fn?: CreateStepSpecificComponentCallback<
-        resolvedStep,
-        stepNumbers,
-        chosenStep,
-        props,
-        formAlias,
-        formProps,
-        formEnabledFor,
+      fn?: StepSpecificComponent.callback<
+        def,
+        value,
+        targetStep,
+        MultiStepFormSchemaConfig.inferFormProps<value>,
         { [_ in formInstanceAlias]: formInstance }
       >
-    ) {
-      function createStepSpecificComponent() {
+    ) => {
+      const invariant: Invariant = createInvariant(
+        '[createStepSpecificComponent]'
+      );
+
+      const createStepSpecificComponent = () => {
         invariant(
           typeof optionsOrFn === 'function',
           'The first argument must be a function'
         );
 
-        return createStepSpecificComponentImpl(stepData, config)(optionsOrFn);
-      }
+        return this.createStepSpecificComponentImpl(
+          [targetStep],
+          config
+        )(optionsOrFn);
+      };
 
       if (typeof optionsOrFn === 'object') {
         const { useFormInstance, ctxData, debug } = optionsOrFn;
@@ -1055,16 +734,17 @@ export class MultiStepFormStepSchema<
             alias = StepSpecificComponent.DEFAULT_FORM_INSTANCE_ALIAS,
           } = useFormInstance;
 
-          // Safe cast here since the step specific `createComponent` will always have
-          // `stepData` as a tuple
-          const [step] =
-            stepData as HelperFnChosenSteps.tupleNotation<`step${stepNumbers}`>;
+          invariant(typeof alias === 'string', 'The alias must be a string');
 
-          return createStepSpecificComponentImpl(stepData, config, {
+          // const [step] = stepData;
+
+          return this.createStepSpecificComponentImpl([targetStep], config, {
             logger,
             ctxData,
             input: (ctx) => {
-              const defaultValues = createDefaultValues(step) as never;
+              const defaultValues = this.createDefaultValues(
+                targetStep
+              ) as never;
 
               return {
                 [alias]: () =>
@@ -1078,7 +758,7 @@ export class MultiStepFormStepSchema<
         }
 
         if (ctxData) {
-          return createStepSpecificComponentImpl(stepData, config, {
+          return this.createStepSpecificComponentImpl([targetStep], config, {
             logger,
             ctxData,
           })(fn);
@@ -1090,9 +770,9 @@ export class MultiStepFormStepSchema<
       }
 
       return createStepSpecificComponent();
-    }
+    };
 
-    return impl;
+    return impl as StepSpecificCreateComponentFn<def, value, targetStep>;
   }
 
   /**
@@ -1103,29 +783,55 @@ export class MultiStepFormStepSchema<
    * @returns The created component for the step.
    */
   createComponent<
-    chosenSteps extends HelperFnChosenSteps<resolvedStep, stepNumbers>,
-    props = undefined
-  >(
-    options: CreateHelperFunctionOptionsBase<
-      resolvedStep,
-      stepNumbers,
-      chosenSteps
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      steps.StepNumbers<value>
     >,
-    fn: CreateComponentCallback<resolvedStep, stepNumbers, chosenSteps, props>
+    props = undefined,
+  >(
+    options: HelperFn.BaseOptions<value, chosenSteps>,
+    fn: CreateComponentCallback<value, chosenSteps, props>
   ) {
-    const { stepData } = options;
-    const ctx = createCtx<resolvedStep, stepNumbers, chosenSteps>(
-      this.value,
-      stepData
-    ) as never;
-
-    return ((props?: props) =>
-      fn(ctx, props as any)) as CreatedMultiStepFormComponent<props>;
+    return createComponent({
+      fn,
+      input: ({ stepData }) => ({
+        reset: this.#internal.createHelperFnInputReset(stepData),
+        update: this.#internal.createHelperFnInputUpdate(stepData),
+      }),
+      options,
+      value: this.value,
+    });
   }
 
-  createDefaultValues<targetStep extends ValidStepKey<stepNumbers>>(
+  createDefaultValues<targetStep extends steps.StepNumbers<value>>(
     targetStep: targetStep
   ) {
-    return createDefaultValues(this.value, targetStep);
+    const invariant: Invariant = createInvariant('[createDefaultValues]');
+
+    invariant(
+      targetStep in steps,
+      `The target step ${targetStep} is not a valid step key`
+    );
+
+    const current = this.value[targetStep];
+
+    invariant(
+      typeof current === 'object' && current !== null,
+      `The target step ${targetStep} is not an object`
+    );
+    invariant('fields' in current, `No "fields" were found for ${targetStep}`);
+
+    let defaultValues = {};
+
+    for (const [fieldName, fieldValues] of Object.entries(
+      current.fields as Record<string, Record<string, unknown>>
+    )) {
+      defaultValues = {
+        ...defaultValues,
+        [fieldName]: fieldValues.defaultValue,
+      };
+    }
+
+    return defaultValues as Expand<fields.getDefaultValues<value, targetStep>>;
   }
 }

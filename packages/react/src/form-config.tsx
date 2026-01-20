@@ -1,50 +1,131 @@
-import type {
+import {
+  createInvariant,
   Expand,
   HelperFnChosenSteps,
-  StepNumbers,
-  ValidStepKey,
+  steps,
+  type Invariant,
 } from '@jfdevelops/multi-step-form-core';
-import type { ComponentPropsWithRef, JSX } from 'react';
-import type {
-  AnyResolvedStep,
-  CreatedMultiStepFormComponent,
-} from './step-schema';
+import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
+import {
+  type ComponentPropsWithRef,
+  type ComponentType,
+  type FunctionComponent,
+} from 'react';
+import type { CreatedMultiStepFormComponent } from './utils';
 
 export namespace MultiStepFormSchemaConfig {
   export const DEFAULT_FORM_ALIAS = 'Form';
   export type defaultEnabledFor = HelperFnChosenSteps.defaultStringOption;
   export type defaultFormAlias = typeof DEFAULT_FORM_ALIAS;
-  export type formEnabledFor<TResolvedStep extends AnyResolvedStep> =
-    HelperFnChosenSteps<TResolvedStep, StepNumbers<TResolvedStep>>;
-  type strippedResolvedSteps<T extends AnyResolvedStep> = {
-    [_ in keyof T]: Expand<Omit<T[_], 'createComponent' | 'createHelperFn'>>;
+  export type formEnabledFor<value extends steps.instantiateSteps> =
+    HelperFnChosenSteps.main<value, steps.StepNumbers<value>>;
+  type strippedResolvedSteps<value extends steps.instantiateSteps> = {
+    [_ in keyof value]: Expand<
+      Omit<value[_], 'createComponent' | 'createHelperFn'>
+    >;
   };
-  export type AvailableStepForForm<
-    TResolvedStep extends AnyResolvedStep,
-    TEnabledFor extends formEnabledFor<TResolvedStep>
-  > = TEnabledFor extends defaultEnabledFor
-    ? strippedResolvedSteps<TResolvedStep>
-    : TEnabledFor extends [
-        ValidStepKey<StepNumbers<TResolvedStep>>,
-        ...ValidStepKey<StepNumbers<TResolvedStep>>[]
-      ]
-    ? TEnabledFor[number] extends keyof TResolvedStep
-      ? Pick<strippedResolvedSteps<TResolvedStep>, TEnabledFor[number]>
+  export type inferFormAlias<def> = def extends {
+    alias: infer alias extends string;
+  }
+    ? alias
+    : defaultFormAlias;
+  export type inferFormProps<def> = def extends {
+    render: infer render;
+  }
+    ? render extends (data: any) => ComponentType<infer props>
+      ? props
       : never
-    : keyof TEnabledFor extends keyof TResolvedStep
-    ? Expand<
-        Pick<
-          strippedResolvedSteps<TResolvedStep>,
-          Extract<keyof TResolvedStep, keyof TEnabledFor>
-        >
-      >
     : never;
-  export type formCtx<TAlias extends string, TProps> = {
-    [_ in TAlias]: CreatedMultiStepFormComponent<TProps>;
+  export namespace EnabledForSteps {
+    export type get<def> = def extends {
+      enabledForSteps: infer enabledForSteps;
+    }
+      ? enabledForSteps // Case: `enabledForSteps` isn't provided (default behavior)
+      : def extends { form: infer form }
+        ? form extends { enabledForSteps: infer enabledForSteps }
+          ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
+          : never
+        : never;
+    export type resolveType<
+      def extends StepSchema.Config,
+      steps extends steps.instantiateSteps<def>,
+      value = instantiateFormConfig<def>,
+    > =
+      get<value> extends defaultEnabledFor
+        ? 'all'
+        : get<value> extends HelperFnChosenSteps.tupleNotation<
+              steps.StepNumbers<steps>
+            >
+          ? 'tuple'
+          : get<value> extends HelperFnChosenSteps.objectNotation<
+                steps.StepNumbers<steps>
+              >
+            ? 'object'
+            : never;
+  }
+
+  export type inferFormEnabledForSteps<def> = def extends {
+    // TODO decide if `enabledForSteps` validation is needed
+    enabledForSteps: infer enabledForSteps;
+  }
+    ? enabledForSteps
+    : defaultEnabledFor;
+  export type inferComponent<def> = def extends { render: infer render }
+    ? render extends (data: any) => infer r
+      ? r extends ComponentType<infer _>
+        ? r
+        : never
+      : never
+    : never;
+  export type inferredFormComponent<def> = {
+    [key in inferFormAlias<def>]: inferComponent<def>;
+  };
+
+  export type instantiateFormConfig<def> = [def] extends [object]
+    ? def extends { form: infer form }
+      ? {
+          -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+            {
+              alias: inferFormAlias<FormConfig.withoutRender<form>>;
+              enabledForSteps: inferFormEnabledForSteps<
+                FormConfig.withoutRender<form>
+              >;
+            } & inferredFormComponent<form>
+          >;
+        }[keyof FormConfig.withoutRender<form>]
+      : {}
+    : {};
+  export type getEnabledForSteps<def> =
+    instantiateFormConfig<def> extends {
+      enabledForSteps: infer enabledForSteps;
+    }
+      ? enabledForSteps
+      : def;
+  export type AvailableStepForForm<
+    value extends steps.instantiateSteps,
+    enabledFor extends formEnabledFor<value>,
+  > = enabledFor extends defaultEnabledFor
+    ? strippedResolvedSteps<value>
+    : enabledFor extends HelperFnChosenSteps.tupleNotation<
+          steps.StepNumbers<value>
+        >
+      ? enabledFor[number] extends keyof value
+        ? Pick<strippedResolvedSteps<value>, enabledFor[number]>
+        : never
+      : keyof enabledFor extends keyof value
+        ? Expand<
+            Pick<
+              strippedResolvedSteps<value>,
+              Extract<keyof value, keyof enabledFor>
+            >
+          >
+        : never;
+  export type formCtx<alias extends string, props> = {
+    [_ in alias]: CreatedMultiStepFormComponent<props>;
   };
   export type renderFnData<
-    TResolvedStep extends AnyResolvedStep,
-    TEnabledFor extends formEnabledFor<TResolvedStep>
+    value extends steps.instantiateSteps,
+    enabledFor extends formEnabledFor<value>,
   > = {
     /**
      * The id for the form, either a custom one or the default one.
@@ -53,17 +134,19 @@ export namespace MultiStepFormSchemaConfig {
     /**
      * The chosen steps that are available.
      */
-    steps: Expand<AvailableStepForForm<TResolvedStep, TEnabledFor>>;
+    steps: Expand<AvailableStepForForm<value, enabledFor>>;
   };
+
+  export namespace FormConfig {
+    export type withoutRender<def> = Omit<def, 'render'>;
+  }
 
   /**
    * The configuration options for the `form` option.
    */
   export interface FormConfig<
-    TResolvedStep extends AnyResolvedStep,
-    TAlias extends string,
-    TFormEnabledFor extends formEnabledFor<TResolvedStep>,
-    TCustomFormProps extends object
+    def extends StepSchema.Config = StepSchema.Config,
+    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
   > {
     /**
      * The `id` for the form component.
@@ -104,18 +187,18 @@ export namespace MultiStepFormSchemaConfig {
      *  )
      * ```
      */
-    alias?: TAlias;
+    alias?: string;
     /**
      * If the form component should be accessible for each step when calling `createComponent`.
      *
      * If no value is given, the form will be accessible for all the steps.
      */
-    enabledForSteps?: TFormEnabledFor;
+    enabledForSteps?: HelperFnChosenSteps.main<value, steps.StepNumbers<value>>;
     /**
      *
      * @param data The data that is available for creating the custom form.
      * @param props Props that can be used for the custom form.
-     * @returns An {@see JSX.Element} that is the custom form.
+     * @returns A React component that is the custom form.
      * @example
      * ### With custom props
      * ```tsx
@@ -173,19 +256,70 @@ export namespace MultiStepFormSchemaConfig {
      * })
      * ```
      */
-    render: (
-      data: renderFnData<TResolvedStep, TFormEnabledFor>,
-      props: TCustomFormProps
-    ) => JSX.Element;
+    // render: (
+    //   data: renderFnData<value, {[key in keyof def['steps']]: {}}>,
+    //   props: def['formProps']
+    // ) => JSX.Element;
+    render: (data: value) => FunctionComponent<any>;
   }
 
-  export interface Form<
-    TResolvedStep extends AnyResolvedStep,
-    TAlias extends string,
-    TFormEnabledFor extends formEnabledFor<TResolvedStep>,
-    TCustomFormProps extends object
-  > {
-    form?: FormConfig<TResolvedStep, TAlias, TFormEnabledFor, TCustomFormProps>;
+  export function instantiateFormConfig<
+    const def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def>,
+  >(data: value, availableSteps: readonly steps.StepNumbers<value>[]) {
+    return <
+      const form extends FormConfig<def, value>,
+      inst = instantiateFormConfig<form>,
+    >(
+      config: form | undefined
+    ) => {
+      const defaults = {
+        alias: DEFAULT_FORM_ALIAS,
+        enabledForSteps: 'all',
+        props: undefined,
+      };
+
+      if (!config) {
+        return defaults as inst;
+      }
+
+      const {
+        alias = defaults.alias,
+        enabledForSteps = defaults.enabledForSteps,
+        render,
+        id,
+      } = config;
+      const invariant: Invariant = createInvariant('[instantiateFormConfig]');
+
+      if (id) {
+        invariant(typeof id === 'string', 'The id must be a string');
+      }
+
+      if (alias) {
+        invariant(typeof alias === 'string', 'The alias must be a string');
+      }
+
+      // TODO validate enabledForSteps
+      if (enabledForSteps) {
+        const availableStepsArray = Array.from(availableSteps);
+
+        invariant(
+          HelperFnChosenSteps.isValid(enabledForSteps, availableStepsArray),
+          HelperFnChosenSteps.createCatchAllMessage(
+            availableStepsArray,
+            'enabledFor'
+          )
+        );
+      }
+
+      invariant(typeof render === 'function', 'The render must be a function');
+
+      return {
+        alias,
+        enabledForSteps,
+        [alias]: render(data),
+      } as inst;
+    };
   }
 
   /**
@@ -199,27 +333,28 @@ export namespace MultiStepFormSchemaConfig {
   // because the `target` will always be an `Array` in `MultiStepFormStepSchema.createComponentForStep`.
   // TODO add validation to keys
   export function isFormAvailable<
-    TResolvedStep extends AnyResolvedStep,
-    TTarget extends HelperFnChosenSteps<
-      TResolvedStep,
-      StepNumbers<TResolvedStep>
-    >,
-    TEnabledFor extends formEnabledFor<TResolvedStep>
-  >(target: TTarget, enabledFor: TEnabledFor) {
+    value extends steps.instantiateSteps,
+    target extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>,
+    enabledFor extends formEnabledFor<value>,
+  >(target: target, enabledFor: enabledFor) {
     if (Array.isArray(target)) {
-      if (enabledFor === 'all') {
-        return true;
-      }
+      const match = HelperFnChosenSteps.match({
+        meta: {
+          target,
+        },
+        default: () => false,
+        all: () => true,
+        tuple: ({ chosenSteps, meta }) => {
+          return chosenSteps.some((key) => meta.target.includes(key));
+        },
+        object: ({ chosenSteps, meta }) => {
+          return Object.keys(chosenSteps).some((key) =>
+            meta.target.includes(key as steps.StepNumbers<value>)
+          );
+        },
+      });
 
-      if (typeof enabledFor === 'object' && !Array.isArray(enabledFor)) {
-        return Object.keys(enabledFor).some((key) =>
-          target.includes(key as `step${StepNumbers<TResolvedStep>}`)
-        );
-      }
-
-      if (Array.isArray(enabledFor)) {
-        return enabledFor.some((key) => target.includes(key));
-      }
+      return match(enabledFor);
     }
 
     return false;

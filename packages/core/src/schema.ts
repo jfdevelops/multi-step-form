@@ -2,16 +2,23 @@ import { MultiStepFormStepSchema } from '@/steps';
 import { setCasingType } from '@/utils';
 import type { StepSchema } from './internals/index.js';
 import type { steps } from './steps/steps.js';
-import { DEFAULT_STORAGE_KEY, MultiStepFormStorage } from './storage.js';
+import {
+  DEFAULT_STORAGE_KEY,
+  MultiStepFormStorage,
+  type BaseStorageConfig,
+} from './storage.js';
 import { Subscribable } from './subscribable.js';
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>
+  value extends steps.instantiateSteps<def>,
 > extends Subscribable<MultiStepFormStepSchema.Listener<def, value>> {
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
   readonly stepSchema: MultiStepFormStepSchema<def, value>;
   storage: MultiStepFormStorage<value, StepSchema.inferStorageKey<def>>;
+  protected readonly storageConfig: BaseStorageConfig<
+    StepSchema.inferStorageKey<def>
+  >;
   private mountCount = 0;
 
   constructor(options: def) {
@@ -22,18 +29,20 @@ export class MultiStepFormSchema<
     this.defaultNameTransformationCasing = setCasingType(
       nameTransformCasing
     ) as def['nameTransformCasing'];
-    // @ts-ignore Type instantiation is excessively deep and possibly infinite
-    this.stepSchema = new MultiStepFormStepSchema({
+    this.stepSchema = new MultiStepFormStepSchema<def, value>({
       steps,
-      nameTransformCasing,
+      nameTransformCasing: this.defaultNameTransformationCasing,
       storage,
-    });
-    this.storage = new MultiStepFormStorage({
+    } as never);
+    this.storageConfig = {
       key: (storage?.key ??
         DEFAULT_STORAGE_KEY) as StepSchema.inferStorageKey<def>,
-      data: this.stepSchema.value,
       store: storage?.store,
       throwWhenUndefined: storage?.throwWhenUndefined,
+    };
+    this.storage = new MultiStepFormStorage({
+      data: this.stepSchema.value,
+      ...this.storageConfig,
     });
 
     this.stepSchema.subscribe(() => {
@@ -86,7 +95,7 @@ export class MultiStepFormSchema<
 
 export function createMultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>
+  value extends steps.instantiateSteps<def>,
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }

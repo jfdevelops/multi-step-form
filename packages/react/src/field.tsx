@@ -1,9 +1,9 @@
 import type {
-  AnyResolvedStep,
-  CurrentStepHelperFnCtx,
   Expand,
   fields,
+  HelperFn,
   Override,
+  steps,
   UpdateFn,
   Updater,
 } from '@jfdevelops/multi-step-form-core';
@@ -20,36 +20,9 @@ export namespace field {
     name: TField;
   };
 
-  // aliases for types in `fields` namespace
-  // type getDeep<
-  //   TResolvedStep extends AnyResolvedStep,
-  //   TSteps extends StepNumbers<TResolvedStep>,
-  //   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-  // > = fields.getDeep<
-  //   TResolvedStep,
-  //   HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>
-  // >;
-  // type resolveDeepPath<
-  //   TResolvedStep extends AnyResolvedStep,
-  //   TSteps extends StepNumbers<TResolvedStep>,
-  //   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-  //   TField extends getDeep<TResolvedStep, TSteps, TChosenSteps>
-  // > = fields.resolveDeepPath<
-  //   TResolvedStep,
-  //   HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>,
-  //   TField
-  // >;
-  // type get<
-  //   TResolvedStep extends AnyResolvedStep,
-  //   TSteps extends StepNumbers<TResolvedStep>,
-  //   TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-  // > = fields.get<
-  //   TResolvedStep,
-  //   HelperFnChosenSteps.resolve<TResolvedStep, TSteps, TChosenSteps>
-  // >;
   export type onInputChangeOptions<
     TStrict extends boolean,
-    TPartial extends boolean
+    TPartial extends boolean,
   > = UpdateFn.ModeOptions<{
     strict: TStrict;
     partial: TPartial;
@@ -57,25 +30,18 @@ export namespace field {
     UpdateFn.DebugOptions;
 
   export type childrenProps<
-    TResolvedStep extends AnyResolvedStep,
-    // TSteps extends StepNumbers<TResolvedStep>,
-    // TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TField extends fields.getDeepFields<TResolvedStep>,
-    TValue extends fields.resolveDeepPath<
-      TResolvedStep,
-      keyof TResolvedStep,
-      TField
-    > = fields.resolveDeepPath<TResolvedStep, keyof TResolvedStep, TField>,
-    TConfig extends fields.getConfig<
-      TResolvedStep,
-      keyof TResolvedStep,
-      TField
-    > = fields.getConfig<TResolvedStep, keyof TResolvedStep, TField>
-  > = sharedProps<TField> &
+    steps extends steps.instantiateSteps,
+    field extends fields.getDeepFields<steps, targetStep>,
+    targetStep extends steps.StepNumbers<steps> = steps.StepNumbers<steps>,
+    value extends fields.resolveDeepPath<steps, targetStep, field> =
+      fields.resolveDeepPath<steps, targetStep, field>,
+    TConfig extends fields.getConfig<steps, targetStep, field> =
+      fields.getConfig<steps, targetStep, field>,
+  > = sharedProps<field> &
     (TConfig extends { defaultValue: unknown }
-      ? Override<TConfig, 'defaultValue', TValue>
+      ? Override<TConfig, 'defaultValue', value>
       : {
-          defaultValue: `An unknown error occurred while getting the "defaultValue" for ${TField}`;
+          defaultValue: `An unknown error occurred while getting the "defaultValue" for ${field}`;
         }) & {
       /**
        * A useful wrapper around `update` to update the specific field.
@@ -84,11 +50,11 @@ export namespace field {
        */
       onInputChange: <
         strict extends boolean = true,
-        partial extends boolean = false
+        partial extends boolean = false,
       >(
         value: Updater<
           UpdateFn.resolvedUpdaterReturnType<
-            TValue,
+            value,
             { strict: strict; partial: partial },
             {}
           >
@@ -103,12 +69,10 @@ export namespace field {
     };
 
   export type childrenPropsWithSelected<
-    TResolvedStep extends AnyResolvedStep,
-    // TSteps extends StepNumbers<TResolvedStep>,
-    // TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>,
-    TField extends fields.getDeepFields<TResolvedStep>,
-    TSelected
-  > = childrenProps<TResolvedStep, TField> & {
+    steps extends steps.instantiateSteps,
+    field extends fields.getDeepFields<steps, steps.StepNumbers<steps>>,
+    TSelected,
+  > = childrenProps<steps, field> & {
     selected: {
       /**
        * The result of the `selectorFn`.
@@ -117,48 +81,37 @@ export namespace field {
     };
   };
   export type props<
-    TCurrentStep extends AnyResolvedStep,
-    // TSteps extends StepNumbers<TCurrentStep>,
-    // TChosenSteps extends HelperFnChosenSteps<TCurrentStep, TSteps>,
-    // TField extends getDeep<TCurrentStep, TSteps, TChosenSteps>,
-    TField extends fields.getDeepFields<TCurrentStep, keyof TCurrentStep>,
-    TSelected
-  > = sharedProps<TField> & {
-    selectorFn?: SelectorFn<TCurrentStep, TSelected>;
+    step extends steps.instantiateSteps,
+    field extends fields.getDeepFields<step, steps.StepNumbers<step>>,
+    selected,
+  > = sharedProps<field> & {
+    selectorFn?: SelectorFn<step, selected>;
     children: (
-      props: [TSelected] extends [never]
-        ? childrenProps<TCurrentStep, TField>
-        : childrenPropsWithSelected<TCurrentStep, TField, TSelected>
+      props: [selected] extends [never]
+        ? childrenProps<step, field>
+        : childrenPropsWithSelected<step, field, selected>
     ) => ReactNode;
   };
-  export type component<
-    TCurrentStep extends AnyResolvedStep
-    // TSteps extends StepNumbers<TCurrentStep>,
-    // TChosenSteps extends HelperFnChosenSteps<TCurrentStep, TSteps>
-  > = <
-    field extends fields.getDeepFields<
-      TCurrentStep,
-      keyof TCurrentStep
-      // HelperFnChosenSteps.resolve<TCurrentStep, TSteps, TChosenSteps>
-    >,
-    selected = never
+  export type component<steps extends steps.instantiateSteps> = <
+    field extends fields.getDeepFields<steps, steps.StepNumbers<steps>>,
+    selected = never,
   >(
-    props: props<TCurrentStep, field, selected>
+    props: props<steps, field, selected>
   ) => ReactNode;
 
-  export type createOptions<
-    TCurrentStep extends AnyResolvedStep
-    // TSteps extends StepNumbers<TResolvedStep>,
-    // TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TSteps>
-  > = {
-    propsCreator: <TField extends fields.getDeepFields<TCurrentStep>>(
-      name: TField
-    ) => field.childrenProps<TCurrentStep, TField>;
+  export type createOptions<step extends steps.instantiateSteps> = {
+    propsCreator: <
+      field extends fields.getDeepFields<step, steps.StepNumbers<step>>,
+    >(
+      name: field
+    ) => field.childrenProps<step, field>;
     subscribe?: (listener: () => void) => () => void;
-    getValue?: <TField extends fields.getDeepFields<TCurrentStep>>(
-      name: TField
-    ) => fields.resolveDeepPath<TCurrentStep, keyof TCurrentStep, TField>;
-    selectorCtx: Expand<CurrentStepHelperFnCtx<TCurrentStep>>;
+    getValue?: <
+      field extends fields.getDeepFields<step, steps.StepNumbers<step>>,
+    >(
+      name: field
+    ) => fields.resolveDeepPath<step, steps.StepNumbers<step>, field>;
+    selectorCtx: Expand<HelperFn.buildCtx<step, [steps.StepNumbers<step>]>>;
   };
 
   /**
@@ -168,14 +121,12 @@ export namespace field {
    * @param getValue - Optional function to get the current field value reactively
    * @returns
    */
-  export function create<
-    TCurrentStep extends AnyResolvedStep
-    // TSteps extends StepNumbers<TCurrentStep>,
-    // TChosenSteps extends HelperFnChosenSteps<TCurrentStep, TSteps>
-  >(options: createOptions<TCurrentStep>) {
+  export function create<step extends steps.instantiateSteps>(
+    options: createOptions<step>
+  ) {
     const { propsCreator, subscribe, getValue, selectorCtx } = options;
 
-    const Field: field.component<TCurrentStep> = (props) => {
+    const Field: field.component<step> = (props) => {
       const { name, children, selectorFn } = props;
 
       // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
@@ -200,10 +151,7 @@ export namespace field {
       }
 
       if (selectorFn) {
-        const Selector = selector.create<TCurrentStep>(
-          () => selectorCtx,
-          subscribeFn
-        );
+        const Selector = selector.create<step>(() => selectorCtx, subscribeFn);
 
         return (
           <Selector selector={selectorFn}>

@@ -6,14 +6,12 @@ import {
   DefaultCasing,
   isCasingValid,
   type Expand,
-  type Show
+  type Show,
 } from '@/utils';
 import { createInvariant, type Invariant } from '@/utils/invariant';
 import type { AnyValidator, DefaultValidator } from '@/utils/validator';
 import { fields } from './fields';
-import type {
-  StepSpecificHelperFn
-} from './fn-utils/helper-fn/utils';
+import type { StepSpecificHelperFn } from './fn-utils/helper-fn/utils';
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
 
@@ -25,7 +23,7 @@ export namespace steps {
   export interface Config<
     TCasing extends CasingType,
     TFields extends fields.FieldConfig<TCasing>,
-    TValidator = unknown
+    TValidator = unknown,
   > extends fields.NameTransformCasingOptions<TCasing> {
     title: string;
     description?: string;
@@ -40,7 +38,7 @@ export namespace steps {
   export type config<
     TCasing extends CasingType = DefaultCasing,
     TFields extends fields.FieldConfig<TCasing> = fields.FieldConfig<TCasing>,
-    TValidator = unknown
+    TValidator = unknown,
   > = Record<ValidStepKey, Config<TCasing, TFields, TValidator>>;
 
   export type instantiateConfig<TMap extends config = config> = {
@@ -71,6 +69,11 @@ export namespace steps {
      */
     steps: TMap;
   };
+  /**
+   * Extended step specific properties for the step.
+   */
+  // @ts-expect-error - This is a placeholder for the extended step specific properties.
+  export interface ExtendedStepSpecificProperties<t, key> {}
   export type _instantiateSteps<T = unknown> = [T] extends [object]
     ? T extends instantiateConfig
       ? {
@@ -89,14 +92,23 @@ export namespace steps {
               description: infer description extends string;
             }
               ? { description: description }
-              : {})
+              : {}) &
+              ExtendedStepSpecificProperties<T, key>
           >;
         }
       : {}
     : {};
+  /**
+   * Extended step specific functions for the step.
+   */
+  export interface ExtendedStepSpecificFunctions<
+    def,
+    value,
+    key extends StepNumbers<value>,
+  > {}
   export type instantiateSteps<
     t = unknown,
-    value = _instantiateSteps<t>
+    value = _instantiateSteps<t>,
   > = Expand<{
     [key in keyof value]: Show<
       value[key] &
@@ -106,7 +118,7 @@ export namespace steps {
                 update: UpdateFn.stepSpecific<value, key>;
                 reset: ResetFn.stepSpecific<value, key>;
                 createHelperFn: StepSpecificHelperFn<value, key>;
-              }
+              } & ExtendedStepSpecificFunctions<t, value, key>
             : {}
           : {})
     >;
@@ -115,12 +127,12 @@ export namespace steps {
   export type StepNumbers<T> = keyof T extends string ? keyof T : never;
   export type getCurrent<
     value extends instantiateSteps,
-    stepNumbers extends StepNumbers<value>
+    stepNumbers extends StepNumbers<value>,
   > = value[stepNumbers];
 
   export function instantiate<
     const def extends instantiateConfig,
-    inst = instantiateSteps<def>
+    inst = instantiateSteps<def>,
   >(def: def) {
     const { steps } = def;
     const invariant: Invariant = createInvariant('[instantiateSteps]');
