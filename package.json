@@ -36,5 +36,9 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
+  },
+  "volta": {
+    "node": "24.13.0",
+    "pnpm": "10.28.1"
   }
 }

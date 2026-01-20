@@ -1,149 +1,82 @@
-import type { AnyMultiStepFormSchema, MultiStepFormSchema } from '@/schema';
-import {
-  invariant,
-  VALIDATED_STEP_REGEX,
-} from '@jfdevelops/multi-step-form-core';
-import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
+import type { MultiStepFormSchema } from '@/schema';
+import { steps } from '@jfdevelops/multi-step-form-core';
+import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
+import { createUseSelector } from './use-selector';
 
-export type UseMultiStepFormDataOptions<
-  TSchema extends AnyMultiStepFormSchema,
-  TTarget extends keyof MultiStepFormSchema.resolvedStep<TSchema> = keyof MultiStepFormSchema.resolvedStep<TSchema>
-> = {
-  targetStep: TTarget;
+export type UseMultiStepFormDataOptions<targetStep extends string> = {
+  targetStep: targetStep;
 };
 export type UseMultiStepFormData<
-  // step extends Step<casing>,
-  // casing extends CasingType,
-  // storageKey extends string,
-  // resolvedStep extends ResolvedStep<step, casing>,
-  // schema extends MultiStepFormSchema<
-  //   step,
-  //   casing,
-  //   storageKey
-  // > = MultiStepFormSchema<step, casing, storageKey>,
-  TSchema extends AnyMultiStepFormSchema,
-  TResolvedStep extends MultiStepFormSchema.resolvedStep<TSchema> = MultiStepFormSchema.resolvedStep<TSchema>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
 > = {
   /**
    * Returns the entire {@linkcode MultiStepFormSchema instance}.
    */
-  (): TSchema;
+  (): MultiStepFormSchema<def, value>;
   /**
    * Returns the data for the target step.
    * @param stepNumber The step number to return.
    * @throws {TypeError} If `options.stepNumber` is invalid.
    */
-  <targetStep extends keyof TResolvedStep>(
-    options: UseMultiStepFormDataOptions<TSchema, targetStep>
-  ): MultiStepFormSchema.getData<TSchema, targetStep>;
+  <targetStep extends steps.StepNumbers<value>>(
+    options: UseMultiStepFormDataOptions<targetStep>
+  ): steps.getCurrent<value, targetStep>;
   /**
    * Returns the specified data from the {@linkcode MultiStepFormSchema} instance via the callback's return.
    */
-  <data>(selector: (schema: TSchema) => data): data;
+  <data>(selector: (schema: MultiStepFormSchema<def, value>) => data): data;
 };
 
-export function throwIfInvalidStepNumber<
-  // step extends Step<casing>,
-  // casing extends CasingType = DefaultCasing,
-  // storageKey extends string = DefaultStorageKey,
-  // resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<step, casing>,
-  // stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
-  schema extends AnyMultiStepFormSchema
->(schema: schema, targetStep: unknown) {
-  invariant(
-    typeof targetStep === 'string',
-    `The target step must be a string, was ${typeof targetStep}`
-  );
-
-  const { as, isValidStepNumber } = schema.stepSchema.steps;
-  const formatter = new Intl.ListFormat('en', {
-    type: 'disjunction',
-    style: 'long',
-  });
-  const formattedStepNumbersList = formatter.format(as('array.string.untyped'));
-
-  invariant(
-    VALIDATED_STEP_REGEX.test(targetStep),
-    `The target step must match the following format: "step{number}". Available steps are ${formattedStepNumbersList}`
-  );
-
-  const stepNumber = Number.parseInt(targetStep.replace('step', ''));
-
-  invariant(
-    isValidStepNumber(stepNumber),
-    `The step number "${stepNumber}" is not a valid step number. Valid step numbers include ${formattedStepNumbersList}`,
-    TypeError
-  );
-
-  return stepNumber as MultiStepFormSchema.stepNumbers<schema>;
+function noopSubscribe() {
+  return () => {};
 }
 
 export function createMultiStepFormDataHook<
-  // step extends Step<casing>,
-  // casing extends CasingType = DefaultCasing,
-  // storageKey extends string = DefaultStorageKey,
-  // resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<step, casing>,
-  // stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
-  schema extends AnyMultiStepFormSchema
->(schema: schema): UseMultiStepFormData<schema> {
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
+>(schema: MultiStepFormSchema<def, value>): UseMultiStepFormData<def, value> {
   function useMultiStepFormData(
     optionsOrSelector?:
-      | UseMultiStepFormDataOptions<schema>
-      | ((data: schema) => unknown)
+      | UseMultiStepFormDataOptions<steps.StepNumbers<value>>
+      | ((data: MultiStepFormSchema<def, value>) => unknown)
   ) {
-    return useSyncExternalStoreWithSelector(
-      schema.subscribe,
-      () => schema.getSnapshot(),
-      () => schema.getSnapshot(),
-      (snapshot) => {
-        if (typeof optionsOrSelector === 'object') {
-          // @ts-ignore Type instantiation is excessively deep and possibly infinite
-          const stepNumber = throwIfInvalidStepNumber(
-            snapshot,
-            optionsOrSelector.targetStep
-          );
-
-          return snapshot.stepSchema.get({ step: stepNumber as never }).data;
-        }
-
-        if (typeof optionsOrSelector === 'function') {
-          return optionsOrSelector(snapshot);
-        }
-
-        return snapshot;
-      }
+    return createUseSelector(
+      optionsOrSelector ? () => optionsOrSelector : noopSubscribe,
+      schema.subscribe
     );
   }
 
   return useMultiStepFormData as any;
 }
 
-function useMultiStepFormData<schema extends AnyMultiStepFormSchema>(
-  schema: schema
-): schema;
 function useMultiStepFormData<
-  schema extends AnyMultiStepFormSchema,
-  targetStep extends keyof MultiStepFormSchema.resolvedStep<schema>
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
+>(schema: MultiStepFormSchema<def, value>): MultiStepFormSchema<def, value>;
+function useMultiStepFormData<
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
 >(
-  schema: schema,
-  options: UseMultiStepFormDataOptions<schema, targetStep>
-): MultiStepFormSchema.getData<schema, targetStep>;
-function useMultiStepFormData<schema extends AnyMultiStepFormSchema, data>(
-  schema: schema,
-  selector: (schema: schema) => data
+  schema: MultiStepFormSchema<def, value>,
+  options: UseMultiStepFormDataOptions<steps.StepNumbers<value>>
+): steps.getCurrent<value, steps.StepNumbers<value>>;
+function useMultiStepFormData<
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
+  data,
+>(
+  schema: MultiStepFormSchema<def, value>,
+  selector: (schema: MultiStepFormSchema<def, value>) => data
 ): data;
 function useMultiStepFormData<
-  // step extends Step<casing>,
-  // casing extends CasingType = DefaultCasing,
-  // storageKey extends string = DefaultStorageKey,
-  // resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<step, casing>,
-  // stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>
-  schema extends AnyMultiStepFormSchema
+  def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def>,
 >(
-  schema: schema,
+  schema: MultiStepFormSchema<def, value>,
   optionsOrSelector?:
-    | UseMultiStepFormDataOptions<schema>
-    | ((data: schema) => unknown)
+    | UseMultiStepFormDataOptions<steps.StepNumbers<value>>
+    | ((data: MultiStepFormSchema<def, value>) => unknown)
 ) {
   const hook = createMultiStepFormDataHook(schema);
 

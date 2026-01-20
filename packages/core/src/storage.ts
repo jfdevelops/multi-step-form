@@ -7,25 +7,25 @@ export interface BaseStorageConfig<TKey extends string> {
   key: TKey;
   store?: Storage;
   /**
-   * An extra option to throw an error when {@linkcode window} is `undefined`
-   * @default false
-   */
+  * An extra option to throw an error when {@linkcode window} is `undefined`
+  * @default false
+  */
   throwWhenUndefined?: boolean;
 }
 export type StorageConfig<
-  TData,
-  TKey extends string
+TData,
+TKey extends string
 > = BaseStorageConfig<TKey> & {
   data: TData;
 };
 
 const WINDOW_UNDEFINED_MESSAGE =
-  '"window" in undefined. No storage is available';
+'"window" in undefined. No storage is available';
 export const DEFAULT_STORAGE_KEY = 'MultiStepForm';
 
 /**
- * Converts Date strings back to Date objects for fields with type: 'date'.
- */
+* Converts Date strings back to Date objects for fields with type: 'date'.
+*/
 function convertDateStringsToDates(parsed: unknown): unknown {
   if (!parsed || typeof parsed !== 'object') {
     return parsed;
@@ -90,8 +90,8 @@ function convertDateStringsToDates(parsed: unknown): unknown {
 }
 
 export class MultiStepFormStorage<
-  data,
-  key extends string = DefaultStorageKey
+data,
+key extends string = DefaultStorageKey
 > {
   readonly key: key;
   readonly store!: Storage;

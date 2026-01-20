@@ -66,13 +66,16 @@ export namespace HelperFnChosenSteps {
     chosenSteps extends main<value, steps.StepNumbers<value>>
   > = value[resolve<value, chosenSteps>];
 
-  export function createCatchAllMessage(availableSteps: string[]) {
+  export function createCatchAllMessage(
+    availableSteps: string[],
+    type: 'chosen' | 'enabledFor' = 'chosen'
+  ) {
     const formatter = new Intl.ListFormat('en', {
       style: 'long',
       type: 'disjunction',
     });
 
-    return `The chosen steps must either be set to on of the following: "all", an array of steps (${formatter.format(
+    return `The ${type} steps must either be set to on of the following: "all", an array of steps (${formatter.format(
       availableSteps.map((step) => `"${step}"`)
     )}), or an object containing the steps to chose ({ ${availableSteps
       .map((step) => `${step}: true`)
@@ -121,6 +124,25 @@ export namespace HelperFnChosenSteps {
     }
 
     return Object.entries(value).every(([_, v]) => v === true);
+  }
+
+  export function isValid<
+    value extends steps.instantiateSteps,
+    chosenSteps extends main<value, steps.StepNumbers<value>>
+  >(value: unknown, validValues?: Array<string>): value is chosenSteps {
+    if (isAll(value)) {
+      return true;
+    }
+
+    if (isTuple(value, validValues)) {
+      return true;
+    }
+
+    if (isObject(value, validValues)) {
+      return true;
+    }
+
+    return false;
   }
 
   export function resolveType<

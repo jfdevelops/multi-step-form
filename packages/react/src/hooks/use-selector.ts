@@ -1,9 +1,9 @@
 import type {
-  AnyResolvedStep,
-  CurrentStepHelperFnCtx,
+  steps,
   Expand,
   MultiStepFormLogger,
   MultiStepFormLoggerOptions,
+  HelperFn,
 } from '@jfdevelops/multi-step-form-core';
 import { useRef, useSyncExternalStore } from 'react';
 
@@ -165,19 +165,39 @@ export type DebugOptions<TSelected> = {
   onValueUnchanged?: (value: TSelected) => string;
 };
 
-export type UseSelector<TCurrentStep extends AnyResolvedStep> = ReturnType<
-  typeof createUseSelector<TCurrentStep>
->;
-export type SelectorFn<TCurrentStep extends AnyResolvedStep, TSelected> = (
-  ctx: Expand<CurrentStepHelperFnCtx<TCurrentStep>>
-) => TSelected;
+export type UseSelectorOptions<
+  steps extends steps.instantiateSteps,
+  selected,
+> = {
+  selectorFn: SelectorFn<steps, selected>;
+  logger?: MultiStepFormLogger;
+  debugOptions?: DebugOptions<selected>;
+};
+export type UseSelector<steps extends steps.instantiateSteps> = {
+  /**
+   * @deprecated Use the {@link UseSelectorOptions} instead. Will be removed in the future.
+   */
+  <selected>(
+    selectorFn: SelectorFn<steps, selected>,
+    logger?: MultiStepFormLogger,
+    debugOptions?: DebugOptions<selected>
+  ): selected;
+  /**
+   * @param options - The options for the useSelector hook.
+   * @returns The selected value.
+   */
+  <selected>(options: UseSelectorOptions<steps, selected>): selected;
+};
+export type SelectorFn<steps extends steps.instantiateSteps, selected> = (
+  ctx: Expand<HelperFn.buildCtx<steps, [steps.StepNumbers<steps>]>>
+) => selected;
 
-export function createUseSelector<TCurrentStep extends AnyResolvedStep>(
-  createCtx: () => Expand<CurrentStepHelperFnCtx<TCurrentStep>>,
+export function createUseSelector<steps extends steps.instantiateSteps>(
+  createCtx: () => Expand<HelperFn.buildCtx<steps, [steps.StepNumbers<steps>]>>,
   subscribe: (listener: () => void) => () => void
 ) {
   return <selected>(
-    selectorFn: SelectorFn<TCurrentStep, selected>,
+    selectorFn: SelectorFn<steps, selected>,
     logger?: MultiStepFormLogger,
     debugOptions?: DebugOptions<selected>
   ) => {

@@ -26,7 +26,7 @@ import { instantiateSteps, steps } from './steps';
 import { getStep, type ExtractStepFromKey, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
-  value extends steps.instantiateSteps
+  value extends steps.instantiateSteps,
 > {
   update: UpdateFn.general<value>;
   reset: ResetFn.general<value>;
@@ -39,7 +39,7 @@ type Quote<T extends string[]> = {
 export type AsTypeMap<
   def extends StepSchema.Config,
   value extends steps.instantiateSteps<def>,
-  stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>
+  stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>,
 > = {
   // Exclude is needed due to all the Constrains
   string: Exclude<
@@ -76,18 +76,18 @@ export type AsTypeMap<
 export type AsFunctionReturn<
   def extends StepSchema.Config,
   value extends steps.instantiateSteps<def>,
-  asType extends AsType
+  asType extends AsType,
 > = AsTypeMap<def, value>[asType];
 export type AsFunction<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>
+  value extends steps.instantiateSteps<def>,
 > = <asType extends AsType>(
   asType: asType
 ) => AsFunctionReturn<def, value, asType>;
 
 export type IsValidStepFn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>
+  value extends steps.instantiateSteps<def>,
 > = {
   /**
    * Checks if a given string is a valid step key.
@@ -100,7 +100,7 @@ export type IsValidStepFn<
 };
 export type MultiStepFormStepStepsConfig<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>
+  value extends steps.instantiateSteps<def>,
 > = {
   value: ReadonlyArray<steps.StepNumbers<value>>;
   as: AsFunction<def, value>;
@@ -130,7 +130,7 @@ const AS_TYPES = [
 
 export function createIsValidStepFn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>
+  value extends steps.instantiateSteps<def>,
 >(stepNumbers: Array<number>): IsValidStepFn<def, value> {
   function isValidStep(value: string): value is steps.StepNumbers<value>;
   function isValidStep(
@@ -165,7 +165,7 @@ export function createIsValidStepFn<
 export namespace MultiStepFormStepSchema {
   export type ListenerOptions<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>
+    value extends steps.instantiateSteps<def>,
   > = {
     original: def['steps'];
     value: value;
@@ -174,22 +174,14 @@ export namespace MultiStepFormStepSchema {
   };
   export type Listener<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>
+    value extends steps.instantiateSteps<def>,
   > = (data: ListenerOptions<def, value>) => void;
 }
 
 export class MultiStepFormStepSchema<
-    const def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>
-    // step extends Step<casing>,
-    // casing extends CasingType = DefaultCasing,
-    // resolvedStep extends ResolvedStep<step, casing> = ResolvedStep<
-    //   step,
-    //   casing
-    // >,
-    // stepNumbers extends StepNumbers<resolvedStep> = StepNumbers<resolvedStep>,
-    // storageKey extends string = DefaultStorageKey
-  >
+  const def extends StepSchema.Config,
+  value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+>
   extends Subscribable<MultiStepFormStepSchema.Listener<def, value>>
   implements MultiStepFormStepSchemaFunctions<value>
 {
@@ -203,8 +195,8 @@ export class MultiStepFormStepSchema<
   value: value;
   readonly steps: MultiStepFormStepStepsConfig<def, value>;
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
-  private readonly stepNumbers: Array<number>;
-  private readonly storage: MultiStepFormStorage<
+  readonly #stepNumbers: Array<number>;
+  readonly #storage: MultiStepFormStorage<
     value,
     StepSchema.inferStorageKey<def>
   >;
@@ -229,19 +221,19 @@ export class MultiStepFormStepSchema<
     });
 
     this.value = this.#internal.enrichValues(this.value);
-    this.storage = new MultiStepFormStorage({
+    this.#storage = new MultiStepFormStorage({
       data: this.value,
       key: (storage?.key ??
         DEFAULT_STORAGE_KEY) as StepSchema.inferStorageKey<def>,
       store: storage?.store,
       throwWhenUndefined: storage?.throwWhenUndefined,
     });
-    this.stepNumbers = Object.keys(this.value).map((key) =>
+    this.#stepNumbers = Object.keys(this.value).map((key) =>
       Number.parseInt(key.replace('step', ''))
     );
 
     this.steps = {
-      value: this.stepNumbers as unknown as ReadonlyArray<
+      value: this.#stepNumbers as unknown as ReadonlyArray<
         steps.StepNumbers<value>
       >,
       as: (asType): any => {
@@ -251,27 +243,27 @@ export class MultiStepFormStepSchema<
         );
 
         if (asType === 'string') {
-          return this.stepNumbers.map((value) => `'${value}'`).join(' | ');
+          return this.#stepNumbers.map((value) => `'${value}'`).join(' | ');
         }
 
         if (asType === 'string.keys') {
-          return this.stepNumbers.map((value) => `'step${value}'`).join(' | ');
+          return this.#stepNumbers.map((value) => `'step${value}'`).join(' | ');
         }
 
         if (asType === 'number') {
-          return this.stepNumbers.join(' | ');
+          return this.#stepNumbers.join(' | ');
         }
 
         if (asType.includes('array.string')) {
           if (asType.includes('keys')) {
-            return this.stepNumbers.map((value) => `step${value}`);
+            return this.#stepNumbers.map((value) => `step${value}`);
           }
 
-          return this.stepNumbers.map((value) => `${value}`);
+          return this.#stepNumbers.map((value) => `${value}`);
         }
 
         if (asType.includes('array.number')) {
-          return this.stepNumbers;
+          return this.#stepNumbers;
         }
 
         throw new Error(
@@ -280,7 +272,7 @@ export class MultiStepFormStepSchema<
           ).join(', ')}`
         );
       },
-      isValidStep: createIsValidStepFn(this.stepNumbers),
+      isValidStep: createIsValidStepFn(this.#stepNumbers),
     };
 
     this.sync();
@@ -290,7 +282,7 @@ export class MultiStepFormStepSchema<
    * @internal
    */
   __getStorage() {
-    return this.storage;
+    return this.#storage;
   }
 
   getSnapshot() {
@@ -354,7 +346,7 @@ export class MultiStepFormStepSchema<
     strict extends boolean = true,
     partial extends boolean = false,
     additionalCtx extends Record<string, unknown> = {},
-    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never
+    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never,
   >(
     options: UpdateFn.options<
       value,
@@ -372,7 +364,7 @@ export class MultiStepFormStepSchema<
   reset<
     targetStep extends steps.StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
-    currentStep extends UpdateFn.resolvedStep<value, targetStep>
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>,
   >(options: ResetFn.Options<value, targetStep, fields, currentStep>) {
     this.#internal.reset(options);
   }
@@ -387,7 +379,7 @@ export class MultiStepFormStepSchema<
     >,
     validator,
     additionalCtx extends Record<string, unknown>,
-    response
+    response,
   >(
     options: HelperFnOptions.WithValidator<
       value,
@@ -412,7 +404,7 @@ export class MultiStepFormStepSchema<
       steps.StepNumbers<value>
     >,
     additionalCtx extends Record<string, unknown>,
-    response
+    response,
   >(
     options: HelperFnOptions.WithoutValidator<
       value,
@@ -434,7 +426,7 @@ export class MultiStepFormStepSchema<
     >,
     response,
     additionalCtx extends Record<string, unknown>,
-    validator = never
+    validator = never,
   >(
     options:
       | HelperFnOptions.WithValidator<
@@ -480,7 +472,7 @@ export class MultiStepFormStepSchema<
    */
   getValue<
     step extends steps.StepNumbers<value>,
-    field extends fields.getDeepFields<value, step>
+    field extends fields.getDeepFields<value, step>,
   >(step: step, field: field) {
     const stepData = this.value[step];
     const invariant: Invariant = createInvariant('[getValue]');
