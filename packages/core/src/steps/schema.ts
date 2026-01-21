@@ -13,11 +13,11 @@ import { addToTuple, mapToTuple } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import { Subscribable } from '../subscribable';
 import {
-  fields,
   resolvedDeepPath,
   type getFieldForStep,
   type getDeepFields,
 } from './fields';
+
 import type { HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type {
   GeneralHelperFn,
