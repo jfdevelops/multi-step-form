@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.26
+
+### Patch Changes
+
+- 4deca4f: Attempt at fixing import issue...again
+
 ## 1.0.0-alpha.25
 
 ### Patch Changes
