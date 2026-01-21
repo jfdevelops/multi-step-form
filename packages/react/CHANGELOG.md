@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.36
+
+### Patch Changes
+
+- e128be0: Moved types and functions out of namespaces (`fields` and `steps`) to fix import issue
+- Updated dependencies [e128be0]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.27
+
 ## 1.0.0-alpha.35
 
 ### Patch Changes
