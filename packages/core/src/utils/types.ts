@@ -1,3 +1,5 @@
+import type { CasingType } from './casing';
+
 export type Expand<T> = T extends object
   ? T extends infer O
     ? O extends Function
@@ -7,6 +9,7 @@ export type Expand<T> = T extends object
         }
     : never
   : T;
+export type Show<T> = Expand<{ [k in keyof T]: T[k] }>;
 export type Constrain<T, TConstraint, TDefault = TConstraint> =
   | (T extends TConstraint ? T : never)
   | TDefault;
@@ -116,3 +119,45 @@ export type DeepPartial<T> = T extends Builtin
   : T extends object
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : T;
+export type stripFunctions<T> = Expand<{
+  [key in keyof T]: T[key] extends Function ? never : T[key];
+}>;
+export type IsString<T> = T extends string ? T : never;
+export type Updater<TInput, TOutput = TInput> =
+  | TOutput
+  | ((input: TInput) => TOutput);
+export type inferUpdaterReturn<t> = t extends Updater<infer _, infer r>
+  ? r
+  : never;
+export type RemoveReadonly<T> = Expand<{
+  -readonly [K in keyof T]: T[K] extends object ? RemoveReadonly<T[K]> : T[K];
+}>;
+export type UnionToTuple<T> = (
+  (T extends any ? (t: T) => T : never) extends infer U
+    ? (U extends any ? (u: U) => any : never) extends (v: infer V) => any
+      ? V
+      : never
+    : never
+) extends (_: any) => infer W
+  ? [...UnionToTuple<Exclude<T, W>>, W]
+  : [];
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = {
+  // For each key K in the desired set of keys...
+  [K in Keys]-?: Required<Pick<T, K>> & Partial<Omit<T, K>>;
+  // ...create a union of all those possible objects.
+}[Keys];
+export type WidenSpecial<T> = T extends CasingType
+  ? CasingType // e.g. "title" → "camel" | "snake" | "title"
+  : T;
+export type Relaxed<T> =
+  // If it's an array, recurse into elements
+  T extends (infer U)[]
+    ? Relaxed<U>[]
+    : // If it's a function, leave alone
+    T extends (...args: any[]) => any
+    ? T
+    : // If it's an object (record), recurse into props
+    T extends object
+    ? { [K in keyof T]: Relaxed<T[K]> }
+    : // Otherwise widen scalars
+      WidenSpecial<T>;

@@ -1,27 +1,27 @@
 import {
-  AnyResolvedStep,
-  Expand,
+  type Expand,
+  type HelperFn,
   MultiStepFormLogger,
-  type CurrentStepHelperFnCtx,
+  type steps,
 } from '@jfdevelops/multi-step-form-core';
 import { createElement, useMemo } from 'react';
 import { Fragment } from 'react/jsx-runtime';
 import {
   createUseSelector,
-  SelectorFn,
   type DebugOptions,
+  type SelectorFn,
 } from './hooks/use-selector';
 
 export namespace selector {
-  export type props<TCurrentStep extends AnyResolvedStep, TSelected> = {
-    selector: SelectorFn<TCurrentStep, TSelected>;
-    children?: (selected: TSelected) => React.ReactNode;
+  export type props<steps extends steps.instantiateSteps, selected> = {
+    selector: SelectorFn<steps, selected>;
+    children?: (selected: selected) => React.ReactNode;
     /**
      * Optional debug options to customize logging behavior.
      */
-    debug?: boolean | DebugOptions<TSelected>;
+    debug?: boolean | DebugOptions<selected>;
   };
-  export type component<TCurrentStep extends AnyResolvedStep> =
+  export type component<steps extends steps.instantiateSteps> =
     /**
      * A component for reactively displaying a value from the form context.
      * Unlike `useSelector`, this component only re-renders itself, not the parent component.
@@ -59,18 +59,16 @@ export namespace selector {
      * </Selector>
      * ```
      */
-    <TSelected>(props: props<TCurrentStep, TSelected>) => React.ReactNode;
+    <selected>(props: props<steps, selected>) => React.ReactNode;
 
-  export function create<TCurrentStep extends AnyResolvedStep>(
-    createCtx: () => Expand<CurrentStepHelperFnCtx<TCurrentStep>>,
+  export function create<steps extends steps.instantiateSteps>(
+    createCtx: () => Expand<
+      HelperFn.buildCtx<steps, [steps.StepNumbers<steps>]>
+    >,
     subscribe: (listener: () => void) => () => void
   ) {
     const useSelector = createUseSelector(createCtx, subscribe);
-    const Selector: component<TCurrentStep> = ({
-      selector,
-      children,
-      debug,
-    }) => {
+    const Selector: component<steps> = ({ selector, children, debug }) => {
       const isDebugEnabled =
         typeof debug === 'boolean' ? debug : debug !== undefined;
       const debugOptions = typeof debug === 'object' ? debug : undefined;

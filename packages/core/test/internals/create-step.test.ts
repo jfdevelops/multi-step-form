@@ -1,16 +1,18 @@
-import { createStep } from '@/internals/utils';
+import { steps } from '@/steps/steps';
 import { describe, it, expect } from 'vitest';
 
 describe('createStep', () => {
   it('should create a step with the default type for the field', () => {
-    const step = createStep({
-      step1: {
-        fields: {
-          firstName: {
-            defaultValue: '',
+    const step = steps.instantiate({
+      steps: {
+        step1: {
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
           },
+          title: 'Step 1',
         },
-        title: 'Step 1',
       },
     });
 
@@ -21,7 +23,7 @@ describe('createStep', () => {
             defaultValue: '',
             label: 'First Name',
             nameTransformCasing: 'title',
-            type: 'string',
+            name: 'firstName',
           },
         },
         title: 'Step 1',
@@ -32,15 +34,17 @@ describe('createStep', () => {
 
   it('should create a step with the type for the field if provided', () => {
     const now = new Date();
-    const step = createStep({
-      step1: {
-        fields: {
-          firstName: {
-            defaultValue: now,
-            type: 'string',
+    const step = steps.instantiate({
+      steps: {
+        step1: {
+          fields: {
+            firstName: {
+              defaultValue: now,
+              type: 'string',
+            },
           },
+          title: 'Step 1',
         },
-        title: 'Step 1',
       },
     });
 
@@ -48,10 +52,11 @@ describe('createStep', () => {
       step1: {
         fields: {
           firstName: {
-            defaultValue: now,
-            type: 'string',
+            defaultValue: JSON.stringify(now),
             label: 'First Name',
             nameTransformCasing: 'title',
+            type: 'string',
+            name: 'firstName',
           },
         },
         title: 'Step 1',

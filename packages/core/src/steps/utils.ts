@@ -1,19 +1,20 @@
 import { comparePartialArray, printErrors } from '@/utils/helpers';
-import { invariant } from '@/utils/invariant';
-import type {
-  AnyResolvedStep,
-  GetCurrentStep,
-  HelperFnChosenSteps,
-  HelperFnCtx,
-  StepNumbers,
-  Updater,
-} from './types';
+import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
+import { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
+import type { steps } from './steps';
+import type { Updater } from '@/utils/types';
 
 export type GetStepOptions<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TStepNumber extends TStepNumbers
-> = { step: TStepNumber };
+  value extends steps.instantiateSteps,
+  stepNumbers extends steps.StepNumbers<value>,
+  targetStep extends stepNumbers
+> = { step: targetStep };
+export type ValidStepKey<N extends number = number> = `step${N}`;
+export type ExtractStepFromKey<T> = T extends string
+  ? T extends ValidStepKey<infer N>
+    ? N
+    : never
+  : never;
 
 /**
  * Gets the step number from an input string.
@@ -36,9 +37,9 @@ export function extractNumber(input: string) {
  * @returns A function to get specific step data from a target step.
  */
 export function getStep<
-  resolvedStep extends AnyResolvedStep,
-  stepNumbers extends StepNumbers<resolvedStep>
->(resolvedStepValues: resolvedStep) {
+  value extends steps.instantiateSteps,
+  stepNumbers extends steps.StepNumbers<value>
+>(resolvedStepValues: value) {
   /**
    * Gets the step data associated with the target step number.
    *
@@ -48,15 +49,14 @@ export function getStep<
    *
    * @returns An object containing the `step` number and the associated step data.
    */
-  return function <stepNumber extends stepNumbers>(
-    options: GetStepOptions<resolvedStep, stepNumbers, stepNumber>
+  return function <targetStep extends stepNumbers>(
+    options: GetStepOptions<value, stepNumbers, targetStep>
   ) {
     const { step } = options;
-    const stepKey = `step${step}` as keyof typeof resolvedStepValues;
 
-    const data = resolvedStepValues[stepKey] as GetCurrentStep<
-      typeof resolvedStepValues,
-      stepNumber
+    const data = resolvedStepValues[step] as steps.getCurrent<
+      value,
+      targetStep
     >;
 
     return { step, data };
@@ -64,15 +64,19 @@ export function getStep<
 }
 
 function createCtxHelper<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
->(values: TResolvedStep, data: string[]) {
+  value extends steps.instantiateSteps,
+  stepNumbers extends steps.StepNumbers<value>,
+  chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
+>(values: value, data: string[]) {
+  const invariant: Invariant = createInvariant('[createCtxHelper]');
+  const getTargetStep = getStep(values);
+
   return data.reduce((acc, curr) => {
-    const stepNumber = extractNumber(curr);
-    const { data } = getStep(values)({
-      step: stepNumber as TStepNumbers,
+    const { data } = getTargetStep({
+      step: curr as stepNumbers,
     });
+
+    invariant(data, `No data was found for ${curr}`, TypeError);
 
     for (const [key, value] of Object.entries(data)) {
       // console.log({ [key]: value });
@@ -87,14 +91,14 @@ function createCtxHelper<
     acc[curr as keyof typeof acc] = data as never;
 
     return acc;
-  }, {} as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>);
+  }, {} as HelperFn.buildCtx<value, chosenSteps>);
 }
 
 export function createCtx<
-  TResolvedStep extends AnyResolvedStep,
-  TStepNumbers extends StepNumbers<TResolvedStep>,
-  TChosenSteps extends HelperFnChosenSteps<TResolvedStep, TStepNumbers>
->(values: TResolvedStep, stepData: TChosenSteps) {
+  value extends steps.instantiateSteps,
+  stepNumbers extends steps.StepNumbers<value>,
+  chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
+>(values: value, stepData: chosenSteps) {
   const formatter = new Intl.ListFormat('en', {
     style: 'long',
     type: 'disjunction',
@@ -106,80 +110,63 @@ export function createCtx<
       validStepKeys
     )})`;
   };
+  const match = HelperFnChosenSteps.match({
+    validValues: () => validStepKeys,
+    all: () => {
+      return createCtxHelper(values, validStepKeys);
+    },
+    tuple: ({ chosenSteps }) => {
+      invariant(
+        chosenSteps.every((step) => validStepKeys.includes(step)),
+        () => {
+          const comparedResults = comparePartialArray(
+            chosenSteps,
+            validStepKeys.map((key) => extractNumber(key)),
+            formatter
+          );
 
-  if (stepData === 'all') {
-    let ctx = {} as HelperFnCtx<TResolvedStep, TStepNumbers, TChosenSteps>;
+          if (comparedResults.status === 'error') {
+            return `${baseErrorMessage()}. See errors:\n ${printErrors(
+              comparedResults.errors
+            )}`;
+          }
 
-    for (const key of validStepKeys) {
-      ctx = {
-        ...ctx,
-        [key]: getStep(values)({
-          step: extractNumber(key) as never,
-        }),
-      };
-    }
-
-    return createCtxHelper<TResolvedStep, TStepNumbers, TChosenSteps>(
-      values,
-      validStepKeys
-    );
-  }
-
-  if (Array.isArray(stepData)) {
-    invariant(
-      stepData.every((step) => validStepKeys.includes(step)),
-      () => {
-        const comparedResults = comparePartialArray(
-          stepData,
-          validStepKeys.map((key) => extractNumber(key)),
-          formatter
-        );
-
-        if (comparedResults.status === 'error') {
-          return `${baseErrorMessage()}. See errors:\n ${printErrors(
-            comparedResults.errors
-          )}`;
+          return baseErrorMessage();
         }
+      );
 
-        return baseErrorMessage();
-      }
-    );
+      return createCtxHelper(values, chosenSteps);
+    },
+    object: ({ chosenSteps }) => {
+      const keys = Object.keys(chosenSteps);
 
-    return createCtxHelper<TResolvedStep, TStepNumbers, TChosenSteps>(
-      values,
-      stepData
-    );
-  }
+      invariant(
+        keys.every((key) => validStepKeys.includes(key)),
+        () => {
+          const comparedResults = comparePartialArray(
+            keys,
+            validStepKeys,
+            formatter
+          );
 
-  if (typeof stepData === 'object') {
-    const keys = Object.keys(stepData);
+          if (comparedResults.status === 'error') {
+            return `${baseErrorMessage()}. See errors:\n ${printErrors(
+              comparedResults.errors
+            )}`;
+          }
 
-    invariant(
-      keys.every((key) => validStepKeys.includes(key)),
-      () => {
-        const comparedResults = comparePartialArray(
-          keys,
-          validStepKeys,
-          formatter
-        );
-
-        if (comparedResults.status === 'error') {
-          return `${baseErrorMessage()}. See errors:\n ${printErrors(
-            comparedResults.errors
-          )}`;
+          return baseErrorMessage();
         }
+      );
 
-        return baseErrorMessage();
-      }
-    );
+      return createCtxHelper(values, keys);
+    },
+    default: ({ errorMessage }) => {
+      throw new Error(`[createCtx]: ${errorMessage}`);
+    },
+  });
 
-    return createCtxHelper<TResolvedStep, TStepNumbers, TChosenSteps>(
-      values,
-      keys
-    );
-  }
-
-  throw new Error(`${baseErrorMessage()} OR to "all"`);
+  return match<value, chosenSteps>(stepData);
 }
 
 export function functionalUpdate<TInput, TOutput>(
@@ -191,4 +178,21 @@ export function functionalUpdate<TInput, TOutput>(
   }
 
   return updater;
+}
+
+export function omit<T extends object, K extends (keyof T)[]>(
+  obj: T,
+  keys: K
+): Omit<T, K[number]> {
+  const keySet = new Set<keyof T>(keys);
+
+  const result = {} as Omit<T, K[number]>;
+
+  for (const key in obj) {
+    if (!keySet.has(key)) {
+      result[key as unknown as Exclude<keyof T, K[number]>] = obj[key] as never;
+    }
+  }
+
+  return result;
 }
