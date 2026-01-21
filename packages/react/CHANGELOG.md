@@ -1,5 +1,12 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.33
+
+### Patch Changes
+
+- Updated dependencies [ef9ff3c]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.24
+
 ## 1.0.0-alpha.32
 
 ### Patch Changes

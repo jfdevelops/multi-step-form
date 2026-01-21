@@ -1,5 +1,19 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.24
+
+### Patch Changes
+
+- ef9ff3c: # Type System Revamp
+
+  - Reduced the amount of generics down to 2 for external types
+  - Removed `First` and `Last` types as these weren't being used and was slowing down the TS server due to heavy recursion
+
+  # Removed unused functions
+
+  - `MultiStepFormStepSchema.first()`
+  - `MultiStepFormStepSchema.last()`
+
 ## 1.0.0-alpha.23
 
 ### Patch Changes
