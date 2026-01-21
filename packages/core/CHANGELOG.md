@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.27
+
+### Patch Changes
+
+- e128be0: Moved types and functions out of namespaces (`fields` and `steps`) to fix import issue
+
 ## 1.0.0-alpha.26
 
 ### Patch Changes
