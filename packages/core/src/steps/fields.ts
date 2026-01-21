@@ -104,7 +104,40 @@ export namespace fields {
     }
       ? defaultValue
       : never;
-  };
+    };
+  export function getDefaultValues<
+    values extends steps.instantiateSteps,
+    targetStep extends steps.StepNumbers<values>,
+    fields extends get<values, targetStep> = get<values, targetStep>,
+    >(values: values, targetStep: targetStep) {
+    const invariant: Invariant = createInvariant('[createDefaultValues]');
+
+    invariant(
+      targetStep in steps,
+      `The target step ${targetStep} is not a valid step key`
+    );
+
+    const current = values[targetStep];
+
+    invariant(
+      typeof current === 'object' && current !== null,
+      `The target step ${targetStep} is not an object`
+    );
+    invariant('fields' in current, `No "fields" were found for ${targetStep}`);
+
+    let defaultValues = {};
+
+    for (const [fieldName, fieldValues] of Object.entries(
+      current.fields as Record<string, Record<string, unknown>>
+    )) {
+      defaultValues = {
+        ...defaultValues,
+        [fieldName]: fieldValues.defaultValue,
+      };
+    }
+
+    return defaultValues as Expand<getDefaultValues<values, targetStep>>;
+  }
   export type parentOf<T extends string> = Split<T, '.'>[0];
 
   // TODO add field validation
