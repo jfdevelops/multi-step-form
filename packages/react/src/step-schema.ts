@@ -11,7 +11,7 @@ import {
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
   type ResetFn,
   steps,
-  type UpdateFn
+  type UpdateFn,
 } from '@jfdevelops/multi-step-form-core';
 import {
   MultiStepFormStepSchemaInternal,

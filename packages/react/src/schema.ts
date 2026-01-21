@@ -16,35 +16,27 @@ import {
 import { MultiStepFormSchemaConfig } from './form-config';
 import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
 import { createComponent, type CreateComponentCallback } from './utils';
-import { createMultiStepFormContext } from './create-context';
 import {
-  createPlugin,
-  type PluginInstance,
-  type MergeDefExtensions,
-  type MergeApis,
-} from './plugin';
+  createMultiStepFormContext,
+  type MultiStepFormContextResult,
+} from './create-context';
 
 // Helper inference types for `AnyMultiStepFormSchema`
-// export namespace MultiStepFormSchema {
-//   /**
-//    * Infer the resolved step from a {@linkcode MultiStepFormSchema}.
-//    */
-//   export type resolvedStep<T extends AnyMultiStepFormSchema> =
-//     T['stepSchema']['value'];
-//   /**
-//    * Infer the {@linkcode MultiStepFormSchema}'s step numbers.
-//    */
-//   export type stepNumbers<T extends AnyMultiStepFormSchema> = StepNumbers<
-//     resolvedStep<T>
-//   >;
-//   /**
-//    * Get the data for a specific step from a {@linkcode MultiStepFormSchema}.
-//    */
-//   export type getData<
-//     T extends AnyMultiStepFormSchema,
-//     TTarget extends keyof resolvedStep<T>,
-//   > = resolvedStep<T>[TTarget];
-// }
+export namespace MultiStepFormSchema {
+  export type config<
+    def extends StepSchema.Config,
+    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+  > = MultiStepFormStepSchema.config<def, value> & {
+    /**
+     * The React context for the multi step form.
+     *
+     * This is a private property and is not meant to be used directly.
+     * @private
+     * @internal
+     */
+    context?: MultiStepFormContextResult<def, value>;
+  };
+}
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
@@ -63,12 +55,17 @@ export class MultiStepFormSchema<
     StepSchema.inferStorageKey<def>
   >;
 
-  constructor(config: MultiStepFormStepSchema.config<def, value>) {
+  readonly context: MultiStepFormContextResult<def, value> = undefined as never;
+  readonly formConfig: MultiStepFormSchemaConfig.FormConfig<def, value> =
+    undefined as never;
+
+  constructor(config: MultiStepFormSchema.config<def, value>) {
     const {
       nameTransformCasing = DEFAULT_CASING,
       steps,
       form,
       storage,
+      context,
     } = config;
     const options = {
       steps,
@@ -99,68 +96,13 @@ export class MultiStepFormSchema<
       data: this.stepSchema.value,
       ...this.storageConfig,
     });
-  }
-
-  withPlugins<
-    const TPlugins extends readonly PluginInstance<any, any, any, any, any>[],
-    TNewDef extends StepSchema.Config = Expand<
-      def & MergeDefExtensions<TPlugins>
-    >,
-  >(
-    ...plugins: TPlugins
-  ): MultiStepFormSchema<TNewDef, steps.instantiateSteps<TNewDef>> &
-    MergeApis<TPlugins> {
-    // Build the new constructor config with plugin configs
-    const pluginConfigs: Record<string, unknown> = {};
-
-    for (const plugin of plugins) {
-      const constructorKey = plugin.definition.constructorKey ?? plugin.key;
-      const config = plugin.config ?? plugin.definition.defaults;
-      pluginConfigs[constructorKey] = config;
+    if (context) {
+      this.context = context;
     }
 
-    const { key, store, throwWhenUndefined } = this.storageConfig;
-
-    // Create new schema instance with merged config
-    const newSchema = new MultiStepFormSchema({
-      steps: this.stepSchema.original,
-      nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
-      storage: {
-        key,
-        store,
-        throwWhenUndefined,
-      },
-      ...pluginConfigs,
-    } as never);
-
-    // Collect and merge APIs
-    let apis = {};
-
-    for (const plugin of plugins) {
-      if (plugin.definition.api) {
-        // Get the instantiated config
-        const constructorKey = plugin.definition.constructorKey ?? plugin.key;
-        let instantiatedConfig = pluginConfigs[constructorKey];
-
-        if (plugin.definition.instantiate) {
-          const processor = plugin.definition.instantiate({
-            value: newSchema.stepSchema.value,
-            availableSteps: newSchema.stepSchema.steps.value,
-            def: newSchema.stepSchema.original as never,
-          });
-          instantiatedConfig = processor(plugin.config);
-        }
-
-        const pluginApi = plugin.definition.api({
-          schema: newSchema as never,
-          config: instantiatedConfig,
-        });
-
-        Object.assign(apis, pluginApi);
-      }
+    if (form) {
+      this.formConfig = form;
     }
-
-    return Object.assign(newSchema, apis) as never;
   }
 
   /**
@@ -215,7 +157,20 @@ export class MultiStepFormSchema<
   withContext() {
     const context = createMultiStepFormContext(this);
 
+    const t = Object.assign(this, { context });
+
     // return new instance
+    return new MultiStepFormSchema<def, value>({
+      steps: this.stepSchema.original,
+      form: this.formConfig,
+      nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
+      storage: {
+        key: this.storageConfig.key,
+        store: this.storageConfig.store,
+        throwWhenUndefined: this.storageConfig.throwWhenUndefined,
+      },
+      context,
+    } as never);
   }
 
   createComponent<
@@ -246,5 +201,3 @@ export function createMultiStepFormSchema<
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }
-
-
