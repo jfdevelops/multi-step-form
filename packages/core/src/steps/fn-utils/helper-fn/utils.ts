@@ -21,11 +21,8 @@ type AllKeysRequired<T extends object> = keyof T extends never
 
 export namespace HelperFnInput {
   export interface BaseInput<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps> = never,
     TAdditionalCtx extends Record<string, unknown> = {}
   > extends HelperFn.BaseInput<value, chosenSteps, omitSteps, TAdditionalCtx> {
@@ -40,11 +37,8 @@ export namespace HelperFnInput {
     reset: ResetFn.HelperFn<value, chosenSteps>;
   }
   export interface InputWithValidator<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     validator,
     additionalCtx extends Record<string, unknown> = {}
   > extends BaseInput<value, chosenSteps, never, additionalCtx> {
@@ -55,20 +49,14 @@ export namespace HelperFnInput {
   }
 
   export interface InputWithoutValidator<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     additionalCtx extends Record<string, unknown> = {}
   > extends BaseInput<value, chosenSteps, never, additionalCtx> {}
 
   export type WithValidator<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     validator,
     additionalCtx extends Record<string, unknown>,
     response
@@ -78,11 +66,8 @@ export namespace HelperFnInput {
   >;
 
   export type WithoutValidator<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     additionalCtx extends Record<string, unknown>,
     response
   > = RequiredInputFn<
@@ -93,20 +78,14 @@ export namespace HelperFnInput {
 
 export namespace HelperFnOptions {
   export interface WithCustomCtx<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     additionalCtx extends Record<string, unknown>
   > extends HelperFn.BaseOptions<value, chosenSteps>,
       HelperFn.CtxDataSelector<value, chosenSteps, additionalCtx> {}
   export interface WithValidator<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     validator,
     additionalCtx extends Record<string, unknown>
   > extends WithCustomCtx<value, chosenSteps, additionalCtx> {
@@ -116,11 +95,8 @@ export namespace HelperFnOptions {
     validator: Constrain<validator, AnyValidator, DefaultValidator>;
   }
   export interface WithoutValidator<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     additionalCtx extends Record<string, unknown>
   > extends WithCustomCtx<value, chosenSteps, additionalCtx> {}
 }
@@ -146,8 +122,8 @@ export namespace HelperFnOutput {
 }
 
 export type StepSpecificHelperFn<
-  value extends steps.instantiateSteps,
-  targetStep extends steps.StepNumbers<value>
+  value extends instantiateSteps,
+  targetStep extends StepNumbers<value>
 > = {
   /**
    * Create a helper function with validated input.
@@ -190,8 +166,8 @@ export type StepSpecificHelperFn<
 };
 
 export type GeneralHelperFn<
-  value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>
+  value extends instantiateSteps,
+  stepNumbers extends StepNumbers<value> = StepNumbers<value>
 > = {
   /**
    * Create a helper function with validated input.

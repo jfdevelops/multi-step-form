@@ -2,8 +2,9 @@ import {
   createInvariant,
   Expand,
   HelperFnChosenSteps,
-  steps,
+  type instantiateSteps,
   type Invariant,
+  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import {
@@ -17,9 +18,9 @@ export namespace MultiStepFormSchemaConfig {
   export const DEFAULT_FORM_ALIAS = 'Form';
   export type defaultEnabledFor = HelperFnChosenSteps.defaultStringOption;
   export type defaultFormAlias = typeof DEFAULT_FORM_ALIAS;
-  export type formEnabledFor<value extends steps.instantiateSteps> =
-    HelperFnChosenSteps.main<value, steps.StepNumbers<value>>;
-  type strippedResolvedSteps<value extends steps.instantiateSteps> = {
+  export type formEnabledFor<value extends instantiateSteps> =
+    HelperFnChosenSteps.main<value, StepNumbers<value>>;
+  type strippedResolvedSteps<value extends instantiateSteps> = {
     [_ in keyof value]: Expand<
       Omit<value[_], 'createComponent' | 'createHelperFn'>
     >;
@@ -33,8 +34,8 @@ export namespace MultiStepFormSchemaConfig {
     render: infer render;
   }
     ? render extends (data: any) => ComponentType<infer props>
-      ? props
-      : never
+    ? props
+    : never
     : never;
   export namespace EnabledForSteps {
     export type get<def> = def extends {
@@ -42,26 +43,26 @@ export namespace MultiStepFormSchemaConfig {
     }
       ? enabledForSteps // Case: `enabledForSteps` isn't provided (default behavior)
       : def extends { form: infer form }
-        ? form extends { enabledForSteps: infer enabledForSteps }
-          ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
-          : never
-        : never;
+      ? form extends { enabledForSteps: infer enabledForSteps }
+      ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
+      : never
+      : never;
     export type resolveType<
       def extends StepSchema.Config,
-      steps extends steps.instantiateSteps<def>,
+      steps extends instantiateSteps<def>,
       value = instantiateFormConfig<def>,
     > =
       get<value> extends defaultEnabledFor
-        ? 'all'
-        : get<value> extends HelperFnChosenSteps.tupleNotation<
-              steps.StepNumbers<steps>
-            >
-          ? 'tuple'
-          : get<value> extends HelperFnChosenSteps.objectNotation<
-                steps.StepNumbers<steps>
-              >
-            ? 'object'
-            : never;
+      ? 'all'
+      : get<value> extends HelperFnChosenSteps.tupleNotation<
+        StepNumbers<steps>
+      >
+      ? 'tuple'
+      : get<value> extends HelperFnChosenSteps.objectNotation<
+        StepNumbers<steps>
+      >
+      ? 'object'
+      : never;
   }
 
   export type inferFormEnabledForSteps<def> = def extends {
@@ -72,10 +73,10 @@ export namespace MultiStepFormSchemaConfig {
     : defaultEnabledFor;
   export type inferComponent<def> = def extends { render: infer render }
     ? render extends (data: any) => infer r
-      ? r extends ComponentType<infer _>
-        ? r
-        : never
-      : never
+    ? r extends ComponentType<infer _>
+    ? r
+    : never
+    : never
     : never;
   export type inferredFormComponent<def> = {
     [key in inferFormAlias<def>]: inferComponent<def>;
@@ -83,48 +84,48 @@ export namespace MultiStepFormSchemaConfig {
 
   export type instantiateFormConfig<def> = [def] extends [object]
     ? def extends { form: infer form }
-      ? {
-          -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
-            {
-              alias: inferFormAlias<FormConfig.withoutRender<form>>;
-              enabledForSteps: inferFormEnabledForSteps<
-                FormConfig.withoutRender<form>
-              >;
-            } & inferredFormComponent<form>
+    ? {
+      -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+        {
+          alias: inferFormAlias<FormConfig.withoutRender<form>>;
+          enabledForSteps: inferFormEnabledForSteps<
+            FormConfig.withoutRender<form>
           >;
-        }[keyof FormConfig.withoutRender<form>]
-      : {}
+        } & inferredFormComponent<form>
+      >;
+    }[keyof FormConfig.withoutRender<form>]
+    : {}
     : {};
   export type getEnabledForSteps<def> =
     instantiateFormConfig<def> extends {
       enabledForSteps: infer enabledForSteps;
     }
-      ? enabledForSteps
-      : def;
+    ? enabledForSteps
+    : def;
   export type AvailableStepForForm<
-    value extends steps.instantiateSteps,
+    value extends instantiateSteps,
     enabledFor extends formEnabledFor<value>,
   > = enabledFor extends defaultEnabledFor
     ? strippedResolvedSteps<value>
     : enabledFor extends HelperFnChosenSteps.tupleNotation<
-          steps.StepNumbers<value>
-        >
-      ? enabledFor[number] extends keyof value
-        ? Pick<strippedResolvedSteps<value>, enabledFor[number]>
-        : never
-      : keyof enabledFor extends keyof value
-        ? Expand<
-            Pick<
-              strippedResolvedSteps<value>,
-              Extract<keyof value, keyof enabledFor>
-            >
-          >
-        : never;
+      StepNumbers<value>
+    >
+    ? enabledFor[number] extends keyof value
+    ? Pick<strippedResolvedSteps<value>, enabledFor[number]>
+    : never
+    : keyof enabledFor extends keyof value
+    ? Expand<
+      Pick<
+        strippedResolvedSteps<value>,
+        Extract<keyof value, keyof enabledFor>
+      >
+    >
+    : never;
   export type formCtx<alias extends string, props> = {
     [_ in alias]: CreatedMultiStepFormComponent<props>;
   };
   export type renderFnData<
-    value extends steps.instantiateSteps,
+    value extends instantiateSteps,
     enabledFor extends formEnabledFor<value>,
   > = {
     /**
@@ -146,7 +147,7 @@ export namespace MultiStepFormSchemaConfig {
    */
   export interface FormConfig<
     def extends StepSchema.Config = StepSchema.Config,
-    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+    value extends instantiateSteps<def> = instantiateSteps<def>,
   > {
     /**
      * The `id` for the form component.
@@ -191,9 +192,9 @@ export namespace MultiStepFormSchemaConfig {
     /**
      * If the form component should be accessible for each step when calling `createComponent`.
      *
-     * If no value is given, the form will be accessible for all the steps.
+     * If no value is given, the form will be accessible for all the
      */
-    enabledForSteps?: HelperFnChosenSteps.main<value, steps.StepNumbers<value>>;
+    enabledForSteps?: HelperFnChosenSteps.main<value, StepNumbers<value>>;
     /**
      *
      * @param data The data that is available for creating the custom form.
@@ -265,8 +266,8 @@ export namespace MultiStepFormSchemaConfig {
 
   export function instantiateFormConfig<
     const def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
-  >(data: value, availableSteps: readonly steps.StepNumbers<value>[]) {
+    value extends instantiateSteps<def>,
+  >(data: value, availableSteps: readonly StepNumbers<value>[]) {
     return <
       const form extends FormConfig<def, value>,
       inst = instantiateFormConfig<form>,
@@ -333,8 +334,8 @@ export namespace MultiStepFormSchemaConfig {
   // because the `target` will always be an `Array` in `MultiStepFormStepSchema.createComponentForStep`.
   // TODO add validation to keys
   export function isFormAvailable<
-    value extends steps.instantiateSteps,
-    target extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>,
+    value extends instantiateSteps,
+    target extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     enabledFor extends formEnabledFor<value>,
   >(target: target, enabledFor: enabledFor) {
     if (Array.isArray(target)) {
@@ -349,12 +350,12 @@ export namespace MultiStepFormSchemaConfig {
         },
         object: ({ chosenSteps, meta }) => {
           return Object.keys(chosenSteps).some((key) =>
-            meta.target.includes(key as steps.StepNumbers<value>)
+            meta.target.includes(key as StepNumbers<value>)
           );
         },
       });
 
-      return match(enabledFor);
+      return match<value, enabledFor>(enabledFor);
     }
 
     return false;

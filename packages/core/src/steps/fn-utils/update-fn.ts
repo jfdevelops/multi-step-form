@@ -12,19 +12,19 @@ import type { steps } from '../steps';
 import type { HelperFn, HelperFnChosenSteps } from './helper-fn';
 
 export namespace UpdateFn {
-  export type chosenFields<TCurrentStep extends steps.Any> =
+  export type chosenFields<TCurrentStep extends Any> =
     | HelperFnChosenSteps.defaultStringOption
     | HelperFnChosenSteps.tupleNotation<DeepKeys<TCurrentStep>>
     | path.generateObjectConfig<TCurrentStep>;
 
   type resolveAllPropertyPath<
-    TCurrentStep extends steps.Any,
+    TCurrentStep extends Any,
     TField extends chosenFields<TCurrentStep>
   > = TField extends HelperFnChosenSteps.defaultStringOption
     ? Relaxed<TCurrentStep>
     : never;
   type resolveTuplePropertyPath<
-    TCurrentStep extends steps.Any,
+    TCurrentStep extends Any,
     TField extends chosenFields<TCurrentStep>,
     TDeepKeys extends DeepKeys<TCurrentStep> = DeepKeys<TCurrentStep>
   > = TField extends HelperFnChosenSteps.tupleNotation<TDeepKeys>
@@ -33,7 +33,7 @@ export namespace UpdateFn {
       : never
     : never;
   type resolveObjectPropertyPath<
-    TCurrentStep extends steps.Any,
+    TCurrentStep extends Any,
     TField extends chosenFields<TCurrentStep>,
     TDeepKeys extends DeepKeys<TCurrentStep> = DeepKeys<TCurrentStep>
   > = TField extends path.generateObjectConfig<TField>
@@ -44,7 +44,7 @@ export namespace UpdateFn {
       : never
     : never;
   type resolvePathType<
-    TCurrentStep extends steps.Any,
+    TCurrentStep extends Any,
     TField extends chosenFields<TCurrentStep>
   > = TField extends HelperFnChosenSteps.defaultStringOption
     ? 'all'
@@ -54,7 +54,7 @@ export namespace UpdateFn {
     ? 'object'
     : never;
   type resolvePathMap<
-    TCurrentStep extends steps.Any,
+    TCurrentStep extends Any,
     TField extends chosenFields<TCurrentStep>
   > = {
     all: resolveAllPropertyPath<TCurrentStep, TField>;
@@ -62,12 +62,12 @@ export namespace UpdateFn {
     object: resolveObjectPropertyPath<TCurrentStep, TField>;
   };
   export type resolvedStep<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>
   > = stripFunctions<value[targetStep]>;
   export type resolvedFieldValue<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
     field extends chosenFields<currentStep>,
     currentStep extends resolvedStep<value, targetStep> = resolvedStep<
       value,
@@ -128,8 +128,8 @@ export namespace UpdateFn {
     silentErrors?: boolean;
   }
   export interface BaseOptions<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
     fields extends chosenFields<currentStep>,
     currentStep extends resolvedStep<value, targetStep> = resolvedStep<
       value,
@@ -181,8 +181,8 @@ export namespace UpdateFn {
   }
 
   export interface SharedOptions<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
     fields extends chosenFields<currentStep>,
     updateMode extends mode,
     currentStep extends resolvedStep<value, targetStep> = resolvedStep<
@@ -193,8 +193,8 @@ export namespace UpdateFn {
       ModeOptions<updateMode> {}
 
   export type options<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
     field extends chosenFields<TCurrentStep>,
     strict extends boolean,
     partial extends boolean,
@@ -219,8 +219,8 @@ export namespace UpdateFn {
         >
       >;
     };
-  export type general<value extends steps.instantiateSteps> = <
-    targetStep extends steps.StepNumbers<value>,
+  export type general<value extends instantiateSteps> = <
+    targetStep extends StepNumbers<value>,
     field extends chosenFields<resolvedStep<value, targetStep>> = 'all',
     strict extends boolean = true,
     partial extends boolean = false,
@@ -239,9 +239,9 @@ export namespace UpdateFn {
   ) => void;
 
   export type stepSpecific<
-    value extends steps.instantiateSteps,
+    value extends instantiateSteps,
     targetStep extends stepNumbers,
-    stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>
+    stepNumbers extends StepNumbers<value> = StepNumbers<value>
   > = <
     field extends chosenFields<resolvedStep<value, targetStep>> = 'all',
     strict extends boolean = true,
@@ -263,11 +263,8 @@ export namespace UpdateFn {
     >
   ) => void;
   export type StepSpecificHelperFn<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = {
     [key in HelperFnChosenSteps.resolve<value, chosenSteps>]: stepSpecific<
       value,
@@ -275,34 +272,21 @@ export namespace UpdateFn {
     >;
   };
   export type createHelperFnForAllSteps<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = chosenSteps extends HelperFnChosenSteps.defaultStringOption
     ? StepSpecificHelperFn<value, chosenSteps>
     : never;
   export type createHelperFnForTupleSteps<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
-  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<
-    steps.StepNumbers<value>
-  >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
     ? StepSpecificHelperFn<value, chosenSteps>
     : never;
   export type createHelperFnForObjectSteps<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
-  > = chosenSteps extends HelperFnChosenSteps.objectNotation<
-    steps.StepNumbers<value>
-  >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+  > = chosenSteps extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
     ? {
         [key in keyof chosenSteps]: key extends HelperFnChosenSteps.resolve<
           value,
@@ -313,22 +297,16 @@ export namespace UpdateFn {
       }
     : never;
   type HelperFnMap<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = {
     all: createHelperFnForAllSteps<value, chosenSteps>;
     tuple: createHelperFnForTupleSteps<value, chosenSteps>;
     object: createHelperFnForObjectSteps<value, chosenSteps>;
   };
   export type HelperFn<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = general<value> &
     HelperFnMap<value, chosenSteps>[HelperFnChosenSteps.resolveType<
       value,

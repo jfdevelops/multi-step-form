@@ -1,8 +1,9 @@
 import {
   type Expand,
   type HelperFn,
+  type instantiateSteps,
   MultiStepFormLogger,
-  type steps,
+  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import { createElement, useMemo } from 'react';
 import { Fragment } from 'react/jsx-runtime';
@@ -13,7 +14,7 @@ import {
 } from './hooks/use-selector';
 
 export namespace selector {
-  export type props<steps extends steps.instantiateSteps, selected> = {
+  export type props<steps extends instantiateSteps, selected> = {
     selector: SelectorFn<steps, selected>;
     children?: (selected: selected) => React.ReactNode;
     /**
@@ -21,7 +22,7 @@ export namespace selector {
      */
     debug?: boolean | DebugOptions<selected>;
   };
-  export type component<steps extends steps.instantiateSteps> =
+  export type component<steps extends instantiateSteps> =
     /**
      * A component for reactively displaying a value from the form context.
      * Unlike `useSelector`, this component only re-renders itself, not the parent component.
@@ -61,9 +62,9 @@ export namespace selector {
      */
     <selected>(props: props<steps, selected>) => React.ReactNode;
 
-  export function create<steps extends steps.instantiateSteps>(
+  export function create<steps extends instantiateSteps>(
     createCtx: () => Expand<
-      HelperFn.buildCtx<steps, [steps.StepNumbers<steps>]>
+      HelperFn.buildCtx<steps, [StepNumbers<steps>]>
     >,
     subscribe: (listener: () => void) => () => void
   ) {
@@ -126,7 +127,7 @@ export namespace selector {
 
       logger?.info(
         debugOptions?.onRender?.(selected) ??
-          `Rendering with selected: ${JSON.stringify(selected)}`
+        `Rendering with selected: ${JSON.stringify(selected)}`
       );
 
       if (children) {

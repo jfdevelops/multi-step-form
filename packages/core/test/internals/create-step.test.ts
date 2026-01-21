@@ -1,9 +1,9 @@
-import { steps } from '@/steps/steps';
-import { describe, it, expect } from 'vitest';
+import { instantiateSteps } from '@/steps/steps';
+import { describe, expect, it } from 'vitest';
 
 describe('createStep', () => {
   it('should create a step with the default type for the field', () => {
-    const step = steps.instantiate({
+    const steps = instantiateSteps({
       steps: {
         step1: {
           fields: {
@@ -16,7 +16,7 @@ describe('createStep', () => {
       },
     });
 
-    expect(step).toStrictEqual({
+    expect(steps).toStrictEqual({
       step1: {
         fields: {
           firstName: {
@@ -34,7 +34,7 @@ describe('createStep', () => {
 
   it('should create a step with the type for the field if provided', () => {
     const now = new Date();
-    const step = steps.instantiate({
+    const steps = instantiateSteps({
       steps: {
         step1: {
           fields: {
@@ -48,7 +48,7 @@ describe('createStep', () => {
       },
     });
 
-    expect(step).toStrictEqual({
+    expect(steps).toStrictEqual({
       step1: {
         fields: {
           firstName: {

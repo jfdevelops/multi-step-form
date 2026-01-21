@@ -1,11 +1,14 @@
 import type {
   Expand,
-  fields,
+  getDeepFields,
+  getFieldConfig,
   HelperFn,
+  instantiateSteps,
   Override,
-  steps,
+  resolveDeepFieldPath,
+  StepNumbers,
   UpdateFn,
-  Updater,
+  Updater
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
 import { memo, useSyncExternalStore } from 'react';
@@ -30,47 +33,47 @@ export namespace field {
     UpdateFn.DebugOptions;
 
   export type childrenProps<
-    steps extends steps.instantiateSteps,
-    field extends fields.getDeepFields<steps, targetStep>,
-    targetStep extends steps.StepNumbers<steps> = steps.StepNumbers<steps>,
-    value extends fields.resolveDeepPath<steps, targetStep, field> =
-      fields.resolveDeepPath<steps, targetStep, field>,
-    TConfig extends fields.getConfig<steps, targetStep, field> =
-      fields.getConfig<steps, targetStep, field>,
+    steps extends instantiateSteps,
+    field extends getDeepFields<steps, targetStep>,
+    targetStep extends StepNumbers<steps> = StepNumbers<steps>,
+    value extends resolveDeepFieldPath<steps, targetStep, field> =
+    resolveDeepFieldPath<steps, targetStep, field>,
+    TConfig extends getFieldConfig<steps, targetStep, field> =
+    getFieldConfig<steps, targetStep, field>,
   > = sharedProps<field> &
     (TConfig extends { defaultValue: unknown }
       ? Override<TConfig, 'defaultValue', value>
       : {
-          defaultValue: `An unknown error occurred while getting the "defaultValue" for ${field}`;
-        }) & {
-      /**
-       * A useful wrapper around `update` to update the specific field.
-       * @param value The new value for the field.
-       * @param options The options for the update operation.
-       */
-      onInputChange: <
-        strict extends boolean = true,
-        partial extends boolean = false,
-      >(
-        value: Updater<
-          UpdateFn.resolvedUpdaterReturnType<
-            value,
-            { strict: strict; partial: partial },
-            {}
-          >
-        >,
-        options?: onInputChangeOptions<strict, partial>
-      ) => void;
-      /**
-       * Resets the field's value to the original value that was
-       * defined in the config.
-       */
-      reset: (options?: UpdateFn.DebugOptions) => void;
-    };
+        defaultValue: `An unknown error occurred while getting the "defaultValue" for ${field}`;
+      }) & {
+        /**
+         * A useful wrapper around `update` to update the specific field.
+         * @param value The new value for the field.
+         * @param options The options for the update operation.
+         */
+        onInputChange: <
+          strict extends boolean = true,
+          partial extends boolean = false,
+        >(
+          value: Updater<
+            UpdateFn.resolvedUpdaterReturnType<
+              value,
+              { strict: strict; partial: partial },
+              {}
+            >
+          >,
+          options?: onInputChangeOptions<strict, partial>
+        ) => void;
+        /**
+         * Resets the field's value to the original value that was
+         * defined in the config.
+         */
+        reset: (options?: UpdateFn.DebugOptions) => void;
+      };
 
   export type childrenPropsWithSelected<
-    steps extends steps.instantiateSteps,
-    field extends fields.getDeepFields<steps, steps.StepNumbers<steps>>,
+    steps extends instantiateSteps,
+    field extends getDeepFields<steps, StepNumbers<steps>>,
     TSelected,
   > = childrenProps<steps, field> & {
     selected: {
@@ -81,8 +84,8 @@ export namespace field {
     };
   };
   export type props<
-    step extends steps.instantiateSteps,
-    field extends fields.getDeepFields<step, steps.StepNumbers<step>>,
+    step extends instantiateSteps,
+    field extends getDeepFields<step, StepNumbers<step>>,
     selected,
   > = sharedProps<field> & {
     selectorFn?: SelectorFn<step, selected>;
@@ -92,26 +95,26 @@ export namespace field {
         : childrenPropsWithSelected<step, field, selected>
     ) => ReactNode;
   };
-  export type component<steps extends steps.instantiateSteps> = <
-    field extends fields.getDeepFields<steps, steps.StepNumbers<steps>>,
+  export type component<steps extends instantiateSteps> = <
+    field extends getDeepFields<steps, StepNumbers<steps>>,
     selected = never,
   >(
     props: props<steps, field, selected>
   ) => ReactNode;
 
-  export type createOptions<step extends steps.instantiateSteps> = {
+  export type createOptions<step extends instantiateSteps> = {
     propsCreator: <
-      field extends fields.getDeepFields<step, steps.StepNumbers<step>>,
+        field extends getDeepFields<step, StepNumbers<step>>,
     >(
       name: field
     ) => field.childrenProps<step, field>;
     subscribe?: (listener: () => void) => () => void;
     getValue?: <
-      field extends fields.getDeepFields<step, steps.StepNumbers<step>>,
+      field extends getDeepFields<step, StepNumbers<step>>,
     >(
       name: field
-    ) => fields.resolveDeepPath<step, steps.StepNumbers<step>, field>;
-    selectorCtx: Expand<HelperFn.buildCtx<step, [steps.StepNumbers<step>]>>;
+    ) => resolveDeepFieldPath<step, StepNumbers<step>, field>;
+    selectorCtx: Expand<HelperFn.buildCtx<step, [StepNumbers<step>]>>;
   };
 
   /**
@@ -121,7 +124,7 @@ export namespace field {
    * @param getValue - Optional function to get the current field value reactively
    * @returns
    */
-  export function create<step extends steps.instantiateSteps>(
+  export function create<step extends instantiateSteps>(
     options: createOptions<step>
   ) {
     const { propsCreator, subscribe, getValue, selectorCtx } = options;
@@ -130,7 +133,7 @@ export namespace field {
       const { name, children, selectorFn } = props;
 
       // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
-      const subscribeFn = subscribe || (() => () => {});
+      const subscribeFn = subscribe || (() => () => { });
       const getValueFn = getValue || (() => undefined);
 
       // Subscribe to changes to trigger rerenders

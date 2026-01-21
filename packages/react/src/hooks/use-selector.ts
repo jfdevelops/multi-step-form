@@ -1,9 +1,10 @@
 import type {
-  steps,
+  instantiateSteps,
   Expand,
   MultiStepFormLogger,
   MultiStepFormLoggerOptions,
   HelperFn,
+  StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import { useRef, useSyncExternalStore } from 'react';
 
@@ -165,15 +166,12 @@ export type DebugOptions<TSelected> = {
   onValueUnchanged?: (value: TSelected) => string;
 };
 
-export type UseSelectorOptions<
-  steps extends steps.instantiateSteps,
-  selected,
-> = {
+export type UseSelectorOptions<steps extends instantiateSteps, selected> = {
   selectorFn: SelectorFn<steps, selected>;
   logger?: MultiStepFormLogger;
   debugOptions?: DebugOptions<selected>;
 };
-export type UseSelector<steps extends steps.instantiateSteps> = {
+export type UseSelector<steps extends instantiateSteps> = {
   /**
    * @deprecated Use the {@link UseSelectorOptions} instead. Will be removed in the future.
    */
@@ -188,12 +186,12 @@ export type UseSelector<steps extends steps.instantiateSteps> = {
    */
   <selected>(options: UseSelectorOptions<steps, selected>): selected;
 };
-export type SelectorFn<steps extends steps.instantiateSteps, selected> = (
-  ctx: Expand<HelperFn.buildCtx<steps, [steps.StepNumbers<steps>]>>
+export type SelectorFn<steps extends instantiateSteps, selected> = (
+  ctx: Expand<HelperFn.buildCtx<steps, [StepNumbers<steps>]>>
 ) => selected;
 
-export function createUseSelector<steps extends steps.instantiateSteps>(
-  createCtx: () => Expand<HelperFn.buildCtx<steps, [steps.StepNumbers<steps>]>>,
+export function createUseSelector<steps extends instantiateSteps>(
+  createCtx: () => Expand<HelperFn.buildCtx<steps, [StepNumbers<steps>]>>,
   subscribe: (listener: () => void) => () => void
 ) {
   return <selected>(

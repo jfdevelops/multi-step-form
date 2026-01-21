@@ -1,16 +1,19 @@
 import {
+  buildValuePath,
   createCtx,
   createInvariant,
   type Expand,
-  fields,
+  getDefaultValues,
   type HelperFn,
   type HelperFnChosenSteps,
   type HelperFnInput,
+  instantiateSteps,
   type Invariant,
   MultiStepFormLogger,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
   type ResetFn,
-  steps,
+  type StepNumbers,
+
   type UpdateFn,
 } from '@jfdevelops/multi-step-form-core';
 import {
@@ -33,8 +36,8 @@ import {
 
 export type CreateComponentFn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
-> = <targetStep extends steps.StepNumbers<value>, props = undefined>(
+  value extends instantiateSteps<def>,
+> = <targetStep extends StepNumbers<value>, props = undefined>(
   options: HelperFn.BaseOptions<value, [targetStep]>,
   fn: CreateComponentCallback<value, [targetStep], props>
 ) => CreatedMultiStepFormComponent<props>;
@@ -49,15 +52,15 @@ export namespace StepSpecificComponent {
       : {};
   type instantiateFormComponentForTuple<
     def extends StepSchema.Config,
-    steps extends steps.instantiateSteps,
+    steps extends instantiateSteps,
     chosenSteps extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<steps>
+      StepNumbers<steps>
     >,
   > =
     MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<steps>
+      StepNumbers<steps>
     >
-      ? chosenSteps[number] extends steps.StepNumbers<steps>
+      ? chosenSteps[number] extends StepNumbers<steps>
         ? chosenSteps[number] extends MultiStepFormSchemaConfig.EnabledForSteps.get<def>[number]
           ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
           : {}
@@ -66,15 +69,15 @@ export namespace StepSpecificComponent {
 
   type instantiateFormComponentForObject<
     def extends StepSchema.Config,
-    steps extends steps.instantiateSteps,
+    steps extends instantiateSteps,
     chosenSteps extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<steps>
+      StepNumbers<steps>
     >,
   > =
     MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.objectNotation<
-      steps.StepNumbers<steps>
+      StepNumbers<steps>
     >
-      ? chosenSteps[number] extends steps.StepNumbers<steps>
+      ? chosenSteps[number] extends StepNumbers<steps>
         ? chosenSteps[number] extends keyof MultiStepFormSchemaConfig.EnabledForSteps.get<def>
           ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
           : {}
@@ -82,9 +85,9 @@ export namespace StepSpecificComponent {
       : {};
   type instantiateFormComponent<
     def extends StepSchema.Config,
-    steps extends steps.instantiateSteps<def>,
+    steps extends instantiateSteps<def>,
     chosenSteps extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<steps>
+      StepNumbers<steps>
     >,
   > = {
     all: instantiateFormComponentForAllSteps<def>;
@@ -99,9 +102,9 @@ export namespace StepSpecificComponent {
   //  - Make the main `createComponent` return a function that accepts the current step
   export type formComponent<
     def extends StepSchema.Config,
-    steps extends steps.instantiateSteps<def>,
+    steps extends instantiateSteps<def>,
     chosenSteps extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<steps>
+      StepNumbers<steps>
     >,
   > = instantiateFormComponent<
     def,
@@ -109,8 +112,8 @@ export namespace StepSpecificComponent {
     chosenSteps
   >[MultiStepFormSchemaConfig.EnabledForSteps.resolveType<def, steps>];
   export type updateWrappers<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
   > = {
     /**
      * A useful wrapper around `update` to update the specific field.
@@ -125,16 +128,16 @@ export namespace StepSpecificComponent {
   };
   type buildCurrentStep<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps<def>,
+    targetStep extends StepNumbers<value>,
   > = Expand<{
     [key in targetStep]: HelperFnChosenSteps.currentStep<value, [key]>;
   }>;
 
   export type input<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps<def>,
+    targetStep extends StepNumbers<value>,
     additionalCtx extends Record<string, unknown>,
   > = HelperFnInput.BaseInput<value, [targetStep], never, additionalCtx> &
     updateWrappers<value, targetStep> & {
@@ -169,8 +172,8 @@ export namespace StepSpecificComponent {
 
   export type callback<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps<def>,
+    targetStep extends StepNumbers<value>,
     props,
     additionalCtx extends Record<string, unknown> = {},
   > = CreateComponent<
@@ -215,8 +218,8 @@ export namespace StepSpecificComponent {
   };
 
   export type options<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
     formAlias extends string,
     formInstance,
     additionalCtx extends Record<string, unknown> = {},
@@ -231,7 +234,7 @@ export namespace StepSpecificComponent {
         /**
          * An object containing all the default values for the current step.
          */
-        defaultValues: Expand<fields.getDefaultValues<value, [targetStep]>>;
+        defaultValues: Expand<getDefaultValues<value, targetStep>>;
       },
       formInstance
     >;
@@ -240,8 +243,8 @@ export namespace StepSpecificComponent {
 
 export interface StepSpecificCreateComponentFn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
-  targetStep extends steps.StepNumbers<value>,
+  value extends instantiateSteps<def>,
+  targetStep extends StepNumbers<value>,
 > {
   /**
    * A utility function to easily create a component for the current step.
@@ -282,14 +285,14 @@ export interface StepSpecificCreateComponentFn<
 
 export interface HelperFunctions<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>,
 > {
   createComponent: CreateComponentFn<def, value>;
 }
 namespace CreateComponentImplConfig {
   export type stepSpecificConfig<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
+    value extends instantiateSteps<def>,
   > = {
     isStepSpecific: true;
     defaultId: string;
@@ -302,14 +305,14 @@ namespace CreateComponentImplConfig {
 
   export type config<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
+    value extends instantiateSteps<def>,
   > = nonStepSpecific | stepSpecificConfig<def, value>;
 }
 
 export namespace MultiStepFormStepSchema {
   export type config<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
+    value extends instantiateSteps<def>,
   > = def & {
     /**
      * The form configuration.
@@ -327,8 +330,8 @@ declare module '@jfdevelops/multi-step-form-core' {
   namespace steps {
     interface ExtendedStepSpecificFunctions<
       def extends StepSchema.Config,
-      value extends steps.instantiateSteps<def>,
-      key extends steps.StepNumbers<value>,
+      value extends instantiateSteps<def>,
+      key extends StepNumbers<value>,
     > {
       createComponent: StepSpecificCreateComponentFn<def, value, key>;
     }
@@ -337,7 +340,7 @@ declare module '@jfdevelops/multi-step-form-core' {
 
 export class MultiStepFormStepSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+  value extends instantiateSteps<def> = instantiateSteps<def>,
 >
   extends MultiStepFormStepSchemaBase<def, value>
   implements HelperFunctions<def, value>
@@ -350,7 +353,7 @@ export class MultiStepFormStepSchema<
 
     super(rest as never);
 
-    this.value = steps.instantiate({ steps: this.original });
+    this.value = instantiateSteps({ steps: this.original });
 
     this.#internal = new MultiStepFormStepSchemaInternal({
       originalValue: this.original,
@@ -359,14 +362,14 @@ export class MultiStepFormStepSchema<
     });
 
     this.sync();
-    const availableSteps = this.steps.value;
+
     const createFormConfig = MultiStepFormSchemaConfig.instantiateFormConfig(
       this.value,
-      availableSteps
+      this.steps.value
     );
     const instantiatedForm = createFormConfig(form);
     this.value = this.#internal.enrichValues(this.value, (step) => {
-      const targetStep = `step${step}` as steps.StepNumbers<value>;
+      const targetStep = `step${step}` as StepNumbers<value>;
 
       const id = form?.id ?? targetStep;
 
@@ -415,7 +418,7 @@ export class MultiStepFormStepSchema<
     // Safe to use tuple notation here since the step specific `createComponent` will always have
     // `stepData` as a tuple
     chosenStep extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     additionalCtx extends Record<string, unknown>,
   >(
@@ -443,7 +446,7 @@ export class MultiStepFormStepSchema<
     // Safe to use tuple notation here since the step specific `createComponent` will always have
     // `stepData` as a tuple
     chosenStep extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     additionalCtx extends Record<string, unknown> = {},
   >(
@@ -540,7 +543,7 @@ export class MultiStepFormStepSchema<
             );
 
             const defaultValue = this.getValue(step as never, name);
-            const builtValuePath = fields.buildValuePath(name);
+            const builtValuePath = buildValuePath(name);
             const { label, nameTransformCasing, type } = path.pickBy(
               currentStep.fields,
               builtValuePath
@@ -662,7 +665,7 @@ export class MultiStepFormStepSchema<
   }
 
   private createStepSpecificComponentFactory<
-    targetStep extends steps.StepNumbers<value>,
+    targetStep extends StepNumbers<value>,
   >(
     targetStep: targetStep,
     config: CreateComponentImplConfig.stepSpecificConfig<def, value>
@@ -785,7 +788,7 @@ export class MultiStepFormStepSchema<
   createComponent<
     chosenSteps extends HelperFnChosenSteps.main<
       value,
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     props = undefined,
   >(
@@ -803,9 +806,9 @@ export class MultiStepFormStepSchema<
     });
   }
 
-  createDefaultValues<targetStep extends steps.StepNumbers<value>>(
+  createDefaultValues<targetStep extends StepNumbers<value>>(
     targetStep: targetStep
   ) {
-    return fields.getDefaultValues(this.value, targetStep);
+    return getDefaultValues(this.value, targetStep);
   }
 }

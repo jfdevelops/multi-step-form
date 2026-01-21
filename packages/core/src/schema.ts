@@ -1,17 +1,17 @@
 import { MultiStepFormStepSchema } from '@/steps';
 import { setCasingType } from '@/utils';
 import type { StepSchema } from './internals/index.js';
-import type { steps } from './steps/steps.js';
 import {
   DEFAULT_STORAGE_KEY,
   MultiStepFormStorage,
   type BaseStorageConfig,
 } from './storage.js';
 import { Subscribable } from './subscribable.js';
+import type { instantiateSteps } from './steps/steps.js';
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 > extends Subscribable<MultiStepFormStepSchema.Listener<def, value>> {
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
   readonly stepSchema: MultiStepFormStepSchema<def, value>;
@@ -95,7 +95,7 @@ export class MultiStepFormSchema<
 
 export function createMultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }
