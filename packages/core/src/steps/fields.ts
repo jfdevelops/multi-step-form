@@ -21,7 +21,11 @@ import {
   type DefaultValidator,
   type StandardSchemaValidator,
 } from '@/utils/validator';
-import type { steps } from './steps';
+import { steps } from './steps';
+
+// Re-export steps namespace to ensure it's included in declaration files
+// This fixes circular type dependency resolution in bundled output
+export { steps as _steps } from './steps';
 
 export namespace fields {
   type GetDeepFields<TFields> = [keyof TFields] extends [never]
@@ -38,7 +42,7 @@ export namespace fields {
       }[keyof TFields];
   export type getFieldsForStep<
     steps extends steps.instantiateSteps,
-    step extends steps.StepNumbers<steps>
+    step extends steps.StepNumbers<steps>,
   > = steps[step] extends {
     fields: infer fields extends object;
   }
@@ -46,53 +50,54 @@ export namespace fields {
     : never;
   export type get<
     steps extends steps.instantiateSteps,
-    step extends steps.StepNumbers<steps>
+    step extends steps.StepNumbers<steps>,
   > = getFieldsForStep<steps, step>;
-  export type removeParentPath<T extends string> = Split<T, '.'> extends [
-    infer _,
-    ...infer rest
-  ]
-    ? rest extends string[]
-      ? Join<rest, '.'>
-      : never
-    : never;
+  export type removeParentPath<T extends string> =
+    Split<T, '.'> extends [infer _, ...infer rest]
+      ? rest extends string[]
+        ? Join<rest, '.'>
+        : never
+      : never;
   export type getConfig<
     steps extends steps.instantiateSteps,
     step extends steps.StepNumbers<steps>,
-    field extends getDeepFields<steps, step>
-  > = parentOf<field> extends keyof get<steps, step>
-    ? get<steps, step>[parentOf<field>]
-    : never;
+    field extends getDeepFields<steps, step>,
+  > =
+    parentOf<field> extends keyof get<steps, step>
+      ? get<steps, step>[parentOf<field>]
+      : never;
   export type getDeepFields<
     steps extends steps.instantiateSteps,
-    step extends steps.StepNumbers<steps>
-  > = GetDeepFields<get<steps, step>> extends infer value extends string
-    ? value
-    : never;
+    step extends steps.StepNumbers<steps>,
+  > =
+    GetDeepFields<get<steps, step>> extends infer value extends string
+      ? value
+      : never;
 
   type buildValuePath<
     field extends string,
     valuePropertyName extends string = 'defaultValue',
-    split extends Split<field, '.'> = Split<field, '.'>
+    split extends Split<field, '.'> = Split<field, '.'>,
   > = split extends [infer field extends string, ...infer rest]
     ? rest extends []
       ? `${field}.${valuePropertyName}`
       : rest extends string[]
-      ? `${field}.${valuePropertyName}.${Join<rest, '.'>}`
-      : never
+        ? `${field}.${valuePropertyName}.${Join<rest, '.'>}`
+        : never
     : never;
   export type resolveDeepPath<
     steps extends steps.instantiateSteps,
     step extends steps.StepNumbers<steps>,
     field extends getDeepFields<steps, step>,
-    value extends get<steps, step> = get<steps, step>
-  > = buildValuePath<field> extends DeepKeys<value>
-    ? path.pickBy<value, buildValuePath<field>>
-    : never;
+    value extends get<steps, step> = get<steps, step>,
+  > =
+    buildValuePath<field> extends DeepKeys<value>
+      ? path.pickBy<value, buildValuePath<field>>
+      : never;
   export type getDefaultValues<
     steps extends steps.instantiateSteps,
     targetStep extends steps.StepNumbers<steps>,
-    fields extends get<steps, targetStep> = get<steps, targetStep>
+    fields extends get<steps, targetStep> = get<steps, targetStep>,
   > = {
     -readonly [key in keyof fields]: fields[key] extends {
       defaultValue: infer defaultValue;
@@ -107,7 +112,7 @@ export namespace fields {
     steps extends steps.instantiateSteps,
     step extends steps.StepNumbers<steps>,
     fields extends get<steps, step>,
-    fieldPath extends getDeepFields<steps, step>
+    fieldPath extends getDeepFields<steps, step>,
   >(fieldPath: fieldPath, fields: fields, filler = 'defaultValue') {
     const [parent, ...children] = fieldPath.split('.');
     const shared = `${parent}.${filler}`;
@@ -127,7 +132,7 @@ export namespace fields {
   export function buildValuePath<
     TField extends string,
     TValuePropertyName extends string = 'defaultValue',
-    TSplit extends Split<TField, '.'> = Split<TField, '.'>
+    TSplit extends Split<TField, '.'> = Split<TField, '.'>,
   >(
     field: TField,
     valuePropertyName: TValuePropertyName = 'defaultValue' as TValuePropertyName
@@ -161,8 +166,10 @@ export namespace fields {
      */
     nameTransformCasing?: Constrain<TCasing, CasingType>;
   }
-  export interface BaseFieldOptions<TCasing extends CasingType, TDefaultValue>
-    extends NameTransformCasingOptions<TCasing> {
+  export interface BaseFieldOptions<
+    TCasing extends CasingType,
+    TDefaultValue,
+  > extends NameTransformCasingOptions<TCasing> {
     /**
      * The default value for the field.
      */
@@ -180,7 +187,7 @@ export namespace fields {
 
   export interface BaseDateFieldOptions<
     TCasing extends CasingType,
-    TType extends DateFieldType
+    TType extends DateFieldType,
   > extends BaseFieldOptions<TCasing, Date> {
     /**
      * The type of the resolved field value. It can either be a `date` or a `string`.
@@ -193,8 +200,9 @@ export namespace fields {
     type?: TType;
   }
 
-  export interface StringDateFieldOptions<TCasing extends CasingType>
-    extends BaseDateFieldOptions<TCasing, 'string'> {
+  export interface StringDateFieldOptions<
+    TCasing extends CasingType,
+  > extends BaseDateFieldOptions<TCasing, 'string'> {
     type: 'string';
     /**
      * A function to transform the date value to the desired type.
@@ -210,11 +218,11 @@ export namespace fields {
   export type ResolvedDateFieldType<T> = T extends Date ? DateFieldType : never;
   export type DateFieldConfig<
     TCasing extends CasingType = DefaultCasing,
-    TType extends DateFieldType = ResolvedDateFieldType<Date>
+    TType extends DateFieldType = ResolvedDateFieldType<Date>,
   > = StringDateFieldOptions<TCasing> | BaseDateFieldOptions<TCasing, TType>;
   type BaseFieldConfig<
     TCasing extends CasingType = DefaultCasing,
-    TDefaultValue = unknown
+    TDefaultValue = unknown,
   > = BaseFieldOptions<TCasing, TDefaultValue>;
   export type FieldConfig<TCasing extends CasingType = DefaultCasing> = Record<
     string,
@@ -224,18 +232,18 @@ export namespace fields {
   type InferDefaultValue<T> = T extends string
     ? string
     : T extends number
-    ? number
-    : T extends true
-    ? boolean
-    : T extends false
-    ? boolean
-    : T extends object
-    ? T extends Date
-      ? Date
-      : T extends ReadonlyArray<infer item>
-      ? Array<InferDefaultValue<item>>
-      : { -readonly [key in keyof T]: InferDefaultValue<T[key]> }
-    : never;
+      ? number
+      : T extends true
+        ? boolean
+        : T extends false
+          ? boolean
+          : T extends object
+            ? T extends Date
+              ? Date
+              : T extends ReadonlyArray<infer item>
+                ? Array<InferDefaultValue<item>>
+                : { -readonly [key in keyof T]: InferDefaultValue<T[key]> }
+            : never;
 
   export type inferDefaultValue<T> = T extends {
     defaultValue: infer defaultValue;
@@ -244,25 +252,25 @@ export namespace fields {
     : never;
   export type inferNameTransformCasing<
     T,
-    TDefault extends CasingType | undefined
+    TDefault extends CasingType | undefined,
   > = T extends {
     nameTransformCasing: infer nameTransformCasing extends CasingType;
   }
     ? nameTransformCasing
     : undefined extends TDefault
-    ? DefaultCasing
-    : TDefault;
+      ? DefaultCasing
+      : TDefault;
   export type inferLabel<
     T,
     Casing extends CasingType | undefined,
-    FieldKey extends string
+    FieldKey extends string,
   > = T extends {
     label: infer label extends string | false;
   }
     ? label
     : undefined extends Casing
-    ? ChangeCasing<FieldKey, DefaultCasing>
-    : ChangeCasing<FieldKey, Exclude<Casing, undefined>>;
+      ? ChangeCasing<FieldKey, DefaultCasing>
+      : ChangeCasing<FieldKey, Exclude<Casing, undefined>>;
   export type inferResolvedDateFieldType<T> = T extends {
     type: infer type extends DateFieldType;
   }
@@ -270,7 +278,7 @@ export namespace fields {
     : DefaultDateFieldType;
   export type instantiateFields<
     T,
-    TDefaultCasing extends CasingType = DefaultCasing
+    TDefaultCasing extends CasingType = DefaultCasing,
   > = [T] extends [object]
     ? T extends instantiateConfig
       ? {
@@ -333,7 +341,7 @@ export namespace fields {
    */
   export function instantiate<
     const def extends instantiateConfig,
-    inst = instantiateFields<def>
+    inst = instantiateFields<def>,
   >(def: def) {
     const { fields, defaultCasing, validateFields } = def;
     const invariant: Invariant = createInvariant('[instantiateFields]');
