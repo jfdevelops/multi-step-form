@@ -4,23 +4,22 @@ import {
   type HelperFn,
   type HelperFnChosenSteps,
   type HelperFnInput,
+  type instantiateSteps,
   type MultiStepFormLogger,
-  type steps
+  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ReactNode } from 'react';
 export function resolvedCtxCreator<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 >(
   logger: MultiStepFormLogger,
-  values: Omit<value, `step${steps.StepNumbers<value>}`>
+  values: Omit<value, `step${StepNumbers<value>}`>
 ) {
   return function <
-    chosenStep extends HelperFnChosenSteps.tupleNotation<
-      steps.StepNumbers<value>
-    >,
-    additionalCtx extends Record<string, unknown> = {},
+    chosenStep extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
+    additionalCtx extends Record<string, unknown> = {}
   >(
     options: Required<
       HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
@@ -102,9 +101,9 @@ export type CreateComponent<TInput, TProps> = CreateFunction<
   ReactNode
 >;
 export type CreateComponentCallback<
-  value extends steps.instantiateSteps,
-  chosenSteps extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>,
-  TProps,
+  value extends instantiateSteps,
+  chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  TProps
 > = CreateComponent<
   HelperFnInput.BaseInput<value, chosenSteps, never, {}>,
   TProps
@@ -113,9 +112,9 @@ export type CreatedMultiStepFormComponent<TProps> = TProps extends undefined
   ? () => ReactNode
   : (props: TProps) => ReactNode;
 export type CreateComponentImplOptions<
-  value extends steps.instantiateSteps,
-  chosenSteps extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>,
-  props,
+  value extends instantiateSteps,
+  chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  props
 > = {
   value: value;
   options: HelperFn.BaseOptions<value, chosenSteps>;
@@ -127,9 +126,9 @@ export type CreateComponentImplOptions<
   ) => Omit<HelperFnInput.BaseInput<value, chosenSteps, never, {}>, 'ctx'>;
 };
 export function createComponent<
-  value extends steps.instantiateSteps,
-  chosenSteps extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>,
-  props,
+  value extends instantiateSteps,
+  chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  props
 >({
   value,
   options,

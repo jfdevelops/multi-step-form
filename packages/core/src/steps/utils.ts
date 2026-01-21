@@ -5,8 +5,8 @@ import type { steps } from './steps';
 import type { Updater } from '@/utils/types';
 
 export type GetStepOptions<
-  value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value>,
+  value extends instantiateSteps,
+  stepNumbers extends StepNumbers<value>,
   targetStep extends stepNumbers
 > = { step: targetStep };
 export type ValidStepKey<N extends number = number> = `step${N}`;
@@ -37,8 +37,8 @@ export function extractNumber(input: string) {
  * @returns A function to get specific step data from a target step.
  */
 export function getStep<
-  value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value>
+  value extends instantiateSteps,
+  stepNumbers extends StepNumbers<value>
 >(resolvedStepValues: value) {
   /**
    * Gets the step data associated with the target step number.
@@ -54,18 +54,15 @@ export function getStep<
   ) {
     const { step } = options;
 
-    const data = resolvedStepValues[step] as steps.getCurrent<
-      value,
-      targetStep
-    >;
+    const data = resolvedStepValues[step] as getCurrent<value, targetStep>;
 
     return { step, data };
   };
 }
 
 function createCtxHelper<
-  value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value>,
+  value extends instantiateSteps,
+  stepNumbers extends StepNumbers<value>,
   chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
 >(values: value, data: string[]) {
   const invariant: Invariant = createInvariant('[createCtxHelper]');
@@ -95,8 +92,8 @@ function createCtxHelper<
 }
 
 export function createCtx<
-  value extends steps.instantiateSteps,
-  stepNumbers extends steps.StepNumbers<value>,
+  value extends instantiateSteps,
+  stepNumbers extends StepNumbers<value>,
   chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
 >(values: value, stepData: chosenSteps) {
   const formatter = new Intl.ListFormat('en', {

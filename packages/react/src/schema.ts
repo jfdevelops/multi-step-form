@@ -5,9 +5,10 @@ import {
   type Expand,
   type HelperFn,
   type HelperFnChosenSteps,
+  type instantiateSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
-  type steps,
+  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import {
   MultiStepFormStepSchemaInternal,
@@ -25,7 +26,7 @@ import { createComponent, type CreateComponentCallback } from './utils';
 export namespace MultiStepFormSchema {
   export type config<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+    value extends instantiateSteps<def> = instantiateSteps<def>,
   > = MultiStepFormStepSchema.config<def, value> & {
     /**
      * The React context for the multi step form.
@@ -40,7 +41,7 @@ export namespace MultiStepFormSchema {
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+  value extends instantiateSteps<def> = instantiateSteps<def>,
 >
   extends MultiStepFormSchemaCore<def, value>
   implements HelperFunctions<def, value>
@@ -173,7 +174,7 @@ export class MultiStepFormSchema<
   createComponent<
     chosenSteps extends HelperFnChosenSteps.main<
       value,
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     props = undefined,
   >(
@@ -194,7 +195,7 @@ export class MultiStepFormSchema<
 
 export function createMultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
+  value extends instantiateSteps<def> = instantiateSteps<def>,
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }

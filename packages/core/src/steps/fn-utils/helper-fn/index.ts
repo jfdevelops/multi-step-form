@@ -1,4 +1,8 @@
-import type { steps } from '@/steps/steps';
+import type {
+  getCurrentStep,
+  instantiateSteps,
+  StepNumbers,
+} from '@/steps/steps';
 import type {
   Expand,
   IsString,
@@ -20,50 +24,50 @@ export namespace HelperFnChosenSteps {
     stringOptions = defaultStringOption
   > = stringOptions | tupleNotation<value> | objectNotation<value>;
   export type main<
-    value extends steps.instantiateSteps,
-    stepNumbers extends steps.StepNumbers<value>
+    value extends instantiateSteps,
+    stepNumbers extends StepNumbers<value>
   > = build<stepNumbers>;
   export type resolveAll<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
-  > = chosenSteps extends 'all' ? steps.StepNumbers<value> : never;
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
+  > = chosenSteps extends 'all' ? StepNumbers<value> : never;
   export type resolveTuple<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
-  > = chosenSteps extends tupleNotation<steps.StepNumbers<value>>
-    ? chosenSteps[number] extends steps.StepNumbers<value>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
+  > = chosenSteps extends tupleNotation<StepNumbers<value>>
+    ? chosenSteps[number] extends StepNumbers<value>
       ? chosenSteps[number]
       : never
     : never;
   export type resolveObject<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
-  > = chosenSteps extends objectNotation<steps.StepNumbers<value>>
-    ? steps.StepNumbers<value> extends keyof chosenSteps
-      ? steps.StepNumbers<value>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
+  > = chosenSteps extends objectNotation<StepNumbers<value>>
+    ? StepNumbers<value> extends keyof chosenSteps
+      ? StepNumbers<value>
       : never
     : never;
   export type resolve<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
   > =
     | resolveAll<value, chosenSteps>
     | resolveTuple<value, chosenSteps>
     | resolveObject<value, chosenSteps>;
   export type resolveType<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
   > = chosenSteps extends 'all'
     ? 'all'
-    : chosenSteps extends tupleNotation<steps.StepNumbers<value>>
+    : chosenSteps extends tupleNotation<StepNumbers<value>>
     ? 'tuple'
-    : chosenSteps extends objectNotation<steps.StepNumbers<value>>
+    : chosenSteps extends objectNotation<StepNumbers<value>>
     ? 'object'
     : never;
 
   export type currentStep<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
   > = value[resolve<value, chosenSteps>];
 
   export function createCatchAllMessage(
@@ -88,11 +92,11 @@ export namespace HelperFnChosenSteps {
 
   export function isTuple<t>(
     value: unknown
-  ): value is tupleNotation<steps.StepNumbers<t>>;
-  export function isTuple<def, steps extends steps.instantiateSteps<def>>(
+  ): value is tupleNotation<StepNumbers<t>>;
+  export function isTuple<def, steps extends instantiateSteps<def>>(
     value: unknown,
     validValues?: Array<unknown>
-  ): value is tupleNotation<steps.StepNumbers<steps>>;
+  ): value is tupleNotation<StepNumbers<steps>>;
   export function isTuple(value: unknown, validValues?: Array<unknown>) {
     if (!Array.isArray(value)) {
       return false;
@@ -105,10 +109,10 @@ export namespace HelperFnChosenSteps {
     return true;
   }
 
-  export function isObject<def, steps extends steps.instantiateSteps<def>>(
+  export function isObject<def, steps extends instantiateSteps<def>>(
     value: unknown,
     validKeys?: Array<unknown>
-  ): value is objectNotation<steps.StepNumbers<steps>> {
+  ): value is objectNotation<StepNumbers<steps>> {
     if (!value) {
       return false;
     }
@@ -127,8 +131,8 @@ export namespace HelperFnChosenSteps {
   }
 
   export function isValid<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
   >(value: unknown, validValues?: Array<string>): value is chosenSteps {
     if (isAll(value)) {
       return true;
@@ -146,8 +150,8 @@ export namespace HelperFnChosenSteps {
   }
 
   export function resolveType<
-    value extends steps.instantiateSteps,
-    chosenSteps extends main<value, steps.StepNumbers<value>>
+    value extends instantiateSteps,
+    chosenSteps extends main<value, StepNumbers<value>>
   >(chosenSteps: chosenSteps, validValues?: Array<string>) {
     if (isAll(chosenSteps)) {
       return 'all';
@@ -162,27 +166,24 @@ export namespace HelperFnChosenSteps {
     }
 
     throw new Error(
-      'Unable to resolve the type of the chosen steps. Valid values are: "all", an array of steps, or an object containing the steps to chose.'
+      'Unable to resolve the type of the chosen  Valid values are: "all", an array of steps, or an object containing the steps to chose.'
     );
   }
 
   export interface MatchContextBase {
     /**
-     * The chosen steps.
+     * The chosen
      */
-    chosenSteps: main<
-      steps.instantiateSteps,
-      steps.StepNumbers<steps.instantiateSteps>
-    >;
+    chosenSteps: main<instantiateSteps, StepNumbers<instantiateSteps>>;
   }
   export interface AllMatchContext extends MatchContextBase {
     chosenSteps: 'all';
   }
   export interface TupleMatchContext extends MatchContextBase {
-    chosenSteps: tupleNotation<steps.StepNumbers<steps.instantiateSteps>>;
+    chosenSteps: tupleNotation<StepNumbers<instantiateSteps>>;
   }
   export interface ObjectMatchContext extends MatchContextBase {
-    chosenSteps: objectNotation<steps.StepNumbers<steps.instantiateSteps>>;
+    chosenSteps: objectNotation<StepNumbers<instantiateSteps>>;
   }
   export type MatchContextWithMeta<meta extends Record<string, unknown>> = [
     meta
@@ -234,7 +235,7 @@ export namespace HelperFnChosenSteps {
         ? {}
         : {
             /**
-             * A detailed error message that includes all ways to match the chosen steps.
+             * A detailed error message that includes all ways to match the chosen
              *
              * This is derived from {@linkcode createCatchAllMessage}.
              */
@@ -277,7 +278,7 @@ export namespace HelperFnChosenSteps {
      */
     meta?: meta;
     /**
-     * Optionally provide valid values that will be used to validate the chosen steps.
+     * Optionally provide valid values that will be used to validate the chosen
      *
      * Note: if provided, the values will be used to match against `tuple` and `object` handlers.
      */
@@ -318,8 +319,8 @@ export namespace HelperFnChosenSteps {
     const { meta, validValues, default: defaultHandler, ...handlers } = options;
 
     return <
-      value extends steps.instantiateSteps,
-      chosenSteps extends main<value, steps.StepNumbers<value>>
+      value extends instantiateSteps,
+      chosenSteps extends main<value, StepNumbers<value>>
     >(
       chosenSteps: chosenSteps
     ) => {
@@ -365,37 +366,27 @@ export namespace HelperFnChosenSteps {
 
 export namespace HelperFn {
   export type buildAllCtx<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
   > = Expand<
     Omit<
       {
-        [key in steps.StepNumbers<value>]: stripFunctions<
-          steps.getCurrent<value, key>
-        >;
+        [key in StepNumbers<value>]: stripFunctions<getCurrentStep<value, key>>;
       },
       IsString<omitSteps>
     >
   >;
   export type buildTupleCtx<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
-  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<
-    steps.StepNumbers<value>
-  >
+  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
     ? Expand<
         Omit<
           {
-            -readonly [key in chosenSteps[number]]: key extends steps.StepNumbers<value>
-              ? stripFunctions<steps.getCurrent<value, key>>
+            -readonly [key in chosenSteps[number]]: key extends StepNumbers<value>
+              ? stripFunctions<getCurrentStep<value, key>>
               : never;
           },
           IsString<omitSteps>
@@ -403,20 +394,15 @@ export namespace HelperFn {
       >
     : never;
   export type buildObjectCtx<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
-  > = chosenSteps extends HelperFnChosenSteps.objectNotation<
-    steps.StepNumbers<value>
-  >
+  > = chosenSteps extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
     ? Expand<
         Omit<
           {
-            [key in keyof chosenSteps]: key extends steps.StepNumbers<value>
-              ? stripFunctions<steps.getCurrent<value, key>>
+            [key in keyof chosenSteps]: key extends StepNumbers<value>
+              ? stripFunctions<getCurrentStep<value, key>>
               : never;
           },
           IsString<omitSteps>
@@ -424,11 +410,8 @@ export namespace HelperFn {
       >
     : never;
   type CtxMap<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps>
   > = {
     all: buildAllCtx<value, chosenSteps, omitSteps>;
@@ -437,22 +420,16 @@ export namespace HelperFn {
     object: buildObjectCtx<value, chosenSteps, omitSteps>;
   };
   export type buildCtx<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps> = never
   > = CtxMap<value, chosenSteps, omitSteps>[HelperFnChosenSteps.resolveType<
     value,
     chosenSteps
   >];
   export interface BaseOptions<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > {
     /**
      * The step data to use for the function. It can either be an array with the **available**
@@ -464,11 +441,8 @@ export namespace HelperFn {
     stepData: chosenSteps;
   }
   export interface BaseInput<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     omitSteps extends HelperFnChosenSteps.resolve<value, chosenSteps> = never,
     TAdditionalCtx extends Record<string, unknown> = {}
   > {
@@ -478,11 +452,8 @@ export namespace HelperFn {
     ctx: Expand<buildCtx<value, chosenSteps, omitSteps> & TAdditionalCtx>;
   }
   export interface CtxDataSelector<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >,
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     TAdditionalCtx extends Record<string, unknown> = {}
   > {
     /**
@@ -500,6 +471,6 @@ export namespace HelperFn {
   }
 }
 export type createStepSpecificHelperFn<
-  value extends steps.instantiateSteps,
-  chosenSteps extends HelperFnChosenSteps.main<value, steps.StepNumbers<value>>
+  value extends instantiateSteps,
+  chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
 > = HelperFnChosenSteps.resolve<value, chosenSteps>;

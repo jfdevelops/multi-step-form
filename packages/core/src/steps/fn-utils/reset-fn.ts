@@ -4,8 +4,8 @@ import type { UpdateFn } from './update-fn';
 
 export namespace ResetFn {
   export interface Options<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>,
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
     currentStep extends UpdateFn.resolvedStep<
       value,
@@ -19,8 +19,8 @@ export namespace ResetFn {
     fields?: fields;
   }
 
-  export type general<value extends steps.instantiateSteps> = <
-    targetStep extends steps.StepNumbers<value>,
+  export type general<value extends instantiateSteps> = <
+    targetStep extends StepNumbers<value>,
     fields extends UpdateFn.chosenFields<
       UpdateFn.resolvedStep<value, targetStep>
     > = 'all'
@@ -29,8 +29,8 @@ export namespace ResetFn {
   ) => void;
 
   export type stepSpecific<
-    value extends steps.instantiateSteps,
-    targetStep extends steps.StepNumbers<value>
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>
   > = <
     fields extends UpdateFn.chosenFields<
       UpdateFn.resolvedStep<value, targetStep>
@@ -40,11 +40,8 @@ export namespace ResetFn {
   ) => void;
 
   export type StepSpecificHelperFn<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = {
     [key in HelperFnChosenSteps.resolve<value, chosenSteps>]: stepSpecific<
       value,
@@ -52,34 +49,21 @@ export namespace ResetFn {
     >;
   };
   export type createHelperFnForAllSteps<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = chosenSteps extends HelperFnChosenSteps.defaultStringOption
     ? StepSpecificHelperFn<value, chosenSteps>
     : never;
   export type createHelperFnForTupleSteps<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
-  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<
-    steps.StepNumbers<value>
-  >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+  > = chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
     ? StepSpecificHelperFn<value, chosenSteps>
     : never;
   export type createHelperFnForObjectSteps<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
-  > = chosenSteps extends HelperFnChosenSteps.objectNotation<
-    steps.StepNumbers<value>
-  >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+  > = chosenSteps extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
     ? {
         [key in keyof chosenSteps]: key extends HelperFnChosenSteps.resolve<
           value,
@@ -90,22 +74,16 @@ export namespace ResetFn {
       }
     : never;
   type HelperFnMap<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = {
     all: createHelperFnForAllSteps<value, chosenSteps>;
     tuple: createHelperFnForTupleSteps<value, chosenSteps>;
     object: createHelperFnForObjectSteps<value, chosenSteps>;
   };
   export type HelperFn<
-    value extends steps.instantiateSteps,
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      steps.StepNumbers<value>
-    >
+    value extends instantiateSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = general<value> &
     HelperFnMap<value, chosenSteps>[HelperFnChosenSteps.resolveType<
       value,

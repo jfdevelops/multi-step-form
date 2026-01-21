@@ -12,7 +12,12 @@ import {
 import { addToTuple, mapToTuple } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import { Subscribable } from '../subscribable';
-import { fields } from './fields';
+import {
+  fields,
+  resolvedDeepPath,
+  type getFieldForStep,
+  type getDeepFields,
+} from './fields';
 import type { HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type {
   GeneralHelperFn,
@@ -22,11 +27,16 @@ import type {
 } from './fn-utils/helper-fn/utils';
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
-import { instantiateSteps, steps } from './steps';
+import {
+  instantiateSteps,
+  isValidSteps,
+  type StepConfig,
+  type StepNumbers,
+} from './steps';
 import { getStep, type ExtractStepFromKey, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
-  value extends steps.instantiateSteps,
+  value extends instantiateSteps
 > {
   update: UpdateFn.general<value>;
   reset: ResetFn.general<value>;
@@ -38,8 +48,8 @@ type Quote<T extends string[]> = {
 };
 export type AsTypeMap<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
-  stepNumbers extends steps.StepNumbers<value> = steps.StepNumbers<value>,
+  value extends instantiateSteps<def>,
+  stepNumbers extends StepNumbers<value> = StepNumbers<value>
 > = {
   // Exclude is needed due to all the Constrains
   string: Exclude<
@@ -75,34 +85,34 @@ export type AsTypeMap<
 };
 export type AsFunctionReturn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
-  asType extends AsType,
+  value extends instantiateSteps<def>,
+  asType extends AsType
 > = AsTypeMap<def, value>[asType];
 export type AsFunction<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 > = <asType extends AsType>(
   asType: asType
 ) => AsFunctionReturn<def, value, asType>;
 
 export type IsValidStepFn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 > = {
   /**
    * Checks if a given string is a valid step key.
    */
-  (value: string): value is steps.StepNumbers<value>;
+  (value: string): value is StepNumbers<value>;
   /**
    * Checks if a given number is a valid step number.
    */
-  (value: number): value is ExtractStepFromKey<steps.StepNumbers<value>>;
+  (value: number): value is ExtractStepFromKey<StepNumbers<value>>;
 };
 export type MultiStepFormStepStepsConfig<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 > = {
-  value: ReadonlyArray<steps.StepNumbers<value>>;
+  value: ReadonlyArray<StepNumbers<value>>;
   as: AsFunction<def, value>;
   isValidStep: IsValidStepFn<def, value>;
 };
@@ -130,12 +140,12 @@ const AS_TYPES = [
 
 export function createIsValidStepFn<
   def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def>,
+  value extends instantiateSteps<def>
 >(stepNumbers: Array<number>): IsValidStepFn<def, value> {
-  function isValidStep(value: string): value is steps.StepNumbers<value>;
+  function isValidStep(value: string): value is StepNumbers<value>;
   function isValidStep(
     value: number
-  ): value is ExtractStepFromKey<steps.StepNumbers<value>>;
+  ): value is ExtractStepFromKey<StepNumbers<value>>;
   function isValidStep(value: string | number) {
     const invariant: Invariant = createInvariant('[isValidStep]');
 
@@ -165,7 +175,7 @@ export function createIsValidStepFn<
 export namespace MultiStepFormStepSchema {
   export type ListenerOptions<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
+    value extends instantiateSteps<def>
   > = {
     original: def['steps'];
     value: value;
@@ -174,14 +184,14 @@ export namespace MultiStepFormStepSchema {
   };
   export type Listener<
     def extends StepSchema.Config,
-    value extends steps.instantiateSteps<def>,
+    value extends instantiateSteps<def>
   > = (data: ListenerOptions<def, value>) => void;
 }
 
 export class MultiStepFormStepSchema<
-  const def extends StepSchema.Config,
-  value extends steps.instantiateSteps<def> = steps.instantiateSteps<def>,
->
+    const def extends StepSchema.Config,
+    value extends instantiateSteps<def> = instantiateSteps<def>
+  >
   extends Subscribable<MultiStepFormStepSchema.Listener<def, value>>
   implements MultiStepFormStepSchemaFunctions<value>
 {
@@ -233,9 +243,7 @@ export class MultiStepFormStepSchema<
     );
 
     this.steps = {
-      value: this.#stepNumbers as unknown as ReadonlyArray<
-        steps.StepNumbers<value>
-      >,
+      value: this.#stepNumbers as unknown as ReadonlyArray<StepNumbers<value>>,
       as: (asType): any => {
         invariant(
           typeof asType === 'string',
@@ -319,8 +327,8 @@ export class MultiStepFormStepSchema<
    * @param options The options for getting the step data.
    * @returns The step data for the target step.
    */
-  get<stepNumber extends steps.StepNumbers<value>>(
-    options: GetStepOptions<value, steps.StepNumbers<value>, stepNumber>
+  get<stepNumber extends StepNumbers<value>>(
+    options: GetStepOptions<value, StepNumbers<value>, stepNumber>
   ) {
     return getStep(this.value)(options);
   }
@@ -339,14 +347,14 @@ export class MultiStepFormStepSchema<
    * @returns The return value of the updater function.
    */
   update<
-    targetStep extends steps.StepNumbers<value>,
+    targetStep extends StepNumbers<value>,
     field extends UpdateFn.chosenFields<
       UpdateFn.resolvedStep<value, targetStep>
     > = 'all',
     strict extends boolean = true,
     partial extends boolean = false,
     additionalCtx extends Record<string, unknown> = {},
-    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never,
+    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never
   >(
     options: UpdateFn.options<
       value,
@@ -362,9 +370,9 @@ export class MultiStepFormStepSchema<
   }
 
   reset<
-    targetStep extends steps.StepNumbers<value>,
+    targetStep extends StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
-    currentStep extends UpdateFn.resolvedStep<value, targetStep>,
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>
   >(options: ResetFn.Options<value, targetStep, fields, currentStep>) {
     this.#internal.reset(options);
   }
@@ -375,11 +383,11 @@ export class MultiStepFormStepSchema<
   createHelperFn<
     const chosenSteps extends HelperFnChosenSteps.main<
       value,
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     validator,
     additionalCtx extends Record<string, unknown>,
-    response,
+    response
   >(
     options: HelperFnOptions.WithValidator<
       value,
@@ -401,10 +409,10 @@ export class MultiStepFormStepSchema<
   createHelperFn<
     const chosenSteps extends HelperFnChosenSteps.main<
       value,
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     additionalCtx extends Record<string, unknown>,
-    response,
+    response
   >(
     options: HelperFnOptions.WithoutValidator<
       value,
@@ -422,11 +430,11 @@ export class MultiStepFormStepSchema<
   createHelperFn<
     const chosenSteps extends HelperFnChosenSteps.main<
       value,
-      steps.StepNumbers<value>
+      StepNumbers<value>
     >,
     response,
     additionalCtx extends Record<string, unknown>,
-    validator = never,
+    validator = never
   >(
     options:
       | HelperFnOptions.WithValidator<
@@ -460,8 +468,8 @@ export class MultiStepFormStepSchema<
    * Validates that a given object is the proper shape for step data.
    * @param value
    */
-  static hasData(value: unknown): value is steps.config {
-    return steps.isValidSteps(value);
+  static hasData(value: unknown): value is StepConfig {
+    return isValidSteps(value);
   }
 
   /**
@@ -471,8 +479,8 @@ export class MultiStepFormStepSchema<
    * @returns The value of the {@linkcode field}.
    */
   getValue<
-    step extends steps.StepNumbers<value>,
-    field extends fields.getDeepFields<value, step>,
+    step extends StepNumbers<value>,
+    field extends getDeepFields<value, step>
   >(step: step, field: field) {
     const stepData = this.value[step];
     const invariant: Invariant = createInvariant('[getValue]');
@@ -496,12 +504,12 @@ export class MultiStepFormStepSchema<
       createErrorMessage('"fields" is not an object')
     );
 
-    const defaultValue = fields.resolvedDeepPath<
+    const defaultValue = resolvedDeepPath<
       value,
       step,
-      fields.get<value, step>,
+      getFieldForStep<value, step>,
       field
-    >(field, stepData.fields as fields.get<value, step>);
+    >(field, stepData.fields as getFieldForStep<value, step>);
 
     return defaultValue;
   }
