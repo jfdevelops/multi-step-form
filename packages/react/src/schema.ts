@@ -13,16 +13,16 @@ import {
   MultiStepFormStepSchemaInternal,
   type StepSchema,
 } from '@jfdevelops/multi-step-form-core/_internals';
+import { createMultiStepFormContext } from './create-context';
 import { MultiStepFormSchemaConfig } from './form-config';
+import {
+  type AnyPlugin,
+  createPlugin,
+  type ReducePlugins,
+  type StringifiedPluginType,
+} from './plugin';
 import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
 import { createComponent, type CreateComponentCallback } from './utils';
-import { createMultiStepFormContext } from './create-context';
-import {
-  createPlugin,
-  type PluginInstance,
-  type MergeDefExtensions,
-  type MergeApis,
-} from './plugin';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 // export namespace MultiStepFormSchema {
@@ -101,66 +101,72 @@ export class MultiStepFormSchema<
     });
   }
 
-  withPlugins<
-    const TPlugins extends readonly PluginInstance<any, any, any, any, any>[],
-    TNewDef extends StepSchema.Config = Expand<
-      def & MergeDefExtensions<TPlugins>
-    >,
-  >(
-    ...plugins: TPlugins
-  ): MultiStepFormSchema<TNewDef, steps.instantiateSteps<TNewDef>> &
-    MergeApis<TPlugins> {
+  withPlugins<const plugins extends Array<(schema: this) => AnyPlugin>>(
+    ...plugins: plugins
+  ) {
     // Build the new constructor config with plugin configs
-    const pluginConfigs: Record<string, unknown> = {};
+    const {
+      '[instance,instance.step-schema]': both,
+      'instance.step-schema': stepSchema,
+      augment,
+      instance,
+    } = Object.values(plugins).reduce(
+      (acc, plugin) => {
+        const { key, target: type, ...config } = plugin(this);
 
-    for (const plugin of plugins) {
-      const constructorKey = plugin.definition.constructorKey ?? plugin.key;
-      const config = plugin.config ?? plugin.definition.defaults;
-      pluginConfigs[constructorKey] = config;
-    }
-
-    const { key, store, throwWhenUndefined } = this.storageConfig;
-
-    // Create new schema instance with merged config
-    const newSchema = new MultiStepFormSchema({
-      steps: this.stepSchema.original,
-      nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
-      storage: {
-        key,
-        store,
-        throwWhenUndefined,
-      },
-      ...pluginConfigs,
-    } as never);
-
-    // Collect and merge APIs
-    let apis = {};
-
-    for (const plugin of plugins) {
-      if (plugin.definition.api) {
-        // Get the instantiated config
-        const constructorKey = plugin.definition.constructorKey ?? plugin.key;
-        let instantiatedConfig = pluginConfigs[constructorKey];
-
-        if (plugin.definition.instantiate) {
-          const processor = plugin.definition.instantiate({
-            value: newSchema.stepSchema.value,
-            availableSteps: newSchema.stepSchema.steps.value,
-            def: newSchema.stepSchema.original as never,
-          });
-          instantiatedConfig = processor(plugin.config);
+        if (type === 'augment') {
+          acc.augment.push({ ...config, key });
+        } else if (type === 'instance') {
+          acc.instance.push({ ...config, key });
+        } else if (type === 'instance.step-schema') {
+          acc['instance.step-schema'].push({ ...config, key });
+        } else {
+          acc['[instance,instance.step-schema]'].push({ ...config, key });
         }
 
-        const pluginApi = plugin.definition.api({
-          schema: newSchema as never,
-          config: instantiatedConfig,
-        });
-
-        Object.assign(apis, pluginApi);
+        return acc;
+      },
+      {
+        augment: [],
+        instance: [],
+        'instance.step-schema': [],
+        '[instance,instance.step-schema]': [],
+      } as {
+        [key in StringifiedPluginType]: Array<Omit<AnyPlugin, 'type'>>;
       }
+    );
+    const { key, store, throwWhenUndefined } = this.storageConfig;
+
+    let newSchema = this;
+
+    if (augment.length > 0) {
+      const pluginConfigs = augment.reduce(
+        (acc, plugin) => {
+          const { key, ...rest } = plugin;
+
+          acc[key] = rest;
+
+          return acc;
+        },
+        {} as Record<string, unknown>
+      );
+
+      // Create new schema instance with merged config
+      newSchema = new MultiStepFormSchema({
+        steps: this.stepSchema.original,
+        nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
+        storage: {
+          key,
+          store,
+          throwWhenUndefined,
+        },
+        ...pluginConfigs,
+      } as never) as never;
     }
 
-    return Object.assign(newSchema, apis) as never;
+    return newSchema as unknown as MultiStepFormSchema<
+      def & ReducePlugins<plugins>
+    >;
   }
 
   /**
@@ -247,4 +253,75 @@ export function createMultiStepFormSchema<
   return new MultiStepFormSchema<def, value>(options);
 }
 
+const t = createMultiStepFormSchema({
+  steps: {
+    step1: {
+      title: 'Step 1',
+      fields: {
+        firstName: {
+          defaultValue: '',
+        },
+      },
+    },
+  },
+}).withForm({
+  render(data) {
+    return () => {
+      return '';
+    };
+  },
+});
 
+const formPlugin = createPlugin({
+  key: 'form',
+  target: ['step-schema'],
+  addToDef: true,
+  config: (
+    { stepSchema },
+    config: MultiStepFormSchemaConfig.FormConfig<
+      { steps: typeof stepSchema.original },
+      typeof stepSchema.value
+    >
+  ) => config,
+  stepSchema: {
+    valueEnrichment: {
+      before: ({ config, schema }) => {
+        const createFormConfig =
+          MultiStepFormSchemaConfig.instantiateFormConfig(
+            schema.stepSchema.value,
+            schema.stepSchema.steps.value
+          );
+
+        return createFormConfig(config);
+      },
+      during: {
+        createComponent: ({ beforeValueEnrichment, config, targetStep }) => {
+          const id = config.id ?? targetStep;
+
+          return {
+            isStepSpecific: true,
+            defaultId: id,
+            form: beforeValueEnrichment,
+          };
+        },
+      },
+    },
+  },
+});
+
+const u = t.withPlugins(
+  formPlugin({
+    render(data) {
+      return (props: { test: string }) => {
+        return '';
+      };
+    },
+  })
+);
+u.createComponent(
+  {
+    stepData: ['step1'],
+  },
+  ({}) => ''
+);
+u.stepSchema.value.step1.createComponent(({}) => '');

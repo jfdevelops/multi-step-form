@@ -9,6 +9,17 @@ import {
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ReactNode } from 'react';
+
+export type IsAny<T> = 0 extends 1 & T ? true : false;
+export type IsUnknown<T> =
+  unknown extends T
+    ? T extends unknown
+      ? IsAny<T> extends true
+        ? false
+        : true
+      : false
+    : false;
+
 export function resolvedCtxCreator<
   def extends StepSchema.Config,
   value extends steps.instantiateSteps<def>,
