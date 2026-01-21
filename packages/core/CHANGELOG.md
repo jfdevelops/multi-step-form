@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.25
+
+### Patch Changes
+
+- ffed50d: Fixes import issue (I think)
+
 ## 1.0.0-alpha.24
 
 ### Patch Changes
