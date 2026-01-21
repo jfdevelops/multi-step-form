@@ -13,13 +13,13 @@ import {
   MultiStepFormStepSchemaInternal,
   type StepSchema,
 } from '@jfdevelops/multi-step-form-core/_internals';
-import { MultiStepFormSchemaConfig } from './form-config';
-import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
-import { createComponent, type CreateComponentCallback } from './utils';
 import {
   createMultiStepFormContext,
   type MultiStepFormContextResult,
 } from './create-context';
+import { MultiStepFormSchemaConfig } from './form-config';
+import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
+import { createComponent, type CreateComponentCallback } from './utils';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
@@ -157,9 +157,6 @@ export class MultiStepFormSchema<
   withContext() {
     const context = createMultiStepFormContext(this);
 
-    const t = Object.assign(this, { context });
-
-    // return new instance
     return new MultiStepFormSchema<def, value>({
       steps: this.stepSchema.original,
       form: this.formConfig,

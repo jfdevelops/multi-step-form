@@ -806,32 +806,6 @@ export class MultiStepFormStepSchema<
   createDefaultValues<targetStep extends steps.StepNumbers<value>>(
     targetStep: targetStep
   ) {
-    const invariant: Invariant = createInvariant('[createDefaultValues]');
-
-    invariant(
-      targetStep in steps,
-      `The target step ${targetStep} is not a valid step key`
-    );
-
-    const current = this.value[targetStep];
-
-    invariant(
-      typeof current === 'object' && current !== null,
-      `The target step ${targetStep} is not an object`
-    );
-    invariant('fields' in current, `No "fields" were found for ${targetStep}`);
-
-    let defaultValues = {};
-
-    for (const [fieldName, fieldValues] of Object.entries(
-      current.fields as Record<string, Record<string, unknown>>
-    )) {
-      defaultValues = {
-        ...defaultValues,
-        [fieldName]: fieldValues.defaultValue,
-      };
-    }
-
-    return defaultValues as Expand<fields.getDefaultValues<value, targetStep>>;
+    return fields.getDefaultValues(this.value, targetStep);
   }
 }
