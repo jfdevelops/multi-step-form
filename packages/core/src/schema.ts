@@ -11,7 +11,7 @@ import type { instantiateSteps } from './steps/steps.js';
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends instantiateSteps<def>
+  value extends instantiateSteps<def> = instantiateSteps<def>
 > extends Subscribable<MultiStepFormStepSchema.Listener<def, value>> {
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
   readonly stepSchema: MultiStepFormStepSchema<def, value>;

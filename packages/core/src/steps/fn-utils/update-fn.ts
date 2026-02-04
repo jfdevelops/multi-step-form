@@ -8,23 +8,24 @@ import type {
   stripFunctions,
   Updater,
 } from '@/utils/types';
-import type { steps } from '../steps';
+import type { AnySteps, instantiateSteps, StepNumbers } from '../steps';
 import type { HelperFn, HelperFnChosenSteps } from './helper-fn';
+import { CreateValidStep, ValidStepKey } from '../utils';
 
 export namespace UpdateFn {
-  export type chosenFields<TCurrentStep extends Any> =
+  export type chosenFields<TCurrentStep extends AnySteps> =
     | HelperFnChosenSteps.defaultStringOption
     | HelperFnChosenSteps.tupleNotation<DeepKeys<TCurrentStep>>
     | path.generateObjectConfig<TCurrentStep>;
 
   type resolveAllPropertyPath<
-    TCurrentStep extends Any,
+    TCurrentStep extends AnySteps,
     TField extends chosenFields<TCurrentStep>
   > = TField extends HelperFnChosenSteps.defaultStringOption
     ? Relaxed<TCurrentStep>
     : never;
   type resolveTuplePropertyPath<
-    TCurrentStep extends Any,
+    TCurrentStep extends AnySteps,
     TField extends chosenFields<TCurrentStep>,
     TDeepKeys extends DeepKeys<TCurrentStep> = DeepKeys<TCurrentStep>
   > = TField extends HelperFnChosenSteps.tupleNotation<TDeepKeys>
@@ -33,7 +34,7 @@ export namespace UpdateFn {
       : never
     : never;
   type resolveObjectPropertyPath<
-    TCurrentStep extends Any,
+    TCurrentStep extends AnySteps,
     TField extends chosenFields<TCurrentStep>,
     TDeepKeys extends DeepKeys<TCurrentStep> = DeepKeys<TCurrentStep>
   > = TField extends path.generateObjectConfig<TField>
@@ -44,7 +45,7 @@ export namespace UpdateFn {
       : never
     : never;
   type resolvePathType<
-    TCurrentStep extends Any,
+    TCurrentStep extends AnySteps,
     TField extends chosenFields<TCurrentStep>
   > = TField extends HelperFnChosenSteps.defaultStringOption
     ? 'all'
@@ -54,7 +55,7 @@ export namespace UpdateFn {
     ? 'object'
     : never;
   type resolvePathMap<
-    TCurrentStep extends Any,
+    TCurrentStep extends AnySteps,
     TField extends chosenFields<TCurrentStep>
   > = {
     all: resolveAllPropertyPath<TCurrentStep, TField>;
@@ -192,6 +193,38 @@ export namespace UpdateFn {
   > extends BaseOptions<value, targetStep, fields, currentStep>,
       ModeOptions<updateMode> {}
 
+  export interface StepSpecificUpdateOptions<
+    value extends instantiateSteps,
+    targetStep extends StepNumbers<value>,
+    fields extends chosenFields<resolvedStep<value, targetStep>> = 'all',
+    strict extends boolean = true,
+    partial extends boolean = false,
+    additionalCtx extends Record<string, unknown> = {},
+    additionalUpdaterData extends Record<string, unknown> = {},
+    updateMode extends mode = {
+      strict: strict;
+      partial: partial;
+    }
+  > extends Omit<
+        SharedOptions<value, targetStep, fields, updateMode>,
+        'targetStep'
+      >,
+      HelperFn.CtxDataSelector<value, [targetStep], additionalCtx> {
+    updater: Updater<
+      Expand<HelperFn.BaseInput<value, [targetStep], never, additionalCtx>>,
+      resolvedUpdaterReturnType<
+        resolvedFieldValue<
+          value,
+          targetStep,
+          fields,
+          resolvedStep<value, targetStep>
+        >,
+        updateMode,
+        additionalUpdaterData
+      >
+    >;
+  }
+
   export type options<
     value extends instantiateSteps,
     targetStep extends StepNumbers<value>,
@@ -240,26 +273,22 @@ export namespace UpdateFn {
 
   export type stepSpecific<
     value extends instantiateSteps,
-    targetStep extends stepNumbers,
-    stepNumbers extends StepNumbers<value> = StepNumbers<value>
+    target extends StepNumbers<value>
   > = <
-    field extends chosenFields<resolvedStep<value, targetStep>> = 'all',
+    field extends chosenFields<resolvedStep<value, target>> = 'all',
     strict extends boolean = true,
     partial extends boolean = false,
     additionalCtx extends Record<string, unknown> = {},
     additionalUpdaterData extends Record<string, unknown> = {}
   >(
-    options: Omit<
-      options<
-        value,
-        targetStep,
-        field,
-        strict,
-        partial,
-        additionalCtx,
-        additionalUpdaterData
-      >,
-      'targetStep'
+    options: StepSpecificUpdateOptions<
+      value,
+      target,
+      field,
+      strict,
+      partial,
+      additionalCtx,
+      additionalUpdaterData
     >
   ) => void;
   export type StepSpecificHelperFn<

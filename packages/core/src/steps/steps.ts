@@ -20,6 +20,8 @@ import {
 import type { StepSpecificHelperFn } from './fn-utils/helper-fn/utils';
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
+import { StepSchema } from '@/internals';
+import { CreateValidStep } from './utils';
 
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
 
@@ -77,8 +79,18 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
 /**
  * Extended step specific properties for the step.
  */
-// @ts-expect-error - This is a placeholder for the extended step specific properties.
-export interface ExtendedStepSpecificProperties<t, key> {}
+export interface ExtendedStepSpecificProperties<
+  def extends StepSchema.Config,
+  value extends _instantiateSteps<def>,
+  key extends keyof value
+> {}
+
+export interface StepExtension<
+  TDef extends StepSchema.Config,
+  TValue extends _instantiateSteps<TDef>,
+  TKey extends keyof TValue
+> {}
+
 export type _instantiateSteps<T = unknown> = [T] extends [object]
   ? T extends instantiateStepsConfig
     ? {
@@ -97,38 +109,39 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
             description: infer description extends string;
           }
             ? { description: description }
-            : {}) &
-            ExtendedStepSpecificProperties<T, key>
+            : {})
         >;
       }
     : {}
   : {};
-/**
- * Extended step specific functions for the step.
- */
-export interface ExtendedStepSpecificFunctions<
+export type BaseStepFunctions<
   def,
-  value,
-  key extends StepNumbers<value>
-> {}
-export type instantiateSteps<
-  t = unknown,
-  value = _instantiateSteps<t>
-> = Expand<{
-  [key in keyof value]: Show<
-    value[key] &
-      (value extends {}
-        ? key extends StepNumbers<value>
+  value extends _instantiateSteps<def>,
+  key extends keyof value
+> = Show<
+  value[key] &
+    (value extends {}
+      ? key extends StepNumbers<value>
+        ? key extends ValidStepKey
           ? {
+              // The entire step value is passed into the step specific functions
+              // because of the `ctxData` property.
               update: UpdateFn.stepSpecific<value, key>;
               reset: ResetFn.stepSpecific<value, key>;
               createHelperFn: StepSpecificHelperFn<value, key>;
-            } & ExtendedStepSpecificFunctions<t, value, key>
+            }
           : {}
-        : {})
-  >;
+        : {}
+      : {})
+>;
+
+export type instantiateSteps<
+  t = unknown,
+  value extends _instantiateSteps<t> = _instantiateSteps<t>
+> = Expand<{
+  [key in keyof value]: BaseStepFunctions<t, value, key>;
 }>;
-export type Any = instantiateSteps<instantiateStepsConfig>;
+export type AnySteps = instantiateSteps<instantiateStepsConfig>;
 export type StepNumbers<T> = keyof T extends string ? keyof T : never;
 export type getCurrentStep<
   value extends instantiateSteps,
