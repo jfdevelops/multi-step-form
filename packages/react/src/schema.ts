@@ -5,7 +5,6 @@ import {
   type Expand,
   type HelperFn,
   type HelperFnChosenSteps,
-  type instantiateSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
   type StepNumbers,
@@ -21,12 +20,13 @@ import {
 import { MultiStepFormSchemaConfig } from './form-config';
 import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
 import { createComponent, type CreateComponentCallback } from './utils';
+import { type instantiateReactSteps } from './steps';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
   export type config<
     def extends StepSchema.Config,
-    value extends instantiateSteps<def> = instantiateSteps<def>,
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>
   > = MultiStepFormStepSchema.config<def, value> & {
     /**
      * The React context for the multi step form.
@@ -40,14 +40,17 @@ export namespace MultiStepFormSchema {
 }
 
 export class MultiStepFormSchema<
-  const def extends StepSchema.Config,
-  value extends instantiateSteps<def> = instantiateSteps<def>,
->
-  extends MultiStepFormSchemaCore<def, value>
+    const def extends StepSchema.Config,
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>
+  >
+  extends MultiStepFormSchemaCore<def>
   implements HelperFunctions<def, value>
 {
+  // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   stepSchema: MultiStepFormStepSchema<def, value>;
+  // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+  // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   override readonly storage: MultiStepFormStorage<
     value,
     StepSchema.inferStorageKey<def>
@@ -57,7 +60,7 @@ export class MultiStepFormSchema<
   >;
 
   readonly context: MultiStepFormContextResult<def, value> = undefined as never;
-  readonly formConfig: MultiStepFormSchemaConfig.FormConfig<def, value> =
+  readonly #formConfig: MultiStepFormSchemaConfig.FormConfig<def, value> =
     undefined as never;
 
   constructor(config: MultiStepFormSchema.config<def, value>) {
@@ -78,7 +81,8 @@ export class MultiStepFormSchema<
     super(options);
 
     this.stepSchema = new MultiStepFormStepSchema(options);
-    this.#internal = new MultiStepFormStepSchemaInternal({
+    // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
+    this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
       originalValue: this.stepSchema.original,
       getValue: () => this.stepSchema.value,
       setValue: (value) => {
@@ -102,7 +106,7 @@ export class MultiStepFormSchema<
     }
 
     if (form) {
-      this.formConfig = form;
+      this.#formConfig = form;
     }
   }
 
@@ -137,7 +141,7 @@ export class MultiStepFormSchema<
    * @returns A new {@linkcode MultiStepFormSchema} with the form configuration.
    */
   withForm<
-    const formConfig extends MultiStepFormSchemaConfig.FormConfig<def, value>,
+    const formConfig extends MultiStepFormSchemaConfig.FormConfig<def, value>
   >(config: formConfig) {
     const { key, store, throwWhenUndefined } = this.storageConfig;
 
@@ -156,11 +160,11 @@ export class MultiStepFormSchema<
   }
 
   withContext() {
-    const context = createMultiStepFormContext(this);
+    const context = createMultiStepFormContext(this as never);
 
     return new MultiStepFormSchema<def, value>({
       steps: this.stepSchema.original,
-      form: this.formConfig,
+      form: this.#formConfig,
       nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
       storage: {
         key: this.storageConfig.key,
@@ -172,11 +176,8 @@ export class MultiStepFormSchema<
   }
 
   createComponent<
-    chosenSteps extends HelperFnChosenSteps.main<
-      value,
-      StepNumbers<value>
-    >,
-    props = undefined,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+    props = undefined
   >(
     options: HelperFn.BaseOptions<value, chosenSteps>,
     fn: CreateComponentCallback<value, chosenSteps, props>
@@ -195,7 +196,61 @@ export class MultiStepFormSchema<
 
 export function createMultiStepFormSchema<
   const def extends StepSchema.Config,
-  value extends instantiateSteps<def> = instantiateSteps<def>,
+  value extends instantiateReactSteps<def> = instantiateReactSteps<def>
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }
+
+const schema = createMultiStepFormSchema({
+  steps: {
+    step1: {
+      title: 'Personal Information',
+      fields: {
+        firstName: {
+          defaultValue: '',
+        },
+        lastName: {
+          defaultValue: '',
+        },
+        email: {
+          defaultValue: '',
+          type: 'string.email',
+        },
+        phoneNumber: {
+          defaultValue: '',
+          type: 'string.phone',
+        },
+        dateOfBirth: {
+          defaultValue: new Date(),
+          type: 'date',
+        },
+      },
+    },
+    step2: {
+      title: 'Booking Details',
+      description: 'Who is getting makeup and what services do they want?',
+      fields: {
+        faces: {
+          defaultValue: {
+            min: 1,
+            max: 10,
+            faces: [],
+          },
+        },
+        totals: {
+          defaultValue: {
+            running: {
+              duration: 0,
+              cost: 0,
+            },
+            itemized: {},
+          },
+        },
+      },
+    },
+  },
+});
+
+// const Step1 = schema.stepSchema.value.step1.createComponent(function Test({
+//   ctx,
+// }) {});

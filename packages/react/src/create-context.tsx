@@ -2,10 +2,8 @@ import {
   createInvariant,
   MultiStepFormStepSchema,
   type getCurrentStep,
-  type instantiateSteps,
   type Invariant,
   type StepNumbers,
-  type steps,
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import { type ComponentProps, type ReactNode } from 'react';
@@ -15,6 +13,7 @@ import {
 } from './hooks/use-multi-step-form-data';
 import { MultiStepFormSchema } from './schema';
 import type { CreatedMultiStepFormComponent, CreateFunction } from './utils';
+import type { instantiateReactSteps } from './steps';
 
 type BaseOptions<targetStep extends string> = {
   /**
@@ -24,10 +23,10 @@ type BaseOptions<targetStep extends string> = {
 };
 export type UseCurrentStepOptions<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>,
+  value extends instantiateReactSteps<def>,
   targetStep extends StepNumbers<value>,
   props,
-  isDataGuaranteed extends boolean = false,
+  isDataGuaranteed extends boolean = false
 > = BaseOptions<targetStep> & {
   /**
    * Determines if the result should follow "strictness".
@@ -92,38 +91,36 @@ export interface UseCurrentStepBaseResult<TData = unknown, TProps = undefined> {
     TProps extends undefined ? Omit<ComponentProps<'div'>, 'children'> : TProps
   >;
 }
-export interface UseCurrentStepErrorResult<
-  TData = unknown,
-  TProps = undefined,
-> extends UseCurrentStepBaseResult<TData, TProps> {
+export interface UseCurrentStepErrorResult<TData = unknown, TProps = undefined>
+  extends UseCurrentStepBaseResult<TData, TProps> {
   data: undefined;
   hasData: false;
 }
 export interface UseCurrentStepSuccessResult<
   TData = unknown,
-  TProps = undefined,
+  TProps = undefined
 > extends UseCurrentStepBaseResult<TData, TProps> {
   data: TData;
   hasData: true;
 }
 export type UseCurrentStepResult<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>,
+  value extends instantiateReactSteps<def>,
   targetStep extends StepNumbers<value>,
   props,
-  isDataGuaranteed extends boolean = false,
+  isDataGuaranteed extends boolean = false
 > = isDataGuaranteed extends true
   ? Omit<
-    UseCurrentStepSuccessResult<getCurrentStep<value, targetStep>, props>,
-    'hasData'
-  >
+      UseCurrentStepSuccessResult<getCurrentStep<value, targetStep>, props>,
+      'hasData'
+    >
   :
-  | UseCurrentStepErrorResult<getCurrentStep<value, targetStep>, props>
-  | UseCurrentStepSuccessResult<getCurrentStep<value, targetStep>, props>;
+      | UseCurrentStepErrorResult<getCurrentStep<value, targetStep>, props>
+      | UseCurrentStepSuccessResult<getCurrentStep<value, targetStep>, props>;
 export type UseProgressBaseOptions<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>,
-  targetStep extends StepNumbers<value>,
+  value extends instantiateReactSteps<def>,
+  targetStep extends StepNumbers<value>
 > = BaseOptions<targetStep> & {
   /**
    * The total amount of steps that are in the form.
@@ -140,9 +137,9 @@ export type UseProgressBaseOptions<
 };
 export type UseProgressOptions<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>,
+  value extends instantiateReactSteps<def>,
   targetStep extends StepNumbers<value>,
-  props,
+  props
 > = UseProgressBaseOptions<def, value, targetStep> & {
   /**
    * An optional transformation function to provide a custom progress text.
@@ -174,7 +171,7 @@ export type CreateHOC<TContext, TProps> = (
 
 export type MultiStepFormContextResult<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>,
+  value extends instantiateReactSteps<def>
 > = {
   useMultiStepFormData: UseMultiStepFormData<def, value>;
   /**
@@ -185,7 +182,7 @@ export type MultiStepFormContextResult<
   useCurrentStepData: <
     targetStep extends StepNumbers<value>,
     props = undefined,
-    isDataGuaranteed extends boolean = false,
+    isDataGuaranteed extends boolean = false
   >(
     options: UseCurrentStepOptions<
       def,
@@ -212,10 +209,7 @@ export type MultiStepFormContextResult<
    * @param cb The callback function for creating the HOC.
    * @returns A HOC for the `progressTextTransformer` option of the `useProgress` hook.
    */
-  withProgressText: <
-    targetStep extends StepNumbers<value>,
-    props = undefined,
-  >(
+  withProgressText: <targetStep extends StepNumbers<value>, props = undefined>(
     options: UseProgressBaseOptions<def, value, targetStep>,
     cb: (
       ctx: Required<UseProgressBaseOptions<def, value, targetStep>>,
@@ -230,7 +224,7 @@ export type MultiStepFormContextResult<
    */
   withNoStepDataFound: <
     targetStep extends StepNumbers<value>,
-    props = undefined,
+    props = undefined
   >(
     options: BaseOptions<targetStep>,
     cb: (ctx: BaseOptions<targetStep>, props: props) => ReactNode
@@ -246,7 +240,7 @@ function createComponent<ctx>(ctx: ctx) {
 
 export function createMultiStepFormContext<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>,
+  value extends instantiateReactSteps<def>
 >(
   schema: MultiStepFormSchema<def, value>
 ): MultiStepFormContextResult<def, value> {
@@ -255,7 +249,7 @@ export function createMultiStepFormContext<
   function useCurrentStepData<
     targetStep extends StepNumbers<value>,
     props = undefined,
-    isDataGuaranteed extends boolean = false,
+    isDataGuaranteed extends boolean = false
   >(
     options: UseCurrentStepOptions<
       def,
@@ -272,8 +266,8 @@ export function createMultiStepFormContext<
     const NoDataFoundComponent = notFoundMessage
       ? withNoStepDataFound({ targetStep }, notFoundMessage)
       : (props: Omit<ComponentProps<'div'>, 'children'>) => (
-        <div {...props}>No data found for step {String(targetStep)}</div>
-      );
+          <div {...props}>No data found for step {String(targetStep)}</div>
+        );
 
     if (isDataGuaranteed) {
       return {
@@ -299,7 +293,7 @@ export function createMultiStepFormContext<
 
   function useProgress<
     targetStep extends StepNumbers<value>,
-    props = undefined,
+    props = undefined
   >(
     options: UseProgressOptions<def, value, targetStep, props>
   ): UseProgressResult<props> {
@@ -324,14 +318,14 @@ export function createMultiStepFormContext<
       (Number.parseInt(currentStep, 10) / totalSteps) * maxProgressValue;
     const ProgressText = progressTextTransformer
       ? withProgressText(
-        { targetStep, maxProgressValue, totalSteps },
-        progressTextTransformer
-      )
+          { targetStep, maxProgressValue, totalSteps },
+          progressTextTransformer
+        )
       : (props: Omit<ComponentProps<'div'>, 'children'>) => (
-        <div {...props}>
-          Step {currentStep}/{totalSteps}
-        </div>
-      );
+          <div {...props}>
+            Step {currentStep}/{totalSteps}
+          </div>
+        );
 
     return {
       value,
@@ -356,7 +350,7 @@ export function createMultiStepFormContext<
 
   function withProgressText<
     targetStep extends StepNumbers<value>,
-    props = undefined,
+    props = undefined
   >(
     options: UseProgressBaseOptions<def, value, targetStep>,
     cb: (
@@ -372,7 +366,7 @@ export function createMultiStepFormContext<
 
   function withNoStepDataFound<
     targetStep extends StepNumbers<value>,
-    props = undefined,
+    props = undefined
   >(
     options: BaseOptions<targetStep>,
     cb: (ctx: BaseOptions<targetStep>, props: props) => ReactNode
@@ -383,7 +377,9 @@ export function createMultiStepFormContext<
     invariant(
       isValidStep(options.targetStep),
       (formatter) =>
-        `Invalid step number "${options.targetStep}". Valid steps are: ${formatter.format(as('array.string.untyped'))}`
+        `Invalid step number "${
+          options.targetStep
+        }". Valid steps are: ${formatter.format(as('array.string.untyped'))}`
     );
 
     return createComponent({ targetStep: options.targetStep })(cb);

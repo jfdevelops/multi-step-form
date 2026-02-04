@@ -2,7 +2,6 @@ import {
   createInvariant,
   Expand,
   HelperFnChosenSteps,
-  type instantiateSteps,
   type Invariant,
   type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
@@ -13,14 +12,15 @@ import {
   type FunctionComponent,
 } from 'react';
 import type { CreatedMultiStepFormComponent } from './utils';
+import type { instantiateReactSteps } from './steps';
 
 export namespace MultiStepFormSchemaConfig {
   export const DEFAULT_FORM_ALIAS = 'Form';
   export type defaultEnabledFor = HelperFnChosenSteps.defaultStringOption;
   export type defaultFormAlias = typeof DEFAULT_FORM_ALIAS;
-  export type formEnabledFor<value extends instantiateSteps> =
+  export type formEnabledFor<value extends instantiateReactSteps> =
     HelperFnChosenSteps.main<value, StepNumbers<value>>;
-  type strippedResolvedSteps<value extends instantiateSteps> = {
+  type strippedResolvedSteps<value extends instantiateReactSteps> = {
     [_ in keyof value]: Expand<
       Omit<value[_], 'createComponent' | 'createHelperFn'>
     >;
@@ -34,8 +34,8 @@ export namespace MultiStepFormSchemaConfig {
     render: infer render;
   }
     ? render extends (data: any) => ComponentType<infer props>
-    ? props
-    : never
+      ? props
+      : never
     : never;
   export namespace EnabledForSteps {
     export type get<def> = def extends {
@@ -44,23 +44,20 @@ export namespace MultiStepFormSchemaConfig {
       ? enabledForSteps // Case: `enabledForSteps` isn't provided (default behavior)
       : def extends { form: infer form }
       ? form extends { enabledForSteps: infer enabledForSteps }
-      ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
-      : never
+        ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
+        : never
       : never;
     export type resolveType<
       def extends StepSchema.Config,
-      steps extends instantiateSteps<def>,
-      value = instantiateFormConfig<def>,
-    > =
-      get<value> extends defaultEnabledFor
+      steps extends instantiateReactSteps<def>,
+      value = instantiateFormConfig<def>
+    > = get<value> extends defaultEnabledFor
       ? 'all'
-      : get<value> extends HelperFnChosenSteps.tupleNotation<
-        StepNumbers<steps>
-      >
+      : get<value> extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>
       ? 'tuple'
       : get<value> extends HelperFnChosenSteps.objectNotation<
-        StepNumbers<steps>
-      >
+          StepNumbers<steps>
+        >
       ? 'object'
       : never;
   }
@@ -73,10 +70,10 @@ export namespace MultiStepFormSchemaConfig {
     : defaultEnabledFor;
   export type inferComponent<def> = def extends { render: infer render }
     ? render extends (data: any) => infer r
-    ? r extends ComponentType<infer _>
-    ? r
-    : never
-    : never
+      ? r extends ComponentType<infer _>
+        ? r
+        : never
+      : never
     : never;
   export type inferredFormComponent<def> = {
     [key in inferFormAlias<def>]: inferComponent<def>;
@@ -84,49 +81,46 @@ export namespace MultiStepFormSchemaConfig {
 
   export type instantiateFormConfig<def> = [def] extends [object]
     ? def extends { form: infer form }
-    ? {
-      -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
-        {
-          alias: inferFormAlias<FormConfig.withoutRender<form>>;
-          enabledForSteps: inferFormEnabledForSteps<
-            FormConfig.withoutRender<form>
+      ? {
+          -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+            {
+              alias: inferFormAlias<FormConfig.withoutRender<form>>;
+              enabledForSteps: inferFormEnabledForSteps<
+                FormConfig.withoutRender<form>
+              >;
+            } & inferredFormComponent<form>
           >;
-        } & inferredFormComponent<form>
-      >;
-    }[keyof FormConfig.withoutRender<form>]
-    : {}
+        }[keyof FormConfig.withoutRender<form>]
+      : {}
     : {};
-  export type getEnabledForSteps<def> =
-    instantiateFormConfig<def> extends {
-      enabledForSteps: infer enabledForSteps;
-    }
+  export type getEnabledForSteps<def> = instantiateFormConfig<def> extends {
+    enabledForSteps: infer enabledForSteps;
+  }
     ? enabledForSteps
     : def;
   export type AvailableStepForForm<
-    value extends instantiateSteps,
-    enabledFor extends formEnabledFor<value>,
+    value extends instantiateReactSteps,
+    enabledFor extends formEnabledFor<value>
   > = enabledFor extends defaultEnabledFor
     ? strippedResolvedSteps<value>
-    : enabledFor extends HelperFnChosenSteps.tupleNotation<
-      StepNumbers<value>
-    >
+    : enabledFor extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
     ? enabledFor[number] extends keyof value
-    ? Pick<strippedResolvedSteps<value>, enabledFor[number]>
-    : never
+      ? Pick<strippedResolvedSteps<value>, enabledFor[number]>
+      : never
     : keyof enabledFor extends keyof value
     ? Expand<
-      Pick<
-        strippedResolvedSteps<value>,
-        Extract<keyof value, keyof enabledFor>
+        Pick<
+          strippedResolvedSteps<value>,
+          Extract<keyof value, keyof enabledFor>
+        >
       >
-    >
     : never;
   export type formCtx<alias extends string, props> = {
     [_ in alias]: CreatedMultiStepFormComponent<props>;
   };
   export type renderFnData<
-    value extends instantiateSteps,
-    enabledFor extends formEnabledFor<value>,
+    value extends instantiateReactSteps,
+    enabledFor extends formEnabledFor<value>
   > = {
     /**
      * The id for the form, either a custom one or the default one.
@@ -147,7 +141,7 @@ export namespace MultiStepFormSchemaConfig {
    */
   export interface FormConfig<
     def extends StepSchema.Config = StepSchema.Config,
-    value extends instantiateSteps<def> = instantiateSteps<def>,
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>
   > {
     /**
      * The `id` for the form component.
@@ -266,11 +260,11 @@ export namespace MultiStepFormSchemaConfig {
 
   export function instantiateFormConfig<
     const def extends StepSchema.Config,
-    value extends instantiateSteps<def>,
+    value extends instantiateReactSteps<def>
   >(data: value, availableSteps: readonly StepNumbers<value>[]) {
     return <
       const form extends FormConfig<def, value>,
-      inst = instantiateFormConfig<form>,
+      inst = instantiateFormConfig<form>
     >(
       config: form | undefined
     ) => {
@@ -334,9 +328,9 @@ export namespace MultiStepFormSchemaConfig {
   // because the `target` will always be an `Array` in `MultiStepFormStepSchema.createComponentForStep`.
   // TODO add validation to keys
   export function isFormAvailable<
-    value extends instantiateSteps,
+    value extends instantiateReactSteps,
     target extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    enabledFor extends formEnabledFor<value>,
+    enabledFor extends formEnabledFor<value>
   >(target: target, enabledFor: enabledFor) {
     if (Array.isArray(target)) {
       const match = HelperFnChosenSteps.match({

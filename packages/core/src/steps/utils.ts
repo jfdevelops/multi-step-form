@@ -1,8 +1,8 @@
 import { comparePartialArray, printErrors } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
-import { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
-import type { steps } from './steps';
 import type { Updater } from '@/utils/types';
+import { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
+import type { getCurrentStep, instantiateSteps, StepNumbers } from './steps';
 
 export type GetStepOptions<
   value extends instantiateSteps,
@@ -10,6 +10,12 @@ export type GetStepOptions<
   targetStep extends stepNumbers
 > = { step: targetStep };
 export type ValidStepKey<N extends number = number> = `step${N}`;
+export type CreateValidStep<
+  key extends ValidStepKey = ValidStepKey,
+  value = unknown
+> = {
+  [_ in key]: value;
+};
 export type ExtractStepFromKey<T> = T extends string
   ? T extends ValidStepKey<infer N>
     ? N
@@ -54,7 +60,7 @@ export function getStep<
   ) {
     const { step } = options;
 
-    const data = resolvedStepValues[step] as getCurrent<value, targetStep>;
+    const data = resolvedStepValues[step] as getCurrentStep<value, targetStep>;
 
     return { step, data };
   };
