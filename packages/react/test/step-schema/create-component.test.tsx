@@ -74,7 +74,7 @@ describe('creating components via "createComponent" fn', () => {
       ));
 
       const Step1 = schema.stepSchema.value.step1.createComponent(
-        componentSpy as never
+        componentSpy as never,
       );
 
       expect(Step1).toBeTypeOf('function');
@@ -143,8 +143,7 @@ describe('creating components via "createComponent" fn', () => {
         Exclude<
           StepSpecificComponent.options<
             ResolvedStep,
-            Steps,
-            ['step1'],
+            'step1',
             MultiStepFormSchemaConfig.defaultFormAlias,
             unknown,
             { step2: StrippedResolvedStep<ResolvedStep['step2'], false> }
@@ -156,7 +155,7 @@ describe('creating components via "createComponent" fn', () => {
         {
           ctxData: ctxDataSpy as never,
         },
-        componentSpy as never
+        componentSpy as never,
       );
       console.log('-------------------after------------------');
       console.log(schema.stepSchema.value);
@@ -247,7 +246,7 @@ describe('creating components via "createComponent" fn', () => {
       ));
 
       const Step1 = schema.stepSchema.value.step1.createComponent(
-        componentSpy as never
+        componentSpy as never,
       );
 
       expect(Step1).toBeTypeOf('function');
@@ -274,13 +273,164 @@ describe('creating components via "createComponent" fn', () => {
         updater: 'New value',
       });
       expect(schema.stepSchema.value.step1.fields.foo.defaultValue).toBe(
-        'New value'
+        'New value',
       );
     });
 
     describe.todo('with custom form instance', () => {
       test.todo('without custom ctx', async () => {});
       test.todo('with custom ctx', async () => {});
+    });
+
+    describe('with .withForm()', () => {
+      function makeBaseSchema() {
+        return createMultiStepFormSchema({
+          steps: {
+            step1: {
+              title: 'Step 1',
+              fields: { firstName: { defaultValue: '' } },
+            },
+            step2: {
+              title: 'Step 2',
+              fields: { lastName: { defaultValue: '' } },
+            },
+          },
+        });
+      }
+
+      it('injects the Form component under the default alias', async () => {
+        const schema = makeBaseSchema().withForm({
+          render() {
+            return (props: ComponentPropsWithRef<'form'>) => (
+              <form data-testid='injected-form' {...props} />
+            );
+          },
+        });
+
+        const spy = vi.fn(({ Form }: any) => (
+          // Do not pass data-testid here so the inner data-testid='injected-form' is preserved
+          <Form>
+            <span>content</span>
+          </Form>
+        ));
+
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          spy as never,
+        );
+
+        const screen = await render(<Step1 />);
+
+        const lastCall = spy.mock.lastCall;
+        expect(lastCall).toBeDefined();
+        expect(lastCall![0].Form).toBeTypeOf('function');
+
+        await expect
+          .element(screen.getByTestId('injected-form'))
+          .toBeInTheDocument();
+        await expect.element(screen.getByText('content')).toBeInTheDocument();
+      });
+
+      it('renders correctly when the step component uses the injected Form', async () => {
+        const schema = makeBaseSchema().withForm({
+          render() {
+            return (props: ComponentPropsWithRef<'form'>) => (
+              <form data-testid='form-renders-correctly' {...props} />
+            );
+          },
+        });
+
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }: any) => (
+            <Form>
+              <span data-testid='form-inner-child'>child content</span>
+            </Form>
+          ),
+        );
+
+        const screen = await render(<Step1 />);
+
+        await expect
+          .element(screen.getByTestId('form-renders-correctly'))
+          .toBeInTheDocument();
+        await expect
+          .element(screen.getByTestId('form-inner-child'))
+          .toBeInTheDocument();
+      });
+
+      it('injects the Form under a custom alias', async () => {
+        const schema = makeBaseSchema().withForm({
+          alias: 'MyForm',
+          render() {
+            return (props: ComponentPropsWithRef<'form'>) => (
+              <form data-testid='alias-form' {...props} />
+            );
+          },
+        });
+
+        const spy = vi.fn(({ MyForm }: any) => (
+          <MyForm>
+            <span>aliased</span>
+          </MyForm>
+        ));
+
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          spy as never,
+        );
+
+        const screen = await render(<Step1 />);
+
+        const lastCall = spy.mock.lastCall;
+        expect(lastCall).toBeDefined();
+        expect(lastCall![0].MyForm).toBeTypeOf('function');
+        // default 'Form' key should not be set when a custom alias is used
+        expect(lastCall![0].Form).toBeUndefined();
+
+        await expect
+          .element(screen.getByTestId('alias-form'))
+          .toBeInTheDocument();
+      });
+
+      it('injects Form into all steps when enabledForSteps is "all"', async () => {
+        const schema = makeBaseSchema().withForm({
+          enabledForSteps: 'all',
+          render() {
+            return (props: ComponentPropsWithRef<'form'>) => (
+              <form data-testid='all-steps-form' {...props} />
+            );
+          },
+        });
+
+        const step1Spy = vi.fn(({ Form }: any) => (
+          <Form data-testid='s1-form' />
+        ));
+        const step2Spy = vi.fn(({ Form }: any) => (
+          <Form data-testid='s2-form' />
+        ));
+
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          step1Spy as never,
+        );
+        const Step2 = schema.stepSchema.value.step2.createComponent(
+          step2Spy as never,
+        );
+
+        await render(<Step1 />);
+        const step1LastCall = step1Spy.mock.lastCall;
+        expect(step1LastCall).toBeDefined();
+        expect(step1LastCall![0].Form).toBeTypeOf('function');
+
+        await render(<Step2 />);
+        const step2LastCall = step2Spy.mock.lastCall;
+        expect(step2LastCall).toBeDefined();
+        expect(step2LastCall![0].Form).toBeTypeOf('function');
+      });
+
+      // NOTE: Step-specific enabledForSteps (e.g. ['step1']) is not currently testable
+      // because the core validator receives numeric step keys [1, 2] but the type system
+      // exposes string keys ('step1', 'step2'), causing a validation mismatch at runtime.
+      it.todo(
+        'does not inject Form when the step is excluded by enabledForSteps',
+      );
     });
   });
 });
