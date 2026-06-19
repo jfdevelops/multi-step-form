@@ -1,5 +1,5 @@
 export * from './schema';
 export * from './fields';
-export { createCtx } from './utils';
+export { createCtx, type StrippedResolvedStep } from './utils';
 export * from './steps';
 export * from './fn-utils';

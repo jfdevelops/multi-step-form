@@ -23,6 +23,17 @@ export type ExtractStepFromKey<T> = T extends string
   : never;
 
 /**
+ * Strips function properties from a resolved step type.
+ * When `withFunctions` is `true`, the type is returned as-is.
+ */
+export type StrippedResolvedStep<
+  T,
+  withFunctions extends boolean = false
+> = withFunctions extends true
+  ? T
+  : { [K in keyof T as T[K] extends Function ? never : K]: T[K] };
+
+/**
  * Gets the step number from an input string.
  * @param input The input to extract the step number from.
  * @returns The extracted step number.

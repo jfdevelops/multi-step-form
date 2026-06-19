@@ -377,11 +377,18 @@ export class MultiStepFormStepSchema<
         };
 
         if (form) {
-          const {
-            alias = MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS,
-            ...rest
-          } = form;
-          const enabledFor = rest.enabledForSteps ?? 'all';
+          // `form` is the already-instantiated form object produced by
+          // `instantiateFormConfig`: { alias, enabledForSteps, [alias]: component }.
+          // `render` no longer exists on it, so we must read the pre-built
+          // component from `form[alias]` instead of recreating it.
+          const instantiated = form as unknown as Record<string, unknown>;
+          const alias =
+            (instantiated.alias as string) ??
+            MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS;
+          const enabledFor =
+            (instantiated.enabledForSteps as
+              | MultiStepFormSchemaConfig.formEnabledFor<value>
+              | undefined) ?? 'all';
 
           invariant(typeof alias === 'string', 'The alias must be a string');
 
@@ -393,7 +400,7 @@ export class MultiStepFormStepSchema<
           ) {
             fnInput = {
               ...fnInput,
-              [alias]: this.createFormComponent(rest, defaultId),
+              [alias]: instantiated[alias],
             };
           }
 

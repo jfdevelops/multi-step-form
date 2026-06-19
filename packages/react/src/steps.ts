@@ -246,6 +246,30 @@ export interface StepSpecificCreateComponentFn<
   ): CreatedMultiStepFormComponent<props>;
 }
 
+/**
+ * The callback type for step-specific `createComponent` functions.
+ * Type parameters after `chosenSteps` are retained for backwards compatibility
+ * but are not used in the type resolution.
+ */
+export type CreateStepSpecificComponentCallback<
+  value extends instantiateReactSteps,
+  _steps = unknown,
+  chosenSteps extends [StepNumbers<value>] = [StepNumbers<value>],
+  _formInstance = undefined,
+  _formAlias extends string = string,
+  props = undefined,
+  _enabledFor = unknown,
+  _extra = unknown,
+  additionalCtx extends Record<string, unknown> = {}
+> = CreateComponent<
+  Expand<
+    HelperFnInput.BaseInput<value, chosenSteps, never, additionalCtx> &
+      StepSpecificComponent.updateWrappers<value, chosenSteps[0]> &
+      additionalCtx
+  >,
+  props
+>;
+
 // Not sure this is the best way to do this, but it works for now.
 // Tried with module augmentation, but it didn't work due to the generics.
 // Because of this, there are a lot of `@ts-expect-error`s in the code.

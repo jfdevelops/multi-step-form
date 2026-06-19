@@ -24,6 +24,10 @@ import { type instantiateReactSteps } from './steps';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
+  export type resolvedStep<T> = T extends MultiStepFormSchema<infer _def, infer value>
+    ? value
+    : never;
+
   export type config<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def> = instantiateReactSteps<def>
