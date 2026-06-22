@@ -1,5 +1,21 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.37
+
+### Patch Changes
+
+- 9cc12f1: fix: restore missing types removed during type system rewrite (#182)
+
+  - Added `StrippedResolvedStep<T, withFunctions>` to `@jfdevelops/multi-step-form-core`
+  - Added `CreateStepSpecificComponentCallback` to `@jfdevelops/react-multi-step-form`
+  - Added `MultiStepFormSchema.resolvedStep<T>` utility type to the `MultiStepFormSchema` namespace
+  - Exported `StepSpecificComponent` and related types from the react package public API via `export * from './steps'`
+
+- 160d9a9: Fixes type import errors and `createComponent` not being available per step
+- Updated dependencies [9cc12f1]
+- Updated dependencies [160d9a9]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.28
+
 ## 1.0.0-alpha.36
 
 ### Patch Changes
