@@ -20,6 +20,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsdown",
+    "test": "vitest",
     "watch": "tsdown --watch",
     "typecheck": "tsc --noEmit"
   },

@@ -96,11 +96,12 @@ jobs:
 
       # 2. UPDATED: Output to XML for React tests as well
       - name: Run tests (react)
+        working-directory: packages/react
         env:
           CI: true
           GITHUB_ACTIONS: true
         # Changed reporters to include junit and output file
-        run: pnpm run test:react --browser.headless=true --reporter=default --reporter=junit --outputFile=test-results.xml
+        run: pnpm test --browser.headless=true --reporter=default --reporter=junit --outputFile=test-results.xml
 
       # 3. ADDED: Upload Report
       - name: Report React Results
