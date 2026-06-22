@@ -3,15 +3,70 @@ import type {
   StepNumbers,
   StrippedResolvedStep,
 } from '@jfdevelops/multi-step-form-core';
-import { ComponentPropsWithRef } from 'react';
-import { describe, expect, it, test, vi } from 'vitest';
-import { render } from 'vitest-browser-react';
+import { ComponentPropsWithRef, type ReactElement, act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, describe, expect, it, test, vi } from 'vitest';
 import {
   createMultiStepFormSchema,
   type CreateStepSpecificComponentCallback,
   type MultiStepFormSchema,
   type StepSpecificComponent,
 } from '../../src';
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true;
+
+const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
+
+afterEach(async () => {
+  for (const { container, root } of mountedRoots.splice(0)) {
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  }
+});
+
+async function renderInJsdom(ui: ReactElement) {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+
+  const root = createRoot(container);
+  mountedRoots.push({ container, root });
+
+  await act(async () => {
+    root.render(ui);
+  });
+
+  return {
+    getByTestId(testId: string) {
+      const element = container.querySelector<HTMLElement>(
+        `[data-testid="${testId}"]`,
+      );
+
+      if (!element) {
+        throw new Error(`Unable to find element by test id: ${testId}`);
+      }
+
+      return element;
+    },
+    getByText(text: string) {
+      const candidates = [
+        container,
+        ...Array.from(container.querySelectorAll<HTMLElement>('*')),
+      ];
+      const element = candidates.find((candidate) =>
+        candidate.textContent?.includes(text),
+      );
+
+      if (!element) {
+        throw new Error(`Unable to find element with text: ${text}`);
+      }
+
+      return element as HTMLElement;
+    },
+  };
+}
 
 describe('creating components via "createComponent" fn', () => {
   describe('using step specific "createComponent" fn', () => {
@@ -79,7 +134,7 @@ describe('creating components via "createComponent" fn', () => {
 
       expect(Step1).toBeTypeOf('function');
 
-      const screen = await render(<Step1 />);
+      const screen = await renderInJsdom(<Step1 />);
 
       const lastCall = componentSpy.mock.lastCall;
 
@@ -91,9 +146,7 @@ describe('creating components via "createComponent" fn', () => {
       expect(ctx).toHaveProperty('step1');
       expect(Object.keys(ctx)).toEqual(['step1']);
 
-      await expect
-        .element(screen.getByText('Step 1 Title: First step'))
-        .toBeInTheDocument();
+      expect(screen.getByText('Step 1 Title: First step')).toBeDefined();
     });
 
     it.skip('should use the provided custom "ctx"', async () => {
@@ -163,7 +216,7 @@ describe('creating components via "createComponent" fn', () => {
       expect(schema.stepSchema.value.step1.nameTransformCasing).toBe('flat');
       expect(Step1).toBeTypeOf('function');
 
-      const screen = await render(<Step1 />);
+      const screen = await renderInJsdom(<Step1 />);
 
       // ctxData assertions
       const lastCtxDataCall = ctxDataSpy.mock.lastCall;
@@ -188,9 +241,7 @@ describe('creating components via "createComponent" fn', () => {
       expect(Object.keys(ctx)).toEqual(['step1', 'step2']);
 
       // render assertions
-      await expect
-        .element(screen.getByText('Step 1 Title: First step'))
-        .toBeInTheDocument();
+      expect(screen.getByText('Step 1 Title: First step')).toBeDefined();
     });
 
     it('should use "onInputChange" to update a value for the specified field', async () => {
@@ -251,7 +302,7 @@ describe('creating components via "createComponent" fn', () => {
 
       expect(Step1).toBeTypeOf('function');
 
-      const screen = await render(<Step1 />);
+      const screen = await renderInJsdom(<Step1 />);
 
       const lastCall = componentSpy.mock.lastCall;
 
@@ -263,9 +314,7 @@ describe('creating components via "createComponent" fn', () => {
       expect(ctx).toHaveProperty('step1');
       expect(Object.keys(ctx)).toEqual(['step1']);
 
-      await expect
-        .element(screen.getByText('Step 1 Title: First step'))
-        .toBeInTheDocument();
+      expect(screen.getByText('Step 1 Title: First step')).toBeDefined();
 
       expect(onInputChange).toBeDefined();
       onInputChange({
@@ -318,16 +367,14 @@ describe('creating components via "createComponent" fn', () => {
           spy as never,
         );
 
-        const screen = await render(<Step1 />);
+        const screen = await renderInJsdom(<Step1 />);
 
         const lastCall = spy.mock.lastCall;
         expect(lastCall).toBeDefined();
         expect(lastCall![0].Form).toBeTypeOf('function');
 
-        await expect
-          .element(screen.getByTestId('injected-form'))
-          .toBeInTheDocument();
-        await expect.element(screen.getByText('content')).toBeInTheDocument();
+        expect(screen.getByTestId('injected-form')).toBeDefined();
+        expect(screen.getByText('content')).toBeDefined();
       });
 
       it('renders correctly when the step component uses the injected Form', async () => {
@@ -347,14 +394,10 @@ describe('creating components via "createComponent" fn', () => {
           ),
         );
 
-        const screen = await render(<Step1 />);
+        const screen = await renderInJsdom(<Step1 />);
 
-        await expect
-          .element(screen.getByTestId('form-renders-correctly'))
-          .toBeInTheDocument();
-        await expect
-          .element(screen.getByTestId('form-inner-child'))
-          .toBeInTheDocument();
+        expect(screen.getByTestId('form-renders-correctly')).toBeDefined();
+        expect(screen.getByTestId('form-inner-child')).toBeDefined();
       });
 
       it('injects the Form under a custom alias', async () => {
@@ -377,7 +420,7 @@ describe('creating components via "createComponent" fn', () => {
           spy as never,
         );
 
-        const screen = await render(<Step1 />);
+        const screen = await renderInJsdom(<Step1 />);
 
         const lastCall = spy.mock.lastCall;
         expect(lastCall).toBeDefined();
@@ -385,9 +428,7 @@ describe('creating components via "createComponent" fn', () => {
         // default 'Form' key should not be set when a custom alias is used
         expect(lastCall![0].Form).toBeUndefined();
 
-        await expect
-          .element(screen.getByTestId('alias-form'))
-          .toBeInTheDocument();
+        expect(screen.getByTestId('alias-form')).toBeDefined();
       });
 
       it('injects Form into all steps when enabledForSteps is "all"', async () => {
@@ -414,12 +455,12 @@ describe('creating components via "createComponent" fn', () => {
           step2Spy as never,
         );
 
-        await render(<Step1 />);
+        await renderInJsdom(<Step1 />);
         const step1LastCall = step1Spy.mock.lastCall;
         expect(step1LastCall).toBeDefined();
         expect(step1LastCall![0].Form).toBeTypeOf('function');
 
-        await render(<Step2 />);
+        await renderInJsdom(<Step2 />);
         const step2LastCall = step2Spy.mock.lastCall;
         expect(step2LastCall).toBeDefined();
         expect(step2LastCall![0].Form).toBeTypeOf('function');

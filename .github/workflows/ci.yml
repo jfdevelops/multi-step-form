@@ -84,18 +84,6 @@ jobs:
           name: core-build
           path: packages/core/dist
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('packages/react/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright browsers
-        working-directory: packages/react
-        run: pnpm exec playwright install chromium
-
       # 2. UPDATED: Output to XML for React tests as well
       - name: Run tests (react)
         working-directory: packages/react
