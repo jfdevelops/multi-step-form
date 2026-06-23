@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.41
+
+### Patch Changes
+
+- 645b4c5: feat: expose `defaultValues` in `createComponent` callback
+
+  `defaultValues` is now available directly in the `createComponent` callback, providing the same flat map of field default values that was previously only accessible via the removed `useFormInstance.render` input.
+
 ## 1.0.0-alpha.40
 
 ### Minor Changes
