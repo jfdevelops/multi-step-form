@@ -48,7 +48,7 @@ async function renderInJsdom(ui: ReactElement) {
 }
 
 describe('createMultiStepFormContext', () => {
-  it('returns the target step data through useCurrentStepData when using withForm', async () => {
+  it('rerenders current step data after a public step update', async () => {
     const schema = createMultiStepFormSchema({
       steps: {
         step1: {
@@ -78,11 +78,6 @@ describe('createMultiStepFormContext', () => {
       })
       .withContext();
 
-    schema.stepSchema.value.step1.update({
-      fields: ['fields.firstName.defaultValue'],
-      updater: 'Taylor',
-    });
-
     const { useCurrentStepData } = schema.context;
 
     function TestComponent() {
@@ -94,10 +89,17 @@ describe('createMultiStepFormContext', () => {
         return <NoCurrentData />;
       }
 
-      return <p>First name: {data.fields.firstName.defaultValue}</p>;
+      return <p>First name: {data.fields.firstName?.defaultValue}</p>;
     }
 
     const screen = await renderInJsdom(<TestComponent />);
+
+    await act(async () => {
+      schema.stepSchema.value.step1.update({
+        fields: ['fields.firstName.defaultValue'],
+        updater: 'Taylor',
+      });
+    });
 
     expect(screen.getByText('First name: Taylor')).toBeDefined();
   });
