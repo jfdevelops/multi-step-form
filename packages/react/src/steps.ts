@@ -2,7 +2,6 @@ import type {
   _instantiateSteps,
   BaseStepFunctions,
   Expand,
-  getDefaultValues,
   HelperFn,
   HelperFnChosenSteps,
   HelperFnInput,
@@ -11,6 +10,7 @@ import type {
   UpdateFn,
 } from '@jfdevelops/multi-step-form-core';
 import { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
+import type { ComponentPropsWithRef } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { UseSelector } from './hooks/use-selector';
@@ -18,11 +18,18 @@ import { selector } from './selector';
 import { CreateComponent, CreatedMultiStepFormComponent } from './utils';
 
 export namespace StepSpecificComponent {
+  type defaultFormComponent = {
+    [key in MultiStepFormSchemaConfig.defaultFormAlias]: CreatedMultiStepFormComponent<
+      Omit<ComponentPropsWithRef<'form'>, 'id'>
+    >;
+  };
   type instantiateFormComponentForAllSteps<
     def extends StepSchema.Config,
     value = MultiStepFormSchemaConfig.instantiateFormConfig<def>
   > = MultiStepFormSchemaConfig.EnabledForSteps.get<value> extends MultiStepFormSchemaConfig.defaultEnabledFor
-    ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+    ? keyof MultiStepFormSchemaConfig.instantiateFormConfig<def> extends never
+      ? defaultFormComponent
+      : MultiStepFormSchemaConfig.instantiateFormConfig<def>
     : {};
   type instantiateFormComponentForTuple<
     def extends StepSchema.Config,
@@ -148,60 +155,15 @@ export namespace StepSpecificComponent {
     >,
     props
   >;
-  export const DEFAULT_FORM_INSTANCE_ALIAS = 'form';
-  export type defaultFormInstanceAlias = typeof DEFAULT_FORM_INSTANCE_ALIAS;
-  export type formInstanceOptions<alias extends string, input, ret> = {
-    /**
-     * The name of the return value of the `render` method.
-     */
-    alias?: alias;
-    /**
-     * A function that renders/creates the form instance. This function will be called
-     * at the top level of the component, ensuring hooks are called in a valid React context.
-     *
-     * @param input - The input object containing context and default values
-     * @returns The form instance (typically from a hook like `useForm`)
-     *
-     * @example
-     * ```tsx
-     * useFormInstance: {
-     *   render({ defaultValues }) {
-     *     return useForm({
-     *       defaultValues,
-     *     });
-     *   },
-     * }
-     * ```
-     *
-     * **Verification**: The hook call is automatically verified:
-     * - Errors are caught and reported with helpful messages
-     * - In development, hook calls are logged to console.debug
-     * - The hook must be called at the component top level (enforced by the framework)
-     */
-    render: (input: input) => ret;
-  };
-
   export type options<
     value extends instantiateReactSteps,
     targetStep extends StepNumbers<value>,
-    formAlias extends string,
-    formInstance,
     additionalCtx extends Record<string, unknown> = {}
   > = HelperFn.CtxDataSelector<value, [targetStep], additionalCtx> & {
     /**
      * If set to `true`, you'll be able to open the {@linkcode console} to view logs.
      */
     debug?: boolean;
-    useFormInstance?: formInstanceOptions<
-      formAlias,
-      Pick<HelperFnInput.BaseInput<value, [targetStep]>, 'ctx'> & {
-        /**
-         * An object containing all the default values for the current step.
-         */
-        defaultValues: Expand<getDefaultValues<value, targetStep>>;
-      },
-      formInstance
-    >;
   };
 }
 
@@ -223,26 +185,9 @@ export interface StepSpecificCreateComponentFn<
    * @param fn The callback function where the component is defined.
    * @returns The created component.
    */
-  <
-    formInstance,
-    additionalCtx extends Record<string, unknown> = {},
-    formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-    props = undefined
-  >(
-    options: StepSpecificComponent.options<
-      value,
-      targetStep,
-      MultiStepFormSchemaConfig.inferFormAlias<value>,
-      formInstance,
-      additionalCtx
-    >,
-    fn: StepSpecificComponent.callback<
-      def,
-      value,
-      targetStep,
-      MultiStepFormSchemaConfig.inferFormProps<value>,
-      { [_ in formInstanceAlias]: formInstance }
-    >
+  <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
+    options: StepSpecificComponent.options<value, targetStep, additionalCtx>,
+    fn: StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>
   ): CreatedMultiStepFormComponent<props>;
 }
 
