@@ -41,17 +41,21 @@ export function createMultiStepFormDataHook<
       | UseMultiStepFormDataOptions<StepNumbers<value>>
       | ((data: MultiStepFormSchema<def, value>) => unknown)
   ) {
+    const shouldReturnWholeSchema = optionsOrSelector === undefined;
     const selector =
       typeof optionsOrSelector === 'function'
         ? optionsOrSelector
         : typeof optionsOrSelector === 'object' && optionsOrSelector !== null
           ? (data: MultiStepFormSchema<def, value>) =>
               data.stepSchema.value[optionsOrSelector.targetStep]
-          : (data: MultiStepFormSchema<def, value>) => data;
+          : (data: MultiStepFormSchema<def, value>) => data.stepSchema.value;
 
-    return createUseSelector(() => schema as never, schema.subscribe)(
-      selector as never
-    );
+    const selected = createUseSelector(
+      () => schema as never,
+      schema.subscribe
+    )(selector as never);
+
+    return shouldReturnWholeSchema ? schema : selected;
   }
 
   return useMultiStepFormData as any;
