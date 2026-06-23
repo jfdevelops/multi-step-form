@@ -85,6 +85,9 @@ export class MultiStepFormSchema<
     super(options);
 
     this.stepSchema = new MultiStepFormStepSchema(options);
+    this.stepSchema.subscribe(() => {
+      this.notify();
+    });
     // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
     this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
       originalValue: this.stepSchema.original,
