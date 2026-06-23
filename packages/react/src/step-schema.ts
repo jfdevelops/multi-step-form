@@ -52,11 +52,11 @@ export interface HelperFunctions<
 namespace CreateComponentImplConfig {
   export type stepSpecificConfig<
     def extends StepSchema.Config,
-    value extends instantiateReactSteps<def>
+    _value extends instantiateReactSteps<def>
   > = {
     isStepSpecific: true;
     defaultId: string;
-    form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
+    form?: Record<string, unknown>;
   };
 
   export type nonStepSpecific = {
