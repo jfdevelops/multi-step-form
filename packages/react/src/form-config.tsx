@@ -81,16 +81,25 @@ export namespace MultiStepFormSchemaConfig {
 
   export type instantiateFormConfig<def> = [def] extends [object]
     ? def extends { form: infer form }
-      ? {
-          -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+      ? [form] extends [never]
+        ? never
+        : keyof FormConfig.withoutRender<form> extends never
+        ? Expand<
             {
-              alias: inferFormAlias<FormConfig.withoutRender<form>>;
-              enabledForSteps: inferFormEnabledForSteps<
-                FormConfig.withoutRender<form>
-              >;
+              alias: inferFormAlias<form>;
+              enabledForSteps: inferFormEnabledForSteps<form>;
             } & inferredFormComponent<form>
-          >;
-        }[keyof FormConfig.withoutRender<form>]
+          >
+        : {
+            -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+              {
+                alias: inferFormAlias<FormConfig.withoutRender<form>>;
+                enabledForSteps: inferFormEnabledForSteps<
+                  FormConfig.withoutRender<form>
+                >;
+              } & inferredFormComponent<form>
+            >;
+          }[keyof FormConfig.withoutRender<form>]
       : {}
     : {};
   export type getEnabledForSteps<def> = instantiateFormConfig<def> extends {
