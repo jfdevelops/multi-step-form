@@ -1,5 +1,12 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.38
+
+### Patch Changes
+
+- 1656b9c: fix: rerender form context consumers after step data updates (#189)
+- 67d04aa: fix: resolve current step data from form context (#189)
+
 ## 1.0.0-alpha.37
 
 ### Patch Changes
