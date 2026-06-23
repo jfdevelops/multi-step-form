@@ -134,37 +134,6 @@ export class MultiStepFormStepSchema<
     });
   }
 
-  private createFormComponent(
-    form: Omit<MultiStepFormSchemaConfig.FormConfig<def, value>, 'alias'>,
-    defaultId: string
-  ) {
-    const { render, enabledForSteps = 'all', id = defaultId } = form;
-
-    const ctx = {
-      id,
-      steps: createCtx(this.value, enabledForSteps as never),
-    };
-
-    return (props: MultiStepFormSchemaConfig.inferFormProps<value>) => {
-      const Component = render(ctx as never);
-      const invariant: Invariant = createInvariant('[createFormComponent]');
-
-      invariant(
-        typeof Component === 'function',
-        'The "render" property must be a function'
-      );
-
-      const C = Component(props);
-
-      invariant(
-        typeof C === 'function',
-        'The "render" function must return a valid React component'
-      );
-
-      return C;
-    };
-  }
-
   private createResolvedCtx<
     // Safe to use tuple notation here since the step specific `createComponent` will always have
     // `stepData` as a tuple
@@ -424,33 +393,11 @@ export class MultiStepFormStepSchema<
     targetStep: targetStep,
     config: CreateComponentImplConfig.stepSpecificConfig<def, value>
   ) {
-    const impl = <
-      formInstance,
-      formInstanceAlias extends string = StepSpecificComponent.defaultFormInstanceAlias,
-      additionalCtx extends Record<string, unknown> = {}
-    >(
+    const impl = <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
       optionsOrFn:
-        | StepSpecificComponent.options<
-            value,
-            targetStep,
-            MultiStepFormSchemaConfig.inferFormAlias<value>,
-            formInstance,
-            additionalCtx
-          >
-        | StepSpecificComponent.callback<
-            def,
-            value,
-            targetStep,
-            MultiStepFormSchemaConfig.inferFormProps<value>,
-            { [_ in formInstanceAlias]: formInstance }
-          >,
-      fn?: StepSpecificComponent.callback<
-        def,
-        value,
-        targetStep,
-        MultiStepFormSchemaConfig.inferFormProps<value>,
-        { [_ in formInstanceAlias]: formInstance }
-      >
+        | StepSpecificComponent.options<value, targetStep, additionalCtx>
+        | StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>,
+      fn?: StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>
     ) => {
       const invariant: Invariant = createInvariant(
         '[createStepSpecificComponent]'
@@ -469,7 +416,7 @@ export class MultiStepFormStepSchema<
       };
 
       if (typeof optionsOrFn === 'object') {
-        const { useFormInstance, ctxData, debug } = optionsOrFn;
+        const { ctxData, debug } = optionsOrFn;
         const logger = new MultiStepFormLogger({
           debug,
           prefix(prefix) {
@@ -484,35 +431,6 @@ export class MultiStepFormStepSchema<
           'The second argument must be a function'
         );
 
-        if (useFormInstance) {
-          const {
-            render,
-            alias = StepSpecificComponent.DEFAULT_FORM_INSTANCE_ALIAS,
-          } = useFormInstance;
-
-          invariant(typeof alias === 'string', 'The alias must be a string');
-
-          // const [step] = stepData;
-
-          return this.createStepSpecificComponentImpl([targetStep], config, {
-            logger,
-            ctxData,
-            input: (ctx) => {
-              const defaultValues = this.createDefaultValues(
-                targetStep
-              ) as never;
-
-              return {
-                [alias]: () =>
-                  render({
-                    ctx,
-                    defaultValues,
-                  }),
-              };
-            },
-          })(fn);
-        }
-
         if (ctxData) {
           return this.createStepSpecificComponentImpl([targetStep], config, {
             logger,
@@ -520,8 +438,6 @@ export class MultiStepFormStepSchema<
           })(fn);
         }
 
-        // Empty options object. Can throw here 🤷‍♂️
-        // Maybe add "global" - top level config - option to tune fine grained errors.
         return createStepSpecificComponent();
       }
 

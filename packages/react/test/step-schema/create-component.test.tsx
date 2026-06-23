@@ -13,8 +13,9 @@ import {
   type StepSpecificComponent,
 } from '../../src';
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true;
+(
+  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
 
@@ -197,8 +198,6 @@ describe('creating components via "createComponent" fn', () => {
           StepSpecificComponent.options<
             ResolvedStep,
             'step1',
-            MultiStepFormSchemaConfig.defaultFormAlias,
-            unknown,
             { step2: StrippedResolvedStep<ResolvedStep['step2'], false> }
           >['ctxData'],
           undefined
