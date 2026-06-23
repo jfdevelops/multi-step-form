@@ -342,6 +342,7 @@ export class MultiStepFormStepSchema<
           Field,
           useSelector,
           Selector,
+          defaultValues: this.createDefaultValues(step as never) as never,
           ...hookResults,
         };
 
