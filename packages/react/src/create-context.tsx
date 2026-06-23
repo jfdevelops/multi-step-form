@@ -276,7 +276,11 @@ export function createMultiStepFormContext<
       } as never;
     }
 
-    if (MultiStepFormStepSchema.hasData(data)) {
+    if (
+      MultiStepFormStepSchema.hasData({
+        [targetStep]: data,
+      })
+    ) {
       return {
         data,
         hasData: true,
