@@ -2,6 +2,7 @@ import type {
   _instantiateSteps,
   BaseStepFunctions,
   Expand,
+  getDefaultValues,
   HelperFn,
   HelperFnChosenSteps,
   HelperFnInput,
@@ -139,6 +140,11 @@ export namespace StepSpecificComponent {
        * </Selector>
        */
       Selector: selector.component<buildCurrentStep<def, value, targetStep>>;
+      /**
+       * An object containing the default values for every field in the current step,
+       * as defined in the schema config.
+       */
+      defaultValues: Expand<getDefaultValues<value, targetStep>>;
     };
 
   export type callback<
