@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.39
+
+### Patch Changes
+
+- 73efa2c: fix: rerender whole-schema consumers after form data updates (#189)
+
 ## 1.0.0-alpha.38
 
 ### Patch Changes
