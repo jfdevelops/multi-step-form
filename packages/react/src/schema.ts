@@ -63,7 +63,7 @@ export class MultiStepFormSchema<
     StepSchema.inferStorageKey<def>
   >;
 
-  readonly context: MultiStepFormContextResult<def, value> = undefined as never;
+  context: MultiStepFormContextResult<def, value> = undefined as never;
   readonly #formConfig: MultiStepFormSchemaConfig.FormConfig<def, value> =
     undefined as never;
 
@@ -164,9 +164,7 @@ export class MultiStepFormSchema<
   }
 
   withContext() {
-    const context = createMultiStepFormContext(this as never);
-
-    return new MultiStepFormSchema<def, value>({
+    const next = new MultiStepFormSchema<def, value>({
       steps: this.stepSchema.original,
       form: this.#formConfig,
       nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
@@ -175,8 +173,11 @@ export class MultiStepFormSchema<
         store: this.storageConfig.store,
         throwWhenUndefined: this.storageConfig.throwWhenUndefined,
       },
-      context,
     } as never);
+
+    next.context = createMultiStepFormContext(next as never);
+
+    return next;
   }
 
   createComponent<

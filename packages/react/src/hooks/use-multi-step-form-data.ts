@@ -32,10 +32,6 @@ export type UseMultiStepFormData<
   <data>(selector: (schema: MultiStepFormSchema<def, value>) => data): data;
 };
 
-function noopSubscribe() {
-  return () => {};
-}
-
 export function createMultiStepFormDataHook<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>
@@ -45,9 +41,16 @@ export function createMultiStepFormDataHook<
       | UseMultiStepFormDataOptions<StepNumbers<value>>
       | ((data: MultiStepFormSchema<def, value>) => unknown)
   ) {
-    return createUseSelector(
-      optionsOrSelector ? () => optionsOrSelector : noopSubscribe,
-      schema.subscribe
+    const selector =
+      typeof optionsOrSelector === 'function'
+        ? optionsOrSelector
+        : typeof optionsOrSelector === 'object' && optionsOrSelector !== null
+          ? (data: MultiStepFormSchema<def, value>) =>
+              data.stepSchema.value[optionsOrSelector.targetStep]
+          : (data: MultiStepFormSchema<def, value>) => data;
+
+    return createUseSelector(() => schema as never, schema.subscribe)(
+      selector as never
     );
   }
 
