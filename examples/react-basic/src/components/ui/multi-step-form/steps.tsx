@@ -10,11 +10,11 @@ import {
 } from '../select';
 
 export const Step1 = schema.stepSchema.value.step1.createComponent(
-  function Step1({ ctx, MyCoolCustomForm, Field: FieldComponent }) {
+  function Step1({ ctx, Form, Field: FieldComponent }) {
     const { title } = ctx.step1;
 
     return (
-      <MyCoolCustomForm title={title}>
+      <Form targetStep='step1' title={title}>
         <FieldSet>
           <FieldComponent name='firstName'>
             {({ defaultValue, label, onInputChange }) => (
@@ -57,15 +57,15 @@ export const Step1 = schema.stepSchema.value.step1.createComponent(
             )}
           </FieldComponent>
         </FieldSet>
-      </MyCoolCustomForm>
+      </Form>
     );
   }
 );
 
 export const Step2 = schema.stepSchema.value.step2.createComponent(
-  function Step2({ Field: FieldComponent, MyCoolCustomForm, ctx }) {
+  function Step2({ Field: FieldComponent, Form, ctx }) {
     return (
-      <MyCoolCustomForm title={ctx.step2.title}>
+      <Form targetStep='step2' title={ctx.step2.title}>
         <FieldSet>
           <FieldComponent name='username'>
             {({ defaultValue, label, onInputChange }) => (
@@ -115,15 +115,15 @@ export const Step2 = schema.stepSchema.value.step2.createComponent(
             )}
           </FieldComponent>
         </FieldSet>
-      </MyCoolCustomForm>
+      </Form>
     );
   }
 );
 
 export const Step3 = schema.stepSchema.value.step3.createComponent(
-  function Step3({ Field: FieldComponent, MyCoolCustomForm, ctx, Selector }) {
+  function Step3({ Field: FieldComponent, Form, ctx, Selector }) {
     return (
-      <MyCoolCustomForm title={ctx.step3.title}>
+      <Form targetStep='step3' title={ctx.step3.title}>
         <FieldSet>
           <FieldComponent name='theme'>
             {({ defaultValue, label, onInputChange }) => (
@@ -252,47 +252,6 @@ export const Step3 = schema.stepSchema.value.step3.createComponent(
             </Selector>
           </Field>
 
-          <FieldComponent name='preferences.notifications'>
-            {({ defaultValue, label, onInputChange }) => (
-              <Field>
-                <FieldLabel>{label}</FieldLabel>
-                <input
-                  id={label}
-                  type='checkbox'
-                  checked={defaultValue}
-                  onChange={(e) => onInputChange(e.target.checked)}
-                />
-                <label htmlFor={label}>{label}</label>
-              </Field>
-            )}
-          </FieldComponent>
-
-          <FieldComponent name='preferences.fontSize'>
-            {({ defaultValue, label, onInputChange }) => (
-              <Field>
-                <FieldLabel>{label}</FieldLabel>
-                <input
-                  type='text'
-                  value={defaultValue}
-                  onChange={(e) => onInputChange(e.target.value)}
-                />
-              </Field>
-            )}
-          </FieldComponent>
-
-          <FieldComponent name='preferences.colorScheme'>
-            {({ defaultValue, label, onInputChange }) => (
-              <Field>
-                <FieldLabel>{label}</FieldLabel>
-                <input
-                  type='text'
-                  value={defaultValue}
-                  onChange={(e) => onInputChange(e.target.value)}
-                />
-              </Field>
-            )}
-          </FieldComponent>
-
           <FieldComponent name='newsLetterOptIn'>
             {({ defaultValue, label, onInputChange }) => (
               <Field>
@@ -313,7 +272,7 @@ export const Step3 = schema.stepSchema.value.step3.createComponent(
             )}
           </FieldComponent>
         </FieldSet>
-      </MyCoolCustomForm>
+      </Form>
     );
   }
 );
