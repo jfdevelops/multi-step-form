@@ -444,6 +444,35 @@ describe('creating components via "createComponent" fn', () => {
         expect(Step1).toBeTypeOf('function');
       });
 
+      it('excludes Form from CreateStepSpecificComponentCallback when disabled for the step', () => {
+        type CustomFormProps = {
+          title: string;
+          children?: ReactNode;
+        };
+
+        const schema = makeBaseSchema();
+
+        type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
+        type Steps = StepNumbers<ResolvedStep>;
+
+        const callback: CreateStepSpecificComponentCallback<
+          ResolvedStep,
+          Steps,
+          ['step1'],
+          undefined,
+          MultiStepFormSchemaConfig.defaultFormAlias,
+          CustomFormProps,
+          ['step2']
+        > = (input) => {
+          // @ts-expect-error Form is only enabled for step2.
+          input.Form;
+
+          return null;
+        };
+
+        expect(callback).toBeTypeOf('function');
+      });
+
       it('renders correctly when the step component uses the injected Form', async () => {
         const schema = makeBaseSchema().withForm({
           render() {
