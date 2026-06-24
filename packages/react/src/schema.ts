@@ -28,6 +28,16 @@ export namespace MultiStepFormSchema {
     ? value
     : never;
 
+  export type withFormDef<
+    def extends StepSchema.Config,
+    formConfig extends object
+  > = Expand<def & Readonly<{ form: formConfig }>>;
+
+  export type withFormValue<
+    def extends StepSchema.Config,
+    formConfig extends object
+  > = instantiateReactSteps<withFormDef<def, formConfig>>;
+
   export type config<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def> = instantiateReactSteps<def>
@@ -149,11 +159,17 @@ export class MultiStepFormSchema<
    */
   withForm<
     const formConfig extends object
-  >(config: formConfig & MultiStepFormSchemaConfig.FormConfig<def, value>) {
+  >(
+    config: formConfig & MultiStepFormSchemaConfig.FormConfig<def, value>
+  ): MultiStepFormSchema<
+    MultiStepFormSchema.withFormDef<def, formConfig>,
+    MultiStepFormSchema.withFormValue<def, formConfig>
+  > {
     const { key, store, throwWhenUndefined } = this.storageConfig;
 
     return new MultiStepFormSchema<
-      Expand<def & Readonly<{ form: formConfig }>>
+      MultiStepFormSchema.withFormDef<def, formConfig>,
+      MultiStepFormSchema.withFormValue<def, formConfig>
     >({
       steps: this.stepSchema.original,
       form: config,
