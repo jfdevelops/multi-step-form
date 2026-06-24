@@ -465,7 +465,7 @@ describe('creating components via "createComponent" fn', () => {
           ['step2']
         > = (input) => {
           // @ts-expect-error Form is only enabled for step2.
-          input.Form;
+          const { Form } = input;
 
           return null;
         };
