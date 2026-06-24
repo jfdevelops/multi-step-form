@@ -173,6 +173,13 @@ export namespace StepSpecificComponent {
   };
 }
 
+type LegacyFormComponent<
+  alias extends string,
+  formProps
+> = string extends alias
+  ? {}
+  : MultiStepFormSchemaConfig.formCtx<alias, formProps>;
+
 export interface StepSpecificCreateComponentFn<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
@@ -216,6 +223,7 @@ export type CreateStepSpecificComponentCallback<
   Expand<
     HelperFnInput.BaseInput<value, chosenSteps, never, additionalCtx> &
       StepSpecificComponent.updateWrappers<value, chosenSteps[0]> &
+      LegacyFormComponent<_formAlias, props> &
       additionalCtx
   >,
   props
