@@ -3,7 +3,12 @@ import type {
   StepNumbers,
   StrippedResolvedStep,
 } from '@jfdevelops/multi-step-form-core';
-import { ComponentPropsWithRef, type ReactElement, act } from 'react';
+import {
+  ComponentPropsWithRef,
+  type ReactElement,
+  type ReactNode,
+  act,
+} from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, test, vi } from 'vitest';
 import {
@@ -374,6 +379,69 @@ describe('creating components via "createComponent" fn', () => {
 
         expect(screen.getByTestId('injected-form')).toBeDefined();
         expect(screen.getByText('content')).toBeDefined();
+      });
+
+      it('infers Form from the return type of withForm.render', () => {
+        type CustomFormProps = {
+          title: string;
+          children?: ReactNode;
+        };
+
+        const schema = makeBaseSchema().withForm({
+          render() {
+            return ({ title, children }: CustomFormProps) => (
+              <form aria-label={title}>{children}</form>
+            );
+          },
+        });
+
+        schema.stepSchema.value.step1.createComponent(({ Form }) => {
+          const TypedForm = Form;
+
+          // @ts-expect-error The custom form requires a title prop.
+          <TypedForm />;
+
+          return <TypedForm title='typed-form'>content</TypedForm>;
+        });
+      });
+
+      it('restores Form typing in CreateStepSpecificComponentCallback', () => {
+        type CustomFormProps = {
+          title: string;
+          children?: ReactNode;
+        };
+
+        const schema = makeBaseSchema().withForm({
+          render() {
+            return ({ title, children }: CustomFormProps) => (
+              <form aria-label={title}>{children}</form>
+            );
+          },
+        });
+
+        type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
+        type Steps = StepNumbers<ResolvedStep>;
+
+        const callback: CreateStepSpecificComponentCallback<
+          ResolvedStep,
+          Steps,
+          ['step1'],
+          undefined,
+          MultiStepFormSchemaConfig.defaultFormAlias,
+          CustomFormProps,
+          MultiStepFormSchemaConfig.defaultEnabledFor
+        > = ({ Form }) => {
+          // @ts-expect-error The custom form requires a title prop.
+          <Form />;
+
+          return <Form title='callback-typed-form'>content</Form>;
+        };
+
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          callback as never,
+        );
+
+        expect(Step1).toBeTypeOf('function');
       });
 
       it('renders correctly when the step component uses the injected Form', async () => {

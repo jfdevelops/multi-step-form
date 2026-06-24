@@ -148,8 +148,8 @@ export class MultiStepFormSchema<
    * @returns A new {@linkcode MultiStepFormSchema} with the form configuration.
    */
   withForm<
-    const formConfig extends MultiStepFormSchemaConfig.FormConfig<def, value>
-  >(config: formConfig) {
+    const formConfig extends object
+  >(config: formConfig & MultiStepFormSchemaConfig.FormConfig<def, value>) {
     const { key, store, throwWhenUndefined } = this.storageConfig;
 
     return new MultiStepFormSchema<
@@ -208,57 +208,3 @@ export function createMultiStepFormSchema<
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }
-
-const schema = createMultiStepFormSchema({
-  steps: {
-    step1: {
-      title: 'Personal Information',
-      fields: {
-        firstName: {
-          defaultValue: '',
-        },
-        lastName: {
-          defaultValue: '',
-        },
-        email: {
-          defaultValue: '',
-          type: 'string.email',
-        },
-        phoneNumber: {
-          defaultValue: '',
-          type: 'string.phone',
-        },
-        dateOfBirth: {
-          defaultValue: new Date(),
-          type: 'date',
-        },
-      },
-    },
-    step2: {
-      title: 'Booking Details',
-      description: 'Who is getting makeup and what services do they want?',
-      fields: {
-        faces: {
-          defaultValue: {
-            min: 1,
-            max: 10,
-            faces: [],
-          },
-        },
-        totals: {
-          defaultValue: {
-            running: {
-              duration: 0,
-              cost: 0,
-            },
-            itemized: {},
-          },
-        },
-      },
-    },
-  },
-});
-
-// const Step1 = schema.stepSchema.value.step1.createComponent(function Test({
-//   ctx,
-// }) {});
