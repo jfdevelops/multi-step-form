@@ -1,5 +1,21 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.43
+
+### Patch Changes
+
+- fdfdfc9: fix: restore `Form` inference in step component callback types
+
+  Restores the custom `Form` component typing for `step.createComponent(...)` callbacks when using `withForm({ render })`, and also restores the exported `CreateStepSpecificComponentCallback` helper type so it carries the same inferred `Form` props.
+
+## 1.0.0-alpha.42
+
+### Patch Changes
+
+- 6342d93: fix: restore custom `Form` type in `createComponent` callback when using `withForm({ render })`
+
+  When `withForm()` was called with only `render` (no `alias` or `enabledForSteps`), the `Form` parameter in the `createComponent` callback was incorrectly typed as the generic HTML form element instead of the user's custom form component. This has been fixed.
+
 ## 1.0.0-alpha.41
 
 ### Patch Changes
