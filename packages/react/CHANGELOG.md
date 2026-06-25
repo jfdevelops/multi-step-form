@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.45
+
+### Patch Changes
+
+- 2b40eaf: fix: omit disabled field labels and restore reactive field selector props
+
+  Disabled field labels are now omitted from the resolved field config and from React `Field` children props instead of being exposed as `false` or `undefined`. This also fixes React field selector children so `selected.value` updates with the latest form state.
+
+- Updated dependencies [2b40eaf]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.29
+
 ## 1.0.0-alpha.44
 
 ### Patch Changes
