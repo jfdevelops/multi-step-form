@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createMultiStepFormSchema } from '../../src';
 
 describe('multi step form step schema: label', () => {
-  it('should have label=false when specified', () => {
+  it('should omit the label when set to false', () => {
     const schema = createMultiStepFormSchema({
       steps: {
         step1: {
@@ -18,9 +18,9 @@ describe('multi step form step schema: label', () => {
       },
     });
 
-    expect(
-      schema.stepSchema.get({ step: 'step1' }).data.fields.firstName.label
-    ).toBeFalsy();
+    expect(schema.stepSchema.get({ step: 'step1' }).data.fields.firstName).not.toHaveProperty(
+      'label'
+    );
   });
 
   it('should have a default label when no label is specified', () => {

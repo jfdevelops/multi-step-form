@@ -260,18 +260,26 @@ export class MultiStepFormStepSchema<
 
             const defaultValue = this.getValue(step as never, name);
             const builtValuePath = buildValuePath(name);
-            const { label, nameTransformCasing, type } = path.pickBy(
-              currentStep.fields,
-              builtValuePath
-            );
+            const fieldName = String(name);
+            const [parentFieldName] = fieldName.split('.');
+            const fieldsRecord = currentStep.fields as Record<string, unknown>;
+            const {
+              label,
+              nameTransformCasing,
+              type,
+            } = fieldsRecord[parentFieldName] as {
+              label?: unknown;
+              nameTransformCasing?: unknown;
+              type?: unknown;
+            };
 
             const targetFields = `fields.${builtValuePath}`;
 
             return {
               defaultValue,
-              label,
+              ...(label === undefined ? {} : { label }),
               nameTransformCasing,
-              type,
+              ...(type === undefined ? {} : { type }),
               name,
               onInputChange: <
                 strict extends boolean = true,
@@ -312,11 +320,12 @@ export class MultiStepFormStepSchema<
           },
           subscribe: this.subscribe,
           getValue: (name) => this.getValue(step as never, name as never),
-          selectorCtx: this.createResolvedCtx({
-            stepData,
-            ctxData,
-            logger,
-          }) as never,
+          selectorCtx: () =>
+            this.createResolvedCtx({
+              stepData,
+              ctxData,
+              logger,
+            }) as never,
         });
 
         // Create useSelector hook for reactive value access via selector
