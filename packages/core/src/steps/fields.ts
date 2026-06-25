@@ -299,6 +299,16 @@ export type inferLabel<
   : undefined extends Casing
     ? ChangeCasing<FieldKey, DefaultCasing>
     : ChangeCasing<FieldKey, Exclude<Casing, undefined>>;
+
+type instantiateResolvedLabelProp<
+  T,
+  Casing extends CasingType | undefined,
+  FieldKey extends string,
+> = inferLabel<T, Casing, FieldKey> extends infer label
+  ? [label] extends [false]
+    ? {}
+    : { label: label }
+  : never;
 export type inferResolvedDateFieldType<T> = T extends {
   type: infer type extends DateFieldType;
 }
@@ -328,16 +338,11 @@ export type instantiateFields<
              */
             name: key;
           } & (key extends string
-            ? {
-                /**
-                 * The label for the field.
-                 */
-                label: inferLabel<
-                  T['fields'][key],
-                  inferNameTransformCasing<T['fields'][key], TDefaultCasing>,
-                  key
-                >;
-              }
+            ? instantiateResolvedLabelProp<
+                T['fields'][key],
+                inferNameTransformCasing<T['fields'][key], TDefaultCasing>,
+                key
+              >
             : {}) &
             (inferDefaultValue<T['fields'][key]> extends Date
               ? /**
@@ -360,6 +365,10 @@ export function createFieldLabel(
   fieldName: string,
   casingType: CasingType
 ) {
+  if (label === false) {
+    return undefined;
+  }
+
   return label ?? changeCasing(fieldName, casingType);
 }
 /**
@@ -420,7 +429,7 @@ export function instantiateFields<
     const sharedFields = {
       nameTransformCasing: casing,
       name,
-      label: resolvedLabel,
+      ...(resolvedLabel === undefined ? {} : { label: resolvedLabel }),
     };
 
     if (defaultValue instanceof Date) {
