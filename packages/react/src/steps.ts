@@ -173,6 +173,34 @@ export namespace StepSpecificComponent {
   };
 }
 
+type IsLegacyFormAvailable<
+  value extends instantiateReactSteps,
+  chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
+  enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+> = enabledFor extends MultiStepFormSchemaConfig.defaultEnabledFor
+  ? true
+  : enabledFor extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
+  ? chosenSteps[number] extends enabledFor[number]
+    ? true
+    : false
+  : enabledFor extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
+  ? chosenSteps[number] extends keyof enabledFor
+    ? true
+    : false
+  : false;
+
+type LegacyFormComponent<
+  value extends instantiateReactSteps,
+  chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
+  alias extends string,
+  formProps,
+  enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+> = string extends alias
+  ? {}
+  : IsLegacyFormAvailable<value, chosenSteps, enabledFor> extends true
+  ? MultiStepFormSchemaConfig.formCtx<alias, formProps>
+  : {};
+
 export interface StepSpecificCreateComponentFn<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
@@ -209,13 +237,17 @@ export type CreateStepSpecificComponentCallback<
   _formInstance = undefined,
   _formAlias extends string = string,
   props = undefined,
-  _enabledFor = unknown,
+  _enabledFor extends HelperFnChosenSteps.main<
+    value,
+    StepNumbers<value>
+  > = MultiStepFormSchemaConfig.defaultEnabledFor,
   _extra = unknown,
   additionalCtx extends Record<string, unknown> = {}
 > = CreateComponent<
   Expand<
     HelperFnInput.BaseInput<value, chosenSteps, never, additionalCtx> &
       StepSpecificComponent.updateWrappers<value, chosenSteps[0]> &
+      LegacyFormComponent<value, chosenSteps, _formAlias, props, _enabledFor> &
       additionalCtx
   >,
   props

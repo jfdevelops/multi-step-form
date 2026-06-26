@@ -1,11 +1,9 @@
 import {
-  createMultiStepFormContext,
   createMultiStepFormSchema,
   type MultiStepFormSchema,
 } from '@jfdevelops/react-multi-step-form';
-import type { ComponentPropsWithRef } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 
-//@ts-ignore
 export const schema = createMultiStepFormSchema({
   steps: {
     step1: {
@@ -63,40 +61,49 @@ export const schema = createMultiStepFormSchema({
   storage: {
     key: 'MultiStepFormBasicExample',
   },
-  form: {
-    alias: 'MyCoolCustomForm',
-    enabledForSteps: ['step1', 'step2', 'step3'],
-    render(
-      { id },
-      {
+})
+  .withForm({
+    render(steps) {
+      return function Form({
+        targetStep,
         title,
         description,
+        footer,
         ...props
-      }: ComponentPropsWithRef<'form'> & {
-        title: string;
-        description?: string;
-      }
-    ) {
-      return (
-        <div className='flex flex-col gap-y-4'>
-          <div className='flex flex-col gap-y-2'>
-            <h1 className='font-bold text-xl'>{title}</h1>
-            {description && <p>{description}</p>}
+      }: Omit<ComponentPropsWithRef<'form'>, 'id'> & {
+        targetStep: StepNumber;
+        title?: ReactNode;
+        description?: ReactNode;
+        footer?: ReactNode;
+      }) {
+        const step = steps[targetStep];
+        const stepDescription =
+          'description' in step && typeof step.description === 'string'
+            ? step.description
+            : undefined;
+
+        return (
+          <div className='flex flex-col gap-y-4'>
+            <div className='flex flex-col gap-y-2'>
+              <h1 className='font-bold text-xl'>{title || step.title}</h1>
+              {(description || stepDescription) && (
+                <p>{description || stepDescription}</p>
+              )}
+            </div>
+            <form id={targetStep} {...props} />
+            {footer}
           </div>
-          <form id={id} {...props} />
-        </div>
-      );
+        );
+      };
     },
-  },
-});
+  })
+  .withContext();
 
 export const {
   useCanRestartForm,
   useMultiStepFormData,
   useProgress,
   useCurrentStepData,
-} =
-  // @ts-ignore
-  createMultiStepFormContext(schema);
+} = schema.context;
 
 export type StepNumber = keyof MultiStepFormSchema.resolvedStep<typeof schema>;

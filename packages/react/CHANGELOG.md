@@ -1,5 +1,39 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.46
+
+### Patch Changes
+
+- Updated dependencies [1b13492]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.30
+
+## 1.0.0-alpha.45
+
+### Patch Changes
+
+- 2b40eaf: fix: omit disabled field labels and restore reactive field selector props
+
+  Disabled field labels are now omitted from the resolved field config and from React `Field` children props instead of being exposed as `false` or `undefined`. This also fixes React field selector children so `selected.value` updates with the latest form state.
+
+- Updated dependencies [2b40eaf]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.29
+
+## 1.0.0-alpha.44
+
+### Patch Changes
+
+- 59c70b0: fix: preserve custom `Form` inference in built package declarations
+
+  Ensures the generated declaration files keep the `withForm()` schema type enriched with the custom form config, so consumers importing the published package receive the same `Form` props inference as source-level tests.
+
+## 1.0.0-alpha.43
+
+### Patch Changes
+
+- fdfdfc9: fix: restore `Form` inference in step component callback types
+
+  Restores the custom `Form` component typing for `step.createComponent(...)` callbacks when using `withForm({ render })`, and also restores the exported `CreateStepSpecificComponentCallback` helper type so it carries the same inferred `Form` props.
+
 ## 1.0.0-alpha.42
 
 ### Patch Changes

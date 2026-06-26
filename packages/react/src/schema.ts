@@ -28,6 +28,16 @@ export namespace MultiStepFormSchema {
     ? value
     : never;
 
+  export type withFormDef<
+    def extends StepSchema.Config,
+    formConfig extends object
+  > = Expand<def & Readonly<{ form: formConfig }>>;
+
+  export type withFormValue<
+    def extends StepSchema.Config,
+    formConfig extends object
+  > = instantiateReactSteps<withFormDef<def, formConfig>>;
+
   export type config<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def> = instantiateReactSteps<def>
@@ -148,12 +158,18 @@ export class MultiStepFormSchema<
    * @returns A new {@linkcode MultiStepFormSchema} with the form configuration.
    */
   withForm<
-    const formConfig extends MultiStepFormSchemaConfig.FormConfig<def, value>
-  >(config: formConfig) {
+    const formConfig extends object
+  >(
+    config: formConfig & MultiStepFormSchemaConfig.FormConfig<def, value>
+  ): MultiStepFormSchema<
+    MultiStepFormSchema.withFormDef<def, formConfig>,
+    MultiStepFormSchema.withFormValue<def, formConfig>
+  > {
     const { key, store, throwWhenUndefined } = this.storageConfig;
 
     return new MultiStepFormSchema<
-      Expand<def & Readonly<{ form: formConfig }>>
+      MultiStepFormSchema.withFormDef<def, formConfig>,
+      MultiStepFormSchema.withFormValue<def, formConfig>
     >({
       steps: this.stepSchema.original,
       form: config,
@@ -208,57 +224,3 @@ export function createMultiStepFormSchema<
 >(options: def) {
   return new MultiStepFormSchema<def, value>(options);
 }
-
-const schema = createMultiStepFormSchema({
-  steps: {
-    step1: {
-      title: 'Personal Information',
-      fields: {
-        firstName: {
-          defaultValue: '',
-        },
-        lastName: {
-          defaultValue: '',
-        },
-        email: {
-          defaultValue: '',
-          type: 'string.email',
-        },
-        phoneNumber: {
-          defaultValue: '',
-          type: 'string.phone',
-        },
-        dateOfBirth: {
-          defaultValue: new Date(),
-          type: 'date',
-        },
-      },
-    },
-    step2: {
-      title: 'Booking Details',
-      description: 'Who is getting makeup and what services do they want?',
-      fields: {
-        faces: {
-          defaultValue: {
-            min: 1,
-            max: 10,
-            faces: [],
-          },
-        },
-        totals: {
-          defaultValue: {
-            running: {
-              duration: 0,
-              cost: 0,
-            },
-            itemized: {},
-          },
-        },
-      },
-    },
-  },
-});
-
-// const Step1 = schema.stepSchema.value.step1.createComponent(function Test({
-//   ctx,
-// }) {});

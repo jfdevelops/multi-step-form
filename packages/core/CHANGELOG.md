@@ -1,5 +1,19 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.30
+
+### Patch Changes
+
+- 1b13492: fix: correct step-schema `as` return types
+
+## 1.0.0-alpha.29
+
+### Patch Changes
+
+- 2b40eaf: fix: omit disabled field labels and restore reactive field selector props
+
+  Disabled field labels are now omitted from the resolved field config and from React `Field` children props instead of being exposed as `false` or `undefined`. This also fixes React field selector children so `selected.value` updates with the latest form state.
+
 ## 1.0.0-alpha.28
 
 ### Patch Changes

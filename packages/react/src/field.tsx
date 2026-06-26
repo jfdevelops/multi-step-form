@@ -32,6 +32,15 @@ export namespace field {
   }> &
     UpdateFn.DebugOptions;
 
+  type normalizeChildrenConfig<TConfig, TValue> =
+    TConfig extends { defaultValue: unknown }
+      ? Override<TConfig, 'defaultValue', TValue> extends infer resolvedConfig
+        ? resolvedConfig extends { label: false }
+          ? Omit<resolvedConfig, 'label'>
+          : resolvedConfig
+        : never
+      : never;
+
   export type childrenProps<
     steps extends instantiateSteps,
     field extends getDeepFields<steps, targetStep>,
@@ -42,7 +51,7 @@ export namespace field {
     getFieldConfig<steps, targetStep, field>,
   > = sharedProps<field> &
     (TConfig extends { defaultValue: unknown }
-      ? Override<TConfig, 'defaultValue', value>
+      ? normalizeChildrenConfig<TConfig, value>
       : {
         defaultValue: `An unknown error occurred while getting the "defaultValue" for ${field}`;
       }) & {
@@ -114,7 +123,7 @@ export namespace field {
     >(
       name: field
     ) => resolveDeepFieldPath<step, StepNumbers<step>, field>;
-    selectorCtx: Expand<HelperFn.buildCtx<step, [StepNumbers<step>]>>;
+    selectorCtx: () => Expand<HelperFn.buildCtx<step, [StepNumbers<step>]>>;
   };
 
   /**
@@ -154,7 +163,7 @@ export namespace field {
       }
 
       if (selectorFn) {
-        const Selector = selector.create<step>(() => selectorCtx, subscribeFn);
+        const Selector = selector.create<step>(selectorCtx, subscribeFn);
 
         return (
           <Selector selector={selectorFn}>

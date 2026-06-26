@@ -62,10 +62,7 @@ describe('multi step form step schema: as type transformations', () => {
   it('should transform the step numbers into a array of numbers', () => {
     const asArrayNumber = as('array.number');
 
-    expectTypeOf(asArrayNumber.parse([1, 2])).toEqualTypeOf<
-      // @ts-expect-error - Order can't be guaranteed
-      [1, 2]
-    >();
+    expectTypeOf(asArrayNumber.parse([1, 2])).toEqualTypeOf<[1, 2]>();
     expectTypeOf(asArrayNumber.parse.in(1)).toEqualTypeOf<1 | 2>();
     expect(asArrayNumber).toStrictEqual([1, 2]);
     expect(asArrayNumber.parse([2, 1])).toStrictEqual([2, 1]);
