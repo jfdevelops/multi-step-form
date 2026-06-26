@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.30
+
+### Patch Changes
+
+- 1b13492: fix: correct step-schema `as` return types
+
 ## 1.0.0-alpha.29
 
 ### Patch Changes
