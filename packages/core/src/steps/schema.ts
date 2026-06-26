@@ -36,7 +36,7 @@ import {
 import { getStep, type ExtractStepFromKey, type GetStepOptions } from './utils';
 
 export interface MultiStepFormStepSchemaFunctions<
-  value extends instantiateSteps
+  value extends instantiateSteps,
 > {
   update: UpdateFn.general<value>;
   reset: ResetFn.general<value>;
@@ -57,7 +57,7 @@ export interface AsMethods<parsed extends string | number> {
   parse(value: unknown): parsed;
 }
 export type AsArrayAllows<parsed extends string | number> = ((
-  value: unknown
+  value: unknown,
 ) => boolean) & {
   /**
    * Checks whether the provided value is one of the valid members of the transformed array.
@@ -66,7 +66,7 @@ export type AsArrayAllows<parsed extends string | number> = ((
 };
 export type AsArrayParse<
   values extends ReadonlyArray<unknown>,
-  parsed extends string | number
+  parsed extends string | number,
 > = ((value: unknown) => values) & {
   /**
    * Parses a single member of the transformed array and throws if it is not valid.
@@ -75,7 +75,7 @@ export type AsArrayParse<
 };
 export interface AsArrayMethods<
   values extends ReadonlyArray<unknown>,
-  parsed extends string | number
+  parsed extends string | number,
 > {
   /**
    * Checks whether the provided value is an exact array match for the transformed values.
@@ -88,18 +88,24 @@ export interface AsArrayMethods<
    */
   parse: AsArrayParse<values, parsed>;
 }
+export type AsValue<value> = {
+  /**
+   * The value of the transformation.
+   */
+  value: value;
+};
 export type AsScalarValue<
   expression extends string,
-  parsed extends string | number
-> = expression & AsMethods<parsed>;
+  parsed extends string | number,
+> = AsMethods<parsed> & AsValue<expression>;
 export type AsArrayValue<
   values extends ReadonlyArray<unknown>,
-  parsed extends string | number
-> = values & AsArrayMethods<values, parsed>;
+  parsed extends string | number,
+> = AsArrayMethods<values, parsed> & AsValue<values>;
 export type AsTypeMap<
   def extends StepSchema.Config,
   value extends instantiateSteps<def>,
-  stepNumbers extends StepNumbers<value> = StepNumbers<value>
+  stepNumbers extends StepNumbers<value> = StepNumbers<value>,
 > = {
   // Exclude is needed due to all the Constrains
   string: AsScalarValue<
@@ -151,24 +157,27 @@ export type AsTypeMap<
     UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>,
     `${ExtractStepFromKey<stepNumbers>}`
   >;
-  'array.string.keys': AsArrayValue<UnionToTuple<`${stepNumbers}`>, stepNumbers>;
+  'array.string.keys': AsArrayValue<
+    UnionToTuple<`${stepNumbers}`>,
+    stepNumbers
+  >;
   'array.string.untyped': AsArrayValue<string[], string>;
 };
 export type AsFunctionReturn<
   def extends StepSchema.Config,
   value extends instantiateSteps<def>,
-  asType extends AsType
+  asType extends AsType,
 > = AsTypeMap<def, value>[asType];
 export type AsFunction<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>
+  value extends instantiateSteps<def>,
 > = <asType extends AsType>(
-  asType: asType
+  asType: asType,
 ) => AsFunctionReturn<def, value, asType>;
 
 export type IsValidStepFn<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>
+  value extends instantiateSteps<def>,
 > = {
   /**
    * Checks if a given string is a valid step key.
@@ -181,7 +190,7 @@ export type IsValidStepFn<
 };
 export type MultiStepFormStepStepsConfig<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>
+  value extends instantiateSteps<def>,
 > = {
   value: ReadonlyArray<StepNumbers<value>>;
   /**
@@ -199,11 +208,11 @@ const STRING_KEYS = ['string', 'string.keys'] as const;
 const NUMBER_KEYS = ['number'] as const;
 const ARRAY_STRING_KEYS = addToTuple(
   mapToTuple(STRING_KEYS, (key) => `array.${key}` as const),
-  'array.string.untyped'
+  'array.string.untyped',
 );
 const ARRAY_NUMBER_KEYS = mapToTuple(
   NUMBER_KEYS,
-  (key) => `array.${key}` as const
+  (key) => `array.${key}` as const,
 );
 
 /**
@@ -218,7 +227,7 @@ const AS_TYPES = [
 
 function isMatchingArray<parsed extends string | number>(
   value: unknown,
-  validValues: ReadonlyArray<parsed>
+  validValues: ReadonlyArray<parsed>,
 ): value is ReadonlyArray<parsed> {
   if (!Array.isArray(value) || value.length !== validValues.length) {
     return false;
@@ -249,7 +258,7 @@ function isMatchingArray<parsed extends string | number>(
 
 function includesValue(
   values: ReadonlyArray<string | number>,
-  value: unknown
+  value: unknown,
 ): value is string | number {
   return values.some((item) => item === value);
 }
@@ -257,7 +266,7 @@ function includesValue(
 function parseScalarExpression(expression: string) {
   const parts = expression.split(' | ').map((value) => value.trim());
   const isQuoted = parts.every(
-    (value) => value.startsWith("'") && value.endsWith("'")
+    (value) => value.startsWith("'") && value.endsWith("'"),
   );
   const parsedValues = isQuoted
     ? parts.map((value) => value.slice(1, -1))
@@ -272,139 +281,101 @@ function parseScalarExpression(expression: string) {
 function createScalarParseError(
   expression: string,
   validValues: ReadonlyArray<string | number>,
-  value: unknown
+  value: unknown,
 ) {
   return new Error(
     `Value "${String(value)}" is not valid for ${expression}. Expected one of: ${validValues
       .map((item) => `"${String(item)}"`)
-      .join(', ')}`
+      .join(', ')}`,
   );
 }
 
 function createArrayParseError(
   validValues: ReadonlyArray<string | number>,
-  value: unknown
+  value: unknown,
 ) {
   return new Error(
     `Value "${String(value)}" is not a valid array. Expected an array containing exactly: ${validValues
       .map((item) => `"${String(item)}"`)
-      .join(', ')}`
+      .join(', ')}`,
   );
 }
 
-function installAsPrototypeMethods() {
-  const stringPrototype = String.prototype as String & {
-    __multiStepFormAsMethodsInstalled__?: boolean;
+function createAsScalarValue<
+  expression extends string,
+  parsed extends string | number,
+>(
+  expression: expression,
+  validValues: ReadonlyArray<parsed>,
+): AsScalarValue<expression, parsed> {
+  return {
+    value: expression,
+    allows: (value: unknown): value is parsed =>
+      includesValue(validValues, value),
+    parse: (value: unknown): parsed => {
+      if (includesValue(validValues, value)) {
+        return value as parsed;
+      }
+
+      throw createScalarParseError(expression, validValues, value);
+    },
   };
-  const arrayPrototype = Array.prototype as Array<unknown> & {
-    __multiStepFormAsMethodsInstalled__?: boolean;
-  };
-
-  if (!stringPrototype.__multiStepFormAsMethodsInstalled__) {
-    Object.defineProperties(stringPrototype, {
-      parse: {
-        get() {
-          const { expression, parsedValues } = parseScalarExpression(
-            this.valueOf()
-          );
-
-          return (value: unknown) => {
-            if (includesValue(parsedValues, value)) {
-              return value;
-            }
-
-            throw createScalarParseError(expression, parsedValues, value);
-          };
-        },
-        enumerable: false,
-        configurable: false,
-      },
-      allows: {
-        get() {
-          const { parsedValues } = parseScalarExpression(this.valueOf());
-
-          return (value: unknown) =>
-            includesValue(parsedValues, value);
-        },
-        enumerable: false,
-        configurable: false,
-      },
-      __multiStepFormAsMethodsInstalled__: {
-        value: true,
-        enumerable: false,
-        configurable: false,
-        writable: false,
-      },
-    });
-  }
-
-  if (!arrayPrototype.__multiStepFormAsMethodsInstalled__) {
-    Object.defineProperties(arrayPrototype, {
-      parse: {
-        get() {
-          const validValues = [...(this as Array<string | number>)];
-          const parseIn = (value: unknown) => {
-            if (includesValue(validValues, value)) {
-              return value;
-            }
-
-            throw createScalarParseError(
-              validValues.join(' | '),
-              validValues,
-              value
-            );
-          };
-          const parse = (value: unknown) => {
-            if (isMatchingArray(value, validValues)) {
-              return [...validValues];
-            }
-
-            throw createArrayParseError(validValues, value);
-          };
-
-          return Object.assign(parse, { in: parseIn });
-        },
-        enumerable: false,
-        configurable: false,
-      },
-      allows: {
-        get() {
-          const validValues = [...(this as Array<string | number>)];
-          const allowsIn = (value: unknown) =>
-            includesValue(validValues, value);
-          const allows = (value: unknown) => isMatchingArray(value, validValues);
-
-          return Object.assign(allows, { in: allowsIn });
-        },
-        enumerable: false,
-        configurable: false,
-      },
-      __multiStepFormAsMethodsInstalled__: {
-        value: true,
-        enumerable: false,
-        configurable: false,
-        writable: false,
-      },
-    });
-  }
 }
 
-installAsPrototypeMethods();
+function createAsArrayValue<
+  values extends ReadonlyArray<string | number>,
+  parsed extends string | number,
+>(
+  values: values,
+  validValues: ReadonlyArray<parsed>,
+): AsArrayValue<values, parsed> {
+  const allowsIn = (value: unknown): value is parsed =>
+    includesValue(validValues, value);
+  const parseIn = (value: unknown): parsed => {
+    if (includesValue(validValues, value)) {
+      return value as parsed;
+    }
+
+    throw createScalarParseError(validValues.join(' | '), validValues, value);
+  };
+
+  return {
+    value: values,
+    allows: Object.assign(
+      (value: unknown) => isMatchingArray(value, validValues),
+      {
+        in: allowsIn,
+      },
+    ),
+    parse: Object.assign(
+      (value: unknown): values => {
+        if (isMatchingArray(value, validValues)) {
+          return [...values] as values;
+        }
+
+        throw createArrayParseError(validValues, value);
+      },
+      {
+        in: parseIn,
+      },
+    ),
+  };
+}
 
 export function createIsValidStepFn<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>
+  value extends instantiateSteps<def>,
 >(stepNumbers: Array<number>): IsValidStepFn<def, value> {
   function isValidStep(value: string): value is StepNumbers<value>;
   function isValidStep(
-    value: number
+    value: number,
   ): value is ExtractStepFromKey<StepNumbers<value>>;
   function isValidStep(value: string | number) {
     const invariant: Invariant = createInvariant('[isValidStep]');
 
     invariant(
       typeof value === 'string' || typeof value === 'number',
-      `The value must be a string or a number, was ${typeof value}`
+      `The value must be a string or a number, was ${typeof value}`,
     );
 
     if (typeof value === 'string') {
@@ -428,7 +399,7 @@ export function createIsValidStepFn<
 export namespace MultiStepFormStepSchema {
   export type ListenerOptions<
     def extends StepSchema.Config,
-    value extends instantiateSteps<def>
+    value extends instantiateSteps<def>,
   > = {
     original: def['steps'];
     value: value;
@@ -437,14 +408,14 @@ export namespace MultiStepFormStepSchema {
   };
   export type Listener<
     def extends StepSchema.Config,
-    value extends instantiateSteps<def>
+    value extends instantiateSteps<def>,
   > = (data: ListenerOptions<def, value>) => void;
 }
 
 export class MultiStepFormStepSchema<
-    const def extends StepSchema.Config,
-    value extends instantiateSteps<def> = instantiateSteps<def>
-  >
+  const def extends StepSchema.Config,
+  value extends instantiateSteps<def> = instantiateSteps<def>,
+>
   extends Subscribable<MultiStepFormStepSchema.Listener<def, value>>
   implements MultiStepFormStepSchemaFunctions<value>
 {
@@ -471,7 +442,7 @@ export class MultiStepFormStepSchema<
     const { steps, nameTransformCasing, storage } = config;
 
     this.defaultNameTransformationCasing = setCasingType(
-      nameTransformCasing
+      nameTransformCasing,
     ) as def['nameTransformCasing'];
 
     this.original = steps;
@@ -492,7 +463,7 @@ export class MultiStepFormStepSchema<
       throwWhenUndefined: storage?.throwWhenUndefined,
     });
     this.#stepNumbers = Object.keys(this.value).map((key) =>
-      Number.parseInt(key.replace('step', ''))
+      Number.parseInt(key.replace('step', '')),
     );
 
     this.steps = {
@@ -500,37 +471,53 @@ export class MultiStepFormStepSchema<
       as: (asType): any => {
         invariant(
           typeof asType === 'string',
-          `The type of the target transformation type must be a string, was ${typeof asType}`
+          `The type of the target transformation type must be a string, was ${typeof asType}`,
         );
 
         if (asType === 'string') {
-          return this.#stepNumbers.map((value) => `'${value}'`).join(' | ');
+          const validValues = this.#stepNumbers.map((value) => `${value}`);
+
+          return createAsScalarValue(
+            validValues.map((value) => `'${value}'`).join(' | '),
+            validValues,
+          );
         }
 
         if (asType === 'string.keys') {
-          return this.#stepNumbers.map((value) => `'step${value}'`).join(' | ');
+          const validValues = this.#stepNumbers.map((value) => `step${value}`);
+
+          return createAsScalarValue(
+            validValues.map((value) => `'${value}'`).join(' | '),
+            validValues,
+          );
         }
 
         if (asType === 'number') {
-          return this.#stepNumbers.join(' | ');
+          return createAsScalarValue(this.#stepNumbers.join(' | '), [
+            ...this.#stepNumbers,
+          ]);
         }
 
         if (asType.includes('array.string')) {
           if (asType.includes('keys')) {
-            return this.#stepNumbers.map((value) => `step${value}`);
+            const validValues = this.#stepNumbers.map((value) => `step${value}`);
+
+            return createAsArrayValue(validValues, validValues);
           }
 
-          return this.#stepNumbers.map((value) => `${value}`);
+          const validValues = this.#stepNumbers.map((value) => `${value}`);
+
+          return createAsArrayValue(validValues, validValues);
         }
 
         if (asType.includes('array.number')) {
-          return this.#stepNumbers;
+          return createAsArrayValue(this.#stepNumbers, this.#stepNumbers);
         }
 
         throw new Error(
           `Transformation type "${asType}" is not supported. Available transformations include: ${AS_TYPES.map(
-            (value) => `"${value}"`
-          ).join(', ')}`
+            (value) => `"${value}"`,
+          ).join(', ')}`,
         );
       },
       isValidStep: createIsValidStepFn(this.#stepNumbers),
@@ -581,7 +568,7 @@ export class MultiStepFormStepSchema<
    * @returns The step data for the target step.
    */
   get<stepNumber extends StepNumbers<value>>(
-    options: GetStepOptions<value, StepNumbers<value>, stepNumber>
+    options: GetStepOptions<value, StepNumbers<value>, stepNumber>,
   ) {
     return getStep(this.value)(options);
   }
@@ -607,7 +594,7 @@ export class MultiStepFormStepSchema<
     strict extends boolean = true,
     partial extends boolean = false,
     additionalCtx extends Record<string, unknown> = {},
-    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never
+    additionalUpdaterData extends UpdateFn.additionalUpdaterData = never,
   >(
     options: UpdateFn.options<
       value,
@@ -617,7 +604,7 @@ export class MultiStepFormStepSchema<
       partial,
       additionalCtx,
       additionalUpdaterData
-    >
+    >,
   ) {
     this.#internal.update(options);
   }
@@ -625,7 +612,7 @@ export class MultiStepFormStepSchema<
   reset<
     targetStep extends StepNumbers<value>,
     fields extends UpdateFn.chosenFields<currentStep>,
-    currentStep extends UpdateFn.resolvedStep<value, targetStep>
+    currentStep extends UpdateFn.resolvedStep<value, targetStep>,
   >(options: ResetFn.Options<value, targetStep, fields, currentStep>) {
     this.#internal.reset(options);
   }
@@ -640,7 +627,7 @@ export class MultiStepFormStepSchema<
     >,
     validator,
     additionalCtx extends Record<string, unknown>,
-    response
+    response,
   >(
     options: HelperFnOptions.WithValidator<
       value,
@@ -654,7 +641,7 @@ export class MultiStepFormStepSchema<
       validator,
       additionalCtx,
       response
-    >
+    >,
   ): HelperFnOutput.WithValidator<validator, response>;
   /**
    * Create a helper function without input.
@@ -665,7 +652,7 @@ export class MultiStepFormStepSchema<
       StepNumbers<value>
     >,
     additionalCtx extends Record<string, unknown>,
-    response
+    response,
   >(
     options: HelperFnOptions.WithoutValidator<
       value,
@@ -677,7 +664,7 @@ export class MultiStepFormStepSchema<
       chosenSteps,
       additionalCtx,
       response
-    >
+    >,
   ): HelperFnOutput.WithoutInput<response>;
   // Implementation
   createHelperFn<
@@ -687,7 +674,7 @@ export class MultiStepFormStepSchema<
     >,
     response,
     additionalCtx extends Record<string, unknown>,
-    validator = never
+    validator = never,
   >(
     options:
       | HelperFnOptions.WithValidator<
@@ -710,7 +697,7 @@ export class MultiStepFormStepSchema<
           chosenSteps,
           additionalCtx,
           response
-        >
+        >,
   ) {
     const { stepData, ...rest } = options;
 
@@ -733,12 +720,12 @@ export class MultiStepFormStepSchema<
    */
   getValue<
     step extends StepNumbers<value>,
-    field extends getDeepFields<value, step>
+    field extends getDeepFields<value, step>,
   >(step: step, field: field) {
     const stepData = this.value[step];
     const invariant: Invariant = createInvariant('[getValue]');
     const baseErrorMessage = `Unable to get the value for "${String(
-      step
+      step,
     )}.fields.${String(field)}"`;
     const errorSuffix = "This shouldn't be the case, so please open an issue";
     const createErrorMessage = (reason: string) =>
@@ -746,15 +733,15 @@ export class MultiStepFormStepSchema<
 
     invariant(
       typeof stepData === 'object' && stepData !== null,
-      createErrorMessage('the step data is not an object')
+      createErrorMessage('the step data is not an object'),
     );
     invariant(
       'fields' in stepData,
-      createErrorMessage('the step data does not have a "fields" property')
+      createErrorMessage('the step data does not have a "fields" property'),
     );
     invariant(
       typeof stepData.fields === 'object',
-      createErrorMessage('"fields" is not an object')
+      createErrorMessage('"fields" is not an object'),
     );
 
     const defaultValue = resolvedDeepPath<

@@ -28,8 +28,9 @@ describe('multi step form step schema: as type transformations', () => {
     const asString = as('string');
 
     expectTypeOf(asString.parse('1')).toEqualTypeOf<'1' | '2'>();
-    expect(String(asString)).toBe("'1' | '2'");
-    expect(asString.split(' | ')).toStrictEqual(["'1'", "'2'"]);
+    expectTypeOf(asString.value).toEqualTypeOf<"'1' | '2'">();
+    expect(asString.value).toBe("'1' | '2'");
+    expect(asString.value.split(' | ')).toStrictEqual(["'1'", "'2'"]);
     expect(asString.parse('1')).toBe('1');
     expect(asString.allows('2')).toBe(true);
     expect(asString.allows(1)).toBe(false);
@@ -42,7 +43,8 @@ describe('multi step form step schema: as type transformations', () => {
     expectTypeOf(asStringKeys.parse('step1')).toEqualTypeOf<
       'step1' | 'step2'
     >();
-    expect(String(asStringKeys)).toBe("'step1' | 'step2'");
+    expectTypeOf(asStringKeys.value).toEqualTypeOf<"'step1' | 'step2'">();
+    expect(asStringKeys.value).toBe("'step1' | 'step2'");
     expect(asStringKeys.parse('step1')).toBe('step1');
     expect(asStringKeys.allows('step2')).toBe(true);
     expect(asStringKeys.allows('1')).toBe(false);
@@ -52,7 +54,8 @@ describe('multi step form step schema: as type transformations', () => {
     const asNumber = as('number');
 
     expectTypeOf(asNumber.parse(1)).toEqualTypeOf<1 | 2>();
-    expect(String(asNumber)).toBe('1 | 2');
+    expectTypeOf(asNumber.value).toEqualTypeOf<'1 | 2'>();
+    expect(asNumber.value).toBe('1 | 2');
     expect(asNumber.parse(1)).toBe(1);
     expect(asNumber.allows(2)).toBe(true);
     expect(asNumber.allows('1')).toBe(false);
@@ -64,7 +67,8 @@ describe('multi step form step schema: as type transformations', () => {
 
     expectTypeOf(asArrayNumber.parse([1, 2])).toEqualTypeOf<[1, 2]>();
     expectTypeOf(asArrayNumber.parse.in(1)).toEqualTypeOf<1 | 2>();
-    expect(asArrayNumber).toStrictEqual([1, 2]);
+    expectTypeOf(asArrayNumber.value).toEqualTypeOf<[1, 2]>();
+    expect(asArrayNumber.value).toStrictEqual([1, 2]);
     expect(asArrayNumber.parse([2, 1])).toStrictEqual([1, 2]);
     expect(asArrayNumber.parse.in(1)).toBe(1);
     expect(asArrayNumber.allows([2, 1])).toBe(true);
@@ -79,7 +83,8 @@ describe('multi step form step schema: as type transformations', () => {
 
     expectTypeOf(asArrayString.parse(['1', '2'])).toEqualTypeOf<['1', '2']>();
     expectTypeOf(asArrayString.parse.in('1')).toEqualTypeOf<'1' | '2'>();
-    expect(asArrayString).toStrictEqual(['1', '2']);
+    expectTypeOf(asArrayString.value).toEqualTypeOf<['1', '2']>();
+    expect(asArrayString.value).toStrictEqual(['1', '2']);
     expect(asArrayString.parse(['2', '1'])).toStrictEqual(['1', '2']);
     expect(asArrayString.parse.in('1')).toBe('1');
     expect(asArrayString.allows(['2', '1'])).toBe(true);
@@ -98,7 +103,10 @@ describe('multi step form step schema: as type transformations', () => {
     expectTypeOf(asArrayStringKeys.parse.in('step1')).toEqualTypeOf<
       'step1' | 'step2'
     >();
-    expect(asArrayStringKeys).toStrictEqual(['step1', 'step2']);
+    expectTypeOf(asArrayStringKeys.value).toEqualTypeOf<
+      ['step1', 'step2']
+    >();
+    expect(asArrayStringKeys.value).toStrictEqual(['step1', 'step2']);
     expect(asArrayStringKeys.parse(['step2', 'step1'])).toStrictEqual([
       'step1',
       'step2',
@@ -116,7 +124,8 @@ describe('multi step form step schema: as type transformations', () => {
 
     expectTypeOf(asArrayUntyped.parse(['1', '2'])).toEqualTypeOf<string[]>();
     expectTypeOf(asArrayUntyped.parse.in('1')).toEqualTypeOf<string>();
-    expect(asArrayUntyped).toStrictEqual(['1', '2']);
+    expectTypeOf(asArrayUntyped.value).toEqualTypeOf<string[]>();
+    expect(asArrayUntyped.value).toStrictEqual(['1', '2']);
     expect(asArrayUntyped.parse(['2', '1'])).toStrictEqual(['1', '2']);
     expect(asArrayUntyped.parse.in('1')).toBe('1');
     expect(asArrayUntyped.allows(['2', '1'])).toBe(true);
