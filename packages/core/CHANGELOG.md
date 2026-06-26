@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.31
+
+### Minor Changes
+
+- 04c486e: feat: add parsers for scalar step-schema `as` transformations
+
 ## 1.0.0-alpha.30
 
 ### Patch Changes
