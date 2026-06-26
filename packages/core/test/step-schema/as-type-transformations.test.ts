@@ -65,7 +65,7 @@ describe('multi step form step schema: as type transformations', () => {
     expectTypeOf(asArrayNumber.parse([1, 2])).toEqualTypeOf<[1, 2]>();
     expectTypeOf(asArrayNumber.parse.in(1)).toEqualTypeOf<1 | 2>();
     expect(asArrayNumber).toStrictEqual([1, 2]);
-    expect(asArrayNumber.parse([2, 1])).toStrictEqual([2, 1]);
+    expect(asArrayNumber.parse([2, 1])).toStrictEqual([1, 2]);
     expect(asArrayNumber.parse.in(1)).toBe(1);
     expect(asArrayNumber.allows([2, 1])).toBe(true);
     expect(asArrayNumber.allows([1])).toBe(false);
@@ -80,7 +80,7 @@ describe('multi step form step schema: as type transformations', () => {
     expectTypeOf(asArrayString.parse(['1', '2'])).toEqualTypeOf<['1', '2']>();
     expectTypeOf(asArrayString.parse.in('1')).toEqualTypeOf<'1' | '2'>();
     expect(asArrayString).toStrictEqual(['1', '2']);
-    expect(asArrayString.parse(['2', '1'])).toStrictEqual(['2', '1']);
+    expect(asArrayString.parse(['2', '1'])).toStrictEqual(['1', '2']);
     expect(asArrayString.parse.in('1')).toBe('1');
     expect(asArrayString.allows(['2', '1'])).toBe(true);
     expect(asArrayString.allows(['1'])).toBe(false);
@@ -100,8 +100,8 @@ describe('multi step form step schema: as type transformations', () => {
     >();
     expect(asArrayStringKeys).toStrictEqual(['step1', 'step2']);
     expect(asArrayStringKeys.parse(['step2', 'step1'])).toStrictEqual([
-      'step2',
       'step1',
+      'step2',
     ]);
     expect(asArrayStringKeys.parse.in('step1')).toBe('step1');
     expect(asArrayStringKeys.allows(['step2', 'step1'])).toBe(true);
@@ -117,7 +117,7 @@ describe('multi step form step schema: as type transformations', () => {
     expectTypeOf(asArrayUntyped.parse(['1', '2'])).toEqualTypeOf<string[]>();
     expectTypeOf(asArrayUntyped.parse.in('1')).toEqualTypeOf<string>();
     expect(asArrayUntyped).toStrictEqual(['1', '2']);
-    expect(asArrayUntyped.parse(['2', '1'])).toStrictEqual(['2', '1']);
+    expect(asArrayUntyped.parse(['2', '1'])).toStrictEqual(['1', '2']);
     expect(asArrayUntyped.parse.in('1')).toBe('1');
     expect(asArrayUntyped.allows(['2', '1'])).toBe(true);
     expect(asArrayUntyped.allows(['1'])).toBe(false);

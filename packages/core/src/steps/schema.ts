@@ -56,10 +56,9 @@ export interface AsMethods<parsed extends string | number> {
    */
   parse(value: unknown): parsed;
 }
-export type AsArrayAllows<
-  values extends ReadonlyArray<unknown>,
-  parsed extends string | number
-> = ((value: unknown) => value is values) & {
+export type AsArrayAllows<parsed extends string | number> = ((
+  value: unknown
+) => boolean) & {
   /**
    * Checks whether the provided value is one of the valid members of the transformed array.
    */
@@ -82,7 +81,7 @@ export interface AsArrayMethods<
    * Checks whether the provided value is an exact array match for the transformed values.
    * Order does not matter, but the array contents must match exactly.
    */
-  allows: AsArrayAllows<values, parsed>;
+  allows: AsArrayAllows<parsed>;
   /**
    * Parses an exact array match for the transformed values and throws if it is not valid.
    * Order does not matter, but the array contents must match exactly.
@@ -92,10 +91,7 @@ export interface AsArrayMethods<
 export type AsScalarValue<
   expression extends string,
   parsed extends string | number
-> = String &
-  AsMethods<parsed> & {
-    readonly expression: expression;
-  };
+> = expression & AsMethods<parsed>;
 export type AsArrayValue<
   values extends ReadonlyArray<unknown>,
   parsed extends string | number
@@ -220,26 +216,6 @@ const AS_TYPES = [
   ...ARRAY_NUMBER_KEYS,
 ] as const;
 
-function attachExpression<value extends object>(
-  result: value,
-  options: {
-    expression: string;
-  }
-) {
-  const { expression } = options;
-
-  Object.defineProperties(result, {
-    expression: {
-      value: expression,
-      enumerable: false,
-      configurable: false,
-      writable: false,
-    },
-  });
-
-  return result as value & { expression: string };
-}
-
 function isMatchingArray<parsed extends string | number>(
   value: unknown,
   validValues: ReadonlyArray<parsed>
@@ -271,98 +247,149 @@ function isMatchingArray<parsed extends string | number>(
   return remaining.size === 0;
 }
 
-function createAsScalarValue<
-  expression extends string,
-  parsed extends string | number
->(expression: expression, validValues: ReadonlyArray<parsed>) {
-  const result = new String(expression);
-  const allows = (value: unknown): value is parsed =>
-    validValues.includes(value as parsed);
-  const parse = (value: unknown): parsed => {
-    if (allows(value)) {
-      return value;
-    }
-
-    throw new Error(
-      `Value "${String(value)}" is not valid for ${expression}. Expected one of: ${validValues
-        .map((item) => `"${String(item)}"`)
-        .join(', ')}`
-    );
-  };
-
-  Object.defineProperties(result, {
-    allows: {
-      value: allows,
-      enumerable: false,
-      configurable: false,
-      writable: false,
-    },
-    parse: {
-      value: parse,
-      enumerable: false,
-      configurable: false,
-      writable: false,
-    },
-  });
-
-  return attachExpression(result, {
-    expression,
-  }) as AsScalarValue<expression, parsed>;
+function includesValue(
+  values: ReadonlyArray<string | number>,
+  value: unknown
+): value is string | number {
+  return values.some((item) => item === value);
 }
 
-function createAsArrayValue<
-  values extends ReadonlyArray<string | number>,
-  parsed extends string | number
->(values: values, validValues: ReadonlyArray<parsed>) {
-  const result = [...values];
-  const expression = values.join(' | ');
+function parseScalarExpression(expression: string) {
+  const parts = expression.split(' | ').map((value) => value.trim());
+  const isQuoted = parts.every(
+    (value) => value.startsWith("'") && value.endsWith("'")
+  );
+  const parsedValues = isQuoted
+    ? parts.map((value) => value.slice(1, -1))
+    : parts.map((value) => Number(value));
 
-  const allowsIn = (value: unknown): value is parsed =>
-    validValues.includes(value as parsed);
-  const parseIn = (value: unknown): parsed => {
-    if (allowsIn(value)) {
-      return value;
-    }
-
-    throw new Error(
-      `Value "${String(value)}" is not valid for ${expression}. Expected one of: ${validValues
-        .map((item) => `"${String(item)}"`)
-        .join(', ')}`
-    );
-  };
-  const allows = (value: unknown): value is values =>
-    isMatchingArray(value, validValues);
-  const parse = (value: unknown): values => {
-    if (allows(value)) {
-      return value;
-    }
-
-    throw new Error(
-      `Value "${String(value)}" is not a valid array for ${expression}. Expected an array containing exactly: ${validValues
-        .map((item) => `"${String(item)}"`)
-        .join(', ')}`
-    );
-  };
-
-  Object.defineProperties(result, {
-    allows: {
-      value: Object.assign(allows, { in: allowsIn }),
-      enumerable: false,
-      configurable: false,
-      writable: false,
-    },
-    parse: {
-      value: Object.assign(parse, { in: parseIn }),
-      enumerable: false,
-      configurable: false,
-      writable: false,
-    },
-  });
-
-  return attachExpression(result, {
+  return {
     expression,
-  }) as unknown as AsArrayValue<values, parsed>;
+    parsedValues,
+  };
 }
+
+function createScalarParseError(
+  expression: string,
+  validValues: ReadonlyArray<string | number>,
+  value: unknown
+) {
+  return new Error(
+    `Value "${String(value)}" is not valid for ${expression}. Expected one of: ${validValues
+      .map((item) => `"${String(item)}"`)
+      .join(', ')}`
+  );
+}
+
+function createArrayParseError(
+  validValues: ReadonlyArray<string | number>,
+  value: unknown
+) {
+  return new Error(
+    `Value "${String(value)}" is not a valid array. Expected an array containing exactly: ${validValues
+      .map((item) => `"${String(item)}"`)
+      .join(', ')}`
+  );
+}
+
+function installAsPrototypeMethods() {
+  const stringPrototype = String.prototype as String & {
+    __multiStepFormAsMethodsInstalled__?: boolean;
+  };
+  const arrayPrototype = Array.prototype as Array<unknown> & {
+    __multiStepFormAsMethodsInstalled__?: boolean;
+  };
+
+  if (!stringPrototype.__multiStepFormAsMethodsInstalled__) {
+    Object.defineProperties(stringPrototype, {
+      parse: {
+        get() {
+          const { expression, parsedValues } = parseScalarExpression(
+            this.valueOf()
+          );
+
+          return (value: unknown) => {
+            if (includesValue(parsedValues, value)) {
+              return value;
+            }
+
+            throw createScalarParseError(expression, parsedValues, value);
+          };
+        },
+        enumerable: false,
+        configurable: false,
+      },
+      allows: {
+        get() {
+          const { parsedValues } = parseScalarExpression(this.valueOf());
+
+          return (value: unknown) =>
+            includesValue(parsedValues, value);
+        },
+        enumerable: false,
+        configurable: false,
+      },
+      __multiStepFormAsMethodsInstalled__: {
+        value: true,
+        enumerable: false,
+        configurable: false,
+        writable: false,
+      },
+    });
+  }
+
+  if (!arrayPrototype.__multiStepFormAsMethodsInstalled__) {
+    Object.defineProperties(arrayPrototype, {
+      parse: {
+        get() {
+          const validValues = [...(this as Array<string | number>)];
+          const parseIn = (value: unknown) => {
+            if (includesValue(validValues, value)) {
+              return value;
+            }
+
+            throw createScalarParseError(
+              validValues.join(' | '),
+              validValues,
+              value
+            );
+          };
+          const parse = (value: unknown) => {
+            if (isMatchingArray(value, validValues)) {
+              return [...validValues];
+            }
+
+            throw createArrayParseError(validValues, value);
+          };
+
+          return Object.assign(parse, { in: parseIn });
+        },
+        enumerable: false,
+        configurable: false,
+      },
+      allows: {
+        get() {
+          const validValues = [...(this as Array<string | number>)];
+          const allowsIn = (value: unknown) =>
+            includesValue(validValues, value);
+          const allows = (value: unknown) => isMatchingArray(value, validValues);
+
+          return Object.assign(allows, { in: allowsIn });
+        },
+        enumerable: false,
+        configurable: false,
+      },
+      __multiStepFormAsMethodsInstalled__: {
+        value: true,
+        enumerable: false,
+        configurable: false,
+        writable: false,
+      },
+    });
+  }
+}
+
+installAsPrototypeMethods();
 
 export function createIsValidStepFn<
   def extends StepSchema.Config,
@@ -477,43 +504,27 @@ export class MultiStepFormStepSchema<
         );
 
         if (asType === 'string') {
-          const validValues = this.#stepNumbers.map((value) => `${value}`);
-
-          return createAsScalarValue(
-            validValues.map((value) => `'${value}'`).join(' | '),
-            validValues
-          );
+          return this.#stepNumbers.map((value) => `'${value}'`).join(' | ');
         }
 
         if (asType === 'string.keys') {
-          const validValues = this.#stepNumbers.map((value) => `step${value}`);
-
-          return createAsScalarValue(
-            validValues.map((value) => `'${value}'`).join(' | '),
-            validValues
-          );
+          return this.#stepNumbers.map((value) => `'step${value}'`).join(' | ');
         }
 
         if (asType === 'number') {
-          return createAsScalarValue(this.#stepNumbers.join(' | '), [
-            ...this.#stepNumbers,
-          ]);
+          return this.#stepNumbers.join(' | ');
         }
 
         if (asType.includes('array.string')) {
           if (asType.includes('keys')) {
-            const validValues = this.#stepNumbers.map((value) => `step${value}`);
-
-            return createAsArrayValue(validValues, validValues);
+            return this.#stepNumbers.map((value) => `step${value}`);
           }
 
-          const validValues = this.#stepNumbers.map((value) => `${value}`);
-
-          return createAsArrayValue(validValues, validValues);
+          return this.#stepNumbers.map((value) => `${value}`);
         }
 
         if (asType.includes('array.number')) {
-          return createAsArrayValue(this.#stepNumbers, this.#stepNumbers);
+          return this.#stepNumbers;
         }
 
         throw new Error(
