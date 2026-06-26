@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.32
+
+### Patch Changes
+
+- c9e561d: fix runtime `steps.as(...)` results to expose the typed `value` property alongside `parse()` and `allows()`
+
 ## 1.0.0-alpha.31
 
 ### Minor Changes
