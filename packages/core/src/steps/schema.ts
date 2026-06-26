@@ -69,13 +69,19 @@ export type AsTypeMap<
   >;
   'string.keys': Exclude<
     Join<
-      Constrain<UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>, string[]>,
+      Constrain<
+        Quote<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>>,
+        string[]
+      >,
       ' | '
     >,
     ''
   >;
   number: Exclude<
-    Join<Constrain<UnionToTuple<`${stepNumbers}`>, string[]>, ' | '>,
+    Join<
+      Constrain<UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>, string[]>,
+      ' | '
+    >,
     ''
   >;
   'array.number': UnionToTuple<ExtractStepFromKey<stepNumbers>>;
