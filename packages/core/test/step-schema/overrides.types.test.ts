@@ -126,4 +126,33 @@ describe('multi step form step schema: overrides types', () => {
       },
     });
   });
+
+  it('does not expose a string index on resolved override fields', () => {
+    createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+            saveToAccount: {
+              defaultValue: false,
+            },
+          },
+          overrides: (data) => {
+            expectTypeOf(data.fields.firstName.defaultValue).toEqualTypeOf<string>();
+            expectTypeOf(data.fields.saveToAccount.defaultValue).toEqualTypeOf<boolean>();
+
+            // @ts-expect-error unknown field should not be available
+            data.fields.notARealField;
+
+            return {
+              firstName: 'Taylor',
+            };
+          },
+        },
+      },
+    });
+  });
 });

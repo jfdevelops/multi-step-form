@@ -579,8 +579,8 @@ describe('creating components via "createComponent" fn', () => {
                   defaultValue: '',
                 },
               },
-              overrides: (data) => ({
-                firstName: data.fields.firstName.defaultValue,
+              overrides: () => ({
+                firstName: '',
               }),
             },
           },
@@ -588,10 +588,9 @@ describe('creating components via "createComponent" fn', () => {
 
         schema.stepSchema.value.step1.createComponent(
           ({ useStep, Suspend, Field }) => {
-            const { data, status } = useStep();
+            const { status } = useStep();
 
             status satisfies 'idle' | 'loading' | 'resolved' | 'error';
-            data.fields.firstName.defaultValue satisfies string;
 
             return (
               <Suspend fallback={null}>

@@ -26,6 +26,9 @@ import type { UpdateFn } from './fn-utils/update-fn';
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
 
 type ValidStepKey<N extends number = number> = `step${N}`;
+type StripStringIndex<T> = Expand<{
+  [key in keyof T as string extends key ? never : key]: T[key];
+}>;
 
 interface BaseConfig<
   TFields extends FieldConfig<CasingType>,
@@ -46,9 +49,8 @@ export type StepResolvedData<TConfig extends AnyConfig> = Expand<
   {
     title: string;
     nameTransformCasing: inferNameTransformCasing<TConfig, DefaultCasing>;
-    fields: instantiateFields<
-      TConfig,
-      inferNameTransformCasing<TConfig, DefaultCasing>
+    fields: StripStringIndex<
+      instantiateFields<TConfig, inferNameTransformCasing<TConfig, DefaultCasing>>
     >;
   } & (TConfig extends {
     description: infer description extends string;
@@ -142,9 +144,11 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
               T['steps'][key],
               DefaultCasing
             >;
-            fields: instantiateFields<
-              T['steps'][key],
-              inferNameTransformCasing<T['steps'][key], DefaultCasing>
+            fields: StripStringIndex<
+              instantiateFields<
+                T['steps'][key],
+                inferNameTransformCasing<T['steps'][key], DefaultCasing>
+              >
             >;
           } & (T['steps'][key] extends {
             description: infer description extends string;

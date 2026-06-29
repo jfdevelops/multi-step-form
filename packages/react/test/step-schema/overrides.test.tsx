@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { createMultiStepFormSchema } from '../../src';
 
 (
@@ -9,6 +9,13 @@ import { createMultiStepFormSchema } from '../../src';
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
+
+class CustomError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CustomError';
+  }
+}
 
 afterEach(async () => {
   for (const { container, root } of mountedRoots.splice(0)) {
@@ -73,7 +80,7 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: () => deferred.promise,
+          overrides: ({}) => deferred.promise,
         },
       },
     });
@@ -123,17 +130,15 @@ describe('step overrides', () => {
       },
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(
-      ({ Field }) => (
-        <Field
-          name='firstName'
-          suspend
-          fallback={<p data-testid='field-loading'>Loading field</p>}
-        >
-          {({ defaultValue }) => <p data-testid='value'>{defaultValue}</p>}
-        </Field>
-      ),
-    );
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
+      <Field
+        name='firstName'
+        suspend
+        fallback={<p data-testid='field-loading'>Loading field</p>}
+      >
+        {({ defaultValue }) => <p data-testid='value'>{defaultValue}</p>}
+      </Field>
+    ));
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -195,5 +200,133 @@ describe('step overrides', () => {
 
     expect(screen.getByTestId('status').textContent).toBe('resolved');
     expect(screen.getByTestId('value').textContent).toBe('Jordan');
+  });
+
+  it('keeps non-overridden fields available after async step resolution', async () => {
+    const deferred = createDeferred<{ firstName: string }>();
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+            saveToAccount: {
+              defaultValue: false,
+            },
+          },
+          overrides: async () => {
+            const values = await deferred.promise;
+
+            return {
+              firstName: values.firstName,
+            };
+          },
+        },
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(
+      ({ Field, Suspend }) => (
+        <Suspend fallback={<p data-testid='loading'>Loading</p>}>
+          <Field name='firstName'>
+            {({ defaultValue }) => (
+              <p data-testid='firstName'>{String(defaultValue)}</p>
+            )}
+          </Field>
+          <Field name='saveToAccount'>
+            {({ defaultValue }) => (
+              <p data-testid='saveToAccount'>{String(defaultValue)}</p>
+            )}
+          </Field>
+        </Suspend>
+      ),
+    );
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('loading').textContent).toBe('Loading');
+
+    await act(async () => {
+      deferred.resolve({
+        firstName: 'Jordan',
+      });
+    });
+
+    expect(screen.getByTestId('firstName').textContent).toBe('Jordan');
+    expect(screen.getByTestId('saveToAccount').textContent).toBe('false');
+  });
+
+  it('stores thrown override errors on the current step hook result', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+          },
+          overrides: async () => {
+            throw new Error('Failed to load step defaults');
+          },
+        },
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(
+      ({ useStep }) => {
+        const { error, status } = useStep();
+
+        return (
+          <>
+            <p data-testid='status'>{status}</p>
+            <p data-testid='error-message'>
+              {error instanceof Error ? error.message : 'none'}
+            </p>
+          </>
+        );
+      },
+    );
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('status').textContent).toBe('error');
+    expect(screen.getByTestId('error-message').textContent).toBe(
+      'Failed to load step defaults',
+    );
+  });
+
+  it('types useStep errors as Error by default and allows an override', () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+          },
+        },
+      },
+    });
+
+    schema.stepSchema.value.step1.createComponent(({ useStep }) => {
+      const defaultResult = useStep();
+      const customResult = useStep<CustomError>();
+
+      expectTypeOf(
+        defaultResult.data.fields.firstName.defaultValue,
+      ).toEqualTypeOf<string>();
+      expectTypeOf(defaultResult.error).toEqualTypeOf<Error | undefined>();
+      expectTypeOf(customResult.error).toEqualTypeOf<CustomError | undefined>();
+
+      return null;
+    });
   });
 });
