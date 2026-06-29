@@ -568,6 +568,41 @@ describe('creating components via "createComponent" fn', () => {
       it.todo(
         'does not inject Form when the step is excluded by enabledForSteps',
       );
+
+      it('infers step suspense helpers from the step field defaults', () => {
+        const schema = createMultiStepFormSchema({
+          steps: {
+            step1: {
+              title: 'Step 1',
+              fields: {
+                firstName: {
+                  defaultValue: '',
+                },
+              },
+              overrides: (data) => ({
+                firstName: data.fields.firstName.defaultValue,
+              }),
+            },
+          },
+        });
+
+        schema.stepSchema.value.step1.createComponent(
+          ({ useStep, Suspend, Field }) => {
+            const { data, status } = useStep();
+
+            status satisfies 'idle' | 'loading' | 'resolved' | 'error';
+            data.fields.firstName.defaultValue satisfies string;
+
+            return (
+              <Suspend fallback={null}>
+                <Field name='firstName'>
+                  {({ defaultValue }) => defaultValue}
+                </Field>
+              </Suspend>
+            );
+          },
+        );
+      });
     });
   });
 });

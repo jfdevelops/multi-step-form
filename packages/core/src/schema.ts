@@ -7,7 +7,7 @@ import {
   type BaseStorageConfig,
 } from './storage.js';
 import { Subscribable } from './subscribable.js';
-import type { instantiateSteps } from './steps/steps.js';
+import type { instantiateSteps, StepConfig } from './steps/steps.js';
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
@@ -94,8 +94,7 @@ export class MultiStepFormSchema<
 }
 
 export function createMultiStepFormSchema<
-  const def extends StepSchema.Config,
-  value extends instantiateSteps<def>
->(options: def) {
-  return new MultiStepFormSchema<def, value>(options);
+  const TSteps extends StepConfig,
+>(options: StepSchema.Config<TSteps>) {
+  return new MultiStepFormSchema<StepSchema.Config<TSteps>>(options);
 }

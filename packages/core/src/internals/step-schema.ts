@@ -11,6 +11,7 @@ import type { UpdateFn } from '@/steps/fn-utils/update-fn';
 import {
   instantiateSteps,
   type instantiateStepsConfig,
+  type StepConfig,
   type StepNumbers,
 } from '@/steps/steps';
 import { functionalUpdate, omit } from '@/steps/utils';
@@ -103,16 +104,17 @@ export namespace MultiStepFormStepSchemaInternal {
 }
 
 export namespace StepSchema {
-  export interface Config<
+  export type Config<
+    TSteps extends StepConfig = StepConfig,
     TCasing extends CasingType = DefaultCasing,
     TStorageKey extends string = string
-  > extends instantiateStepsConfig,
-      NameTransformCasingOptions<TCasing> {
-    /**
-     * The options for the storage module.
-     */
-    storage?: BaseStorageConfig<TStorageKey>;
-  }
+  > = instantiateStepsConfig<TSteps> &
+    NameTransformCasingOptions<TCasing> & {
+      /**
+       * The options for the storage module.
+       */
+      storage?: BaseStorageConfig<TStorageKey>;
+    };
 
   export type inferStorageKey<T> = T extends Config
     ? undefined extends T['storage']

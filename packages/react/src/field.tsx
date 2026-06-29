@@ -11,7 +11,7 @@ import type {
   Updater
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
-import { memo, useSyncExternalStore } from 'react';
+import { Suspense, memo, useSyncExternalStore } from 'react';
 import type { SelectorFn } from './hooks/use-selector';
 import { selector } from './selector';
 
@@ -96,14 +96,24 @@ export namespace field {
     step extends instantiateSteps,
     field extends getDeepFields<step, StepNumbers<step>>,
     selected,
-  > = sharedProps<field> & {
-    selectorFn?: SelectorFn<step, selected>;
-    children: (
-      props: [selected] extends [never]
-        ? childrenProps<step, field>
-        : childrenPropsWithSelected<step, field, selected>
-    ) => ReactNode;
-  };
+  > = sharedProps<field> &
+    (
+      | {
+          suspend?: false;
+          fallback?: never;
+        }
+      | {
+          suspend: true;
+          fallback: ReactNode;
+        }
+    ) & {
+      selectorFn?: SelectorFn<step, selected>;
+      children: (
+        props: [selected] extends [never]
+          ? childrenProps<step, field>
+          : childrenPropsWithSelected<step, field, selected>
+      ) => ReactNode;
+    };
   export type component<steps extends instantiateSteps> = <
     field extends getDeepFields<steps, StepNumbers<steps>>,
     selected = never,
@@ -124,6 +134,7 @@ export namespace field {
       name: field
     ) => resolveDeepFieldPath<step, StepNumbers<step>, field>;
     selectorCtx: () => Expand<HelperFn.buildCtx<step, [StepNumbers<step>]>>;
+    suspendStep?: () => void;
   };
 
   /**
@@ -136,7 +147,7 @@ export namespace field {
   export function create<step extends instantiateSteps>(
     options: createOptions<step>
   ) {
-    const { propsCreator, subscribe, getValue, selectorCtx } = options;
+    const { propsCreator, subscribe, getValue, selectorCtx, suspendStep } = options;
 
     const Field: field.component<step> = (props) => {
       const { name, children, selectorFn } = props;
@@ -162,22 +173,40 @@ export namespace field {
         } as never;
       }
 
-      if (selectorFn) {
-        const Selector = selector.create<step>(selectorCtx, subscribeFn);
+      const renderChildren = () => {
+        if (selectorFn) {
+          const Selector = selector.create<step>(selectorCtx, subscribeFn);
+
+          return (
+            <Selector selector={selectorFn}>
+              {(value) =>
+                children({
+                  ...createdProps,
+                  selected: { value: value as never },
+                } as never)
+              }
+            </Selector>
+          );
+        }
+
+        return children(createdProps as never);
+      };
+
+      if (props.suspend) {
+        function FieldResolutionGate() {
+          suspendStep?.();
+
+          return renderChildren();
+        }
 
         return (
-          <Selector selector={selectorFn}>
-            {(value) =>
-              children({
-                ...createdProps,
-                selected: { value: value as never },
-              } as never)
-            }
-          </Selector>
+          <Suspense fallback={props.fallback}>
+            <FieldResolutionGate />
+          </Suspense>
         );
       }
 
-      return children(createdProps as never);
+      return renderChildren();
     };
 
     return memo(Field);

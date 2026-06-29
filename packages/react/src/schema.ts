@@ -218,9 +218,8 @@ export class MultiStepFormSchema<
   }
 }
 
-export function createMultiStepFormSchema<
-  const def extends StepSchema.Config,
-  value extends instantiateReactSteps<def> = instantiateReactSteps<def>
->(options: def) {
-  return new MultiStepFormSchema<def, value>(options);
+export function createMultiStepFormSchema<const def extends StepSchema.Config>(
+  options: def
+) {
+  return new MultiStepFormSchema<def>(options);
 }

@@ -1,3 +1,4 @@
+import { StepSchema } from '@/internals';
 import {
   CASING_TYPES,
   CasingType,
@@ -11,6 +12,7 @@ import {
 import { createInvariant, type Invariant } from '@/utils/invariant';
 import type { AnyValidator, DefaultValidator } from '@/utils/validator';
 import {
+  inferDefaultValue,
   instantiateFields,
   isValidFieldConfig,
   type FieldConfig,
@@ -20,33 +22,68 @@ import {
 import type { StepSpecificHelperFn } from './fn-utils/helper-fn/utils';
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
-import { StepSchema } from '@/internals';
-import { CreateValidStep } from './utils';
 
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
 
 type ValidStepKey<N extends number = number> = `step${N}`;
 
-export interface Config<
-  TCasing extends CasingType,
-  TFields extends FieldConfig<TCasing>,
-  TValidator = unknown
+interface BaseConfig<
+  TFields extends FieldConfig<CasingType>,
+  TCasing extends CasingType = DefaultCasing,
+  TValidator = unknown,
 > extends NameTransformCasingOptions<TCasing> {
   title: string;
   description?: string;
   fields: TFields;
   validateFields?: Constrain<TValidator, AnyValidator, DefaultValidator>;
 }
-export type AnyConfig = Config<
-  CasingType,
+export type AnyConfig = BaseConfig<
   FieldConfig<CasingType>,
+  CasingType,
   AnyValidator
 >;
+export type StepResolvedData<TConfig extends AnyConfig> = Expand<
+  {
+    title: string;
+    nameTransformCasing: inferNameTransformCasing<TConfig, DefaultCasing>;
+    fields: instantiateFields<
+      TConfig,
+      inferNameTransformCasing<TConfig, DefaultCasing>
+    >;
+  } & (TConfig extends {
+    description: infer description extends string;
+  }
+    ? { description: description }
+    : {})
+>;
+export type StepOverridePatch<TConfig extends AnyConfig> = Partial<
+  StepDefaultValues<TConfig['fields']>
+>;
+export type StepOverrideResult<TConfig extends AnyConfig> =
+  | StepOverridePatch<TConfig>
+  | Promise<StepOverridePatch<TConfig>>;
+export type StepOverrides<TConfig extends AnyConfig> = (
+  data: StepResolvedData<TConfig>,
+) => StepOverrideResult<TConfig>;
+export interface Config<
+  TFields extends FieldConfig<CasingType> = FieldConfig<CasingType>,
+  TCasing extends CasingType = DefaultCasing,
+  TValidator = unknown,
+> extends BaseConfig<TFields, TCasing, TValidator> {}
+
 export type StepConfig<
   TCasing extends CasingType = DefaultCasing,
   TFields extends FieldConfig<TCasing> = FieldConfig<TCasing>,
-  TValidator = unknown
-> = Record<ValidStepKey, Config<TCasing, TFields, TValidator>>;
+  TValidator = unknown,
+> = Record<ValidStepKey, Config<TFields, TCasing, TValidator>>;
+
+export type StepDefaultValues<TFields extends FieldConfig<CasingType>> = {
+  [key in keyof TFields as string extends key ? never : key]: inferDefaultValue<
+    TFields[key]
+  >;
+};
+
+type JustStepConfig<T> = Pick<T, keyof T & keyof Config>;
 
 export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
   /**
@@ -74,7 +111,11 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
    * }
    * ```
    */
-  steps: TMap;
+  steps: {
+    [key in keyof TMap]: JustStepConfig<TMap[key]> & {
+      overrides?: StepOverrides<TMap[key] & AnyConfig>;
+    };
+  };
 };
 /**
  * Extended step specific properties for the step.
@@ -82,13 +123,13 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
 export interface ExtendedStepSpecificProperties<
   def extends StepSchema.Config,
   value extends _instantiateSteps<def>,
-  key extends keyof value
+  _key extends keyof value,
 > {}
 
 export interface StepExtension<
   TDef extends StepSchema.Config,
   TValue extends _instantiateSteps<TDef>,
-  TKey extends keyof TValue
+  _TKey extends keyof TValue,
 > {}
 
 export type _instantiateSteps<T = unknown> = [T] extends [object]
@@ -117,7 +158,7 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
 export type BaseStepFunctions<
   def,
   value extends _instantiateSteps<def>,
-  key extends keyof value
+  key extends keyof value,
 > = Show<
   value[key] &
     (value extends {}
@@ -137,7 +178,7 @@ export type BaseStepFunctions<
 
 export type instantiateSteps<
   t = unknown,
-  value extends _instantiateSteps<t> = _instantiateSteps<t>
+  value extends _instantiateSteps<t> = _instantiateSteps<t>,
 > = Expand<{
   [key in keyof value]: BaseStepFunctions<t, value, key>;
 }>;
@@ -145,12 +186,12 @@ export type AnySteps = instantiateSteps<instantiateStepsConfig>;
 export type StepNumbers<T> = keyof T extends string ? keyof T : never;
 export type getCurrentStep<
   value extends instantiateSteps,
-  stepNumbers extends StepNumbers<value>
+  stepNumbers extends StepNumbers<value>,
 > = value[stepNumbers];
 
 export function instantiateSteps<
   const def extends instantiateStepsConfig,
-  inst = instantiateSteps<def>
+  inst = instantiateSteps<def>,
 >(def: def) {
   const { steps } = def;
   const invariant: Invariant = createInvariant('[instantiateSteps]');
@@ -160,24 +201,24 @@ export function instantiateSteps<
   invariant(
     Object.keys(steps).length > 0,
     '"steps" must contain at least one step.',
-    TypeError
+    TypeError,
   );
 
   let resolvedSteps: Record<string, unknown> = {};
 
   for (const [stepKey, stepValue] of Object.entries(steps)) {
     const invariant: Invariant = createInvariant(
-      `[instantiateSteps - ${stepKey}]`
+      `[instantiateSteps - ${stepKey}]`,
     );
 
     invariant(
       typeof stepKey === 'string',
       `Each key for the step config must be a string. Key "${stepKey}" was ${typeof stepKey} `,
-      TypeError
+      TypeError,
     );
     invariant(
       VALIDATED_STEP_REGEX.test(stepKey),
-      `The key "${stepKey}" isn't formatted properly. Each key in the step config must be the following format: "step{number}"`
+      `The key "${stepKey}" isn't formatted properly. Each key in the step config must be the following format: "step{number}"`,
     );
 
     const {
@@ -193,14 +234,14 @@ export function instantiateSteps<
     invariant(
       typeof title === 'string',
       'The title must be a string.',
-      TypeError
+      TypeError,
     );
 
     if (description) {
       invariant(
         typeof description === 'string',
         'The description must be a string.',
-        TypeError
+        TypeError,
       );
     }
 
@@ -208,15 +249,15 @@ export function instantiateSteps<
       invariant(
         typeof nameTransformCasing === 'string',
         `The nameTransformCasing must be a string. Was ${typeof nameTransformCasing}`,
-        TypeError
+        TypeError,
       );
       invariant(
         isCasingValid(nameTransformCasing),
         (formatter) =>
           `The nameTransformCasing is not a valid casing. Was ${nameTransformCasing}, must be one of ${formatter.format(
-            CASING_TYPES
+            CASING_TYPES,
           )}`,
-        TypeError
+        TypeError,
       );
     }
 

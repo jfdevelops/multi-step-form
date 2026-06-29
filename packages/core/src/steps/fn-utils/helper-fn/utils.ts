@@ -1,4 +1,4 @@
-import type { steps } from '@/steps/steps';
+import type { instantiateSteps, StepNumbers } from '@/steps/steps';
 import type { Constrain, Expand } from '@/utils';
 import type {
   AnyValidator,
