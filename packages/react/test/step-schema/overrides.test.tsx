@@ -73,7 +73,7 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: () => deferred.promise,
+          overrides: ({}) => deferred.promise,
         },
       },
     });
@@ -195,5 +195,61 @@ describe('step overrides', () => {
 
     expect(screen.getByTestId('status').textContent).toBe('resolved');
     expect(screen.getByTestId('value').textContent).toBe('Jordan');
+  });
+
+  it('keeps non-overridden fields available after async step resolution', async () => {
+    const deferred = createDeferred<{ firstName: string }>();
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+            saveToAccount: {
+              defaultValue: false,
+            },
+          },
+          overrides: async () => {
+            const values = await deferred.promise;
+
+            return {
+              firstName: values.firstName,
+            };
+          },
+        },
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(
+      ({ Field, Suspend }) => (
+        <Suspend fallback={<p data-testid='loading'>Loading</p>}>
+          <Field name='firstName'>
+            {({ defaultValue }) => (
+              <p data-testid='firstName'>{String(defaultValue)}</p>
+            )}
+          </Field>
+          <Field name='saveToAccount'>
+            {({ defaultValue }) => (
+              <p data-testid='saveToAccount'>{String(defaultValue)}</p>
+            )}
+          </Field>
+        </Suspend>
+      ),
+    );
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('loading').textContent).toBe('Loading');
+
+    await act(async () => {
+      deferred.resolve({
+        firstName: 'Jordan',
+      });
+    });
+
+    expect(screen.getByTestId('firstName').textContent).toBe('Jordan');
+    expect(screen.getByTestId('saveToAccount').textContent).toBe('false');
   });
 });

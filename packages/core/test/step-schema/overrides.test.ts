@@ -66,4 +66,34 @@ describe('multi step form step schema: overrides', () => {
     expect(schema.stepSchema.getStepStatus('step1')).toBe('error');
     expect(schema.stepSchema.getStepError('step1')).toBeInstanceOf(Error);
   });
+
+  it('preserves untouched field defaults when overrides return a partial patch', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+            saveToAccount: {
+              defaultValue: false,
+            },
+          },
+          overrides: async () => ({
+            firstName: 'Taylor',
+          }),
+        },
+      },
+    });
+
+    await schema.stepSchema.resolveStep('step1');
+
+    expect(schema.stepSchema.getStepStatus('step1')).toBe('resolved');
+    expect(schema.stepSchema.getValue('step1', 'firstName')).toBe('Taylor');
+    expect(schema.stepSchema.getValue('step1', 'saveToAccount')).toBe(false);
+    expect(schema.stepSchema.value.step1.fields.saveToAccount.defaultValue).toBe(
+      false,
+    );
+  });
 });
