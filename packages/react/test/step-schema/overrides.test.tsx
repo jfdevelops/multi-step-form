@@ -73,7 +73,7 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          
+          overrides: () => deferred.promise,
         },
       },
     });
