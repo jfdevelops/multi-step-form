@@ -1,5 +1,13 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.34
+
+### Patch Changes
+
+- 2276a41: fix: tighten override field inference and preserve omitted field defaults
+
+  Resolved override data now exposes exact step field keys without a generic string index, which restores field inference in both core and React step consumers. This also adds regression coverage to ensure partial override patches do not remove untouched step fields at runtime.
+
 ## 1.0.0-alpha.33
 
 ### Minor Changes
