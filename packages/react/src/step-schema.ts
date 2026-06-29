@@ -169,8 +169,8 @@ export class MultiStepFormStepSchema<
 
   private createUseStep<targetStep extends StepNumbers<value>>(
     step: targetStep,
-  ) {
-    return () => {
+  ): StepSpecificComponent.useStep<def, value, targetStep> {
+    return <TError = Error>() => {
       const status = useSyncExternalStore(
         this.subscribe,
         () => this.getStepStatus(step as never),
@@ -180,7 +180,7 @@ export class MultiStepFormStepSchema<
         this.subscribe,
         () => this.value[step],
         () => this.value[step],
-      );
+      ) as HelperFnChosenSteps.currentStep<value, [targetStep]>;
       const error = useSyncExternalStore(
         this.subscribe,
         () => this.getStepError(step as never),
@@ -188,13 +188,15 @@ export class MultiStepFormStepSchema<
       );
 
       useEffect(() => {
-        void this.resolveStep(step as never);
+        void this.resolveStep(step as never).catch(() => {
+          // Errors are persisted on the step state and exposed through `useStep`.
+        });
       }, []);
 
       return {
         data,
         status,
-        error,
+        error: error as TError | undefined,
       };
     };
   }

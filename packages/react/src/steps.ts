@@ -27,43 +27,46 @@ export namespace StepSpecificComponent {
   };
   type instantiateFormComponentForAllSteps<
     def extends StepSchema.Config,
-    value = MultiStepFormSchemaConfig.instantiateFormConfig<def>
-  > = MultiStepFormSchemaConfig.EnabledForSteps.get<value> extends MultiStepFormSchemaConfig.defaultEnabledFor
-    ? keyof MultiStepFormSchemaConfig.instantiateFormConfig<def> extends never
-      ? defaultFormComponent
-      : MultiStepFormSchemaConfig.instantiateFormConfig<def>
-    : {};
+    value = MultiStepFormSchemaConfig.instantiateFormConfig<def>,
+  > =
+    MultiStepFormSchemaConfig.EnabledForSteps.get<value> extends MultiStepFormSchemaConfig.defaultEnabledFor
+      ? keyof MultiStepFormSchemaConfig.instantiateFormConfig<def> extends never
+        ? defaultFormComponent
+        : MultiStepFormSchemaConfig.instantiateFormConfig<def>
+      : {};
   type instantiateFormComponentForTuple<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>
-  > = MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.tupleNotation<
-    StepNumbers<steps>
-  >
-    ? chosenSteps[number] extends StepNumbers<steps>
-      ? chosenSteps[number] extends MultiStepFormSchemaConfig.EnabledForSteps.get<def>[number]
-        ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
+  > =
+    MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.tupleNotation<
+      StepNumbers<steps>
+    >
+      ? chosenSteps[number] extends StepNumbers<steps>
+        ? chosenSteps[number] extends MultiStepFormSchemaConfig.EnabledForSteps.get<def>[number]
+          ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+          : {}
         : {}
-      : {}
-    : {};
+      : {};
 
   type instantiateFormComponentForObject<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>
-  > = MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.objectNotation<
-    StepNumbers<steps>
-  >
-    ? chosenSteps[number] extends StepNumbers<steps>
-      ? chosenSteps[number] extends keyof MultiStepFormSchemaConfig.EnabledForSteps.get<def>
-        ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
+  > =
+    MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.objectNotation<
+      StepNumbers<steps>
+    >
+      ? chosenSteps[number] extends StepNumbers<steps>
+        ? chosenSteps[number] extends keyof MultiStepFormSchemaConfig.EnabledForSteps.get<def>
+          ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
+          : {}
         : {}
-      : {}
-    : {};
+      : {};
   type instantiateFormComponent<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps<def>,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
   > = {
     all: instantiateFormComponentForAllSteps<def>;
     tuple: instantiateFormComponentForTuple<def, steps, chosenSteps>;
@@ -78,7 +81,7 @@ export namespace StepSpecificComponent {
   export type formComponent<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps<def>,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>
+    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
   > = instantiateFormComponent<
     def,
     steps,
@@ -86,7 +89,7 @@ export namespace StepSpecificComponent {
   >[MultiStepFormSchemaConfig.EnabledForSteps.resolveType<def, steps>];
   export type updateWrappers<
     value extends instantiateReactSteps,
-    targetStep extends StepNumbers<value>
+    targetStep extends StepNumbers<value>,
   > = {
     /**
      * A useful wrapper around `update` to update the specific field.
@@ -102,23 +105,29 @@ export namespace StepSpecificComponent {
   type buildCurrentStep<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
-    targetStep extends StepNumbers<value>
+    targetStep extends StepNumbers<value>,
   > = Expand<{
     [key in targetStep]: HelperFnChosenSteps.currentStep<value, [key]>;
   }>;
   export type useStepResult<
     value extends instantiateReactSteps,
     targetStep extends StepNumbers<value>,
+    TError = Error,
   > = {
     data: HelperFnChosenSteps.currentStep<value, [targetStep]>;
     status: OverrideStatus;
-    error: unknown;
+    error: TError | undefined;
   };
   export type useStep<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
-  > = () => useStepResult<value, targetStep>;
+  > = <error extends Error = Error>() => useStepResult<
+    value,
+    targetStep,
+    error
+  >;
+
   export type suspendProps = {
     children: ReactNode;
     fallback: ReactNode;
@@ -133,7 +142,7 @@ export namespace StepSpecificComponent {
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
-    additionalCtx extends Record<string, unknown>
+    additionalCtx extends Record<string, unknown>,
   > = HelperFnInput.BaseInput<value, [targetStep], never, additionalCtx> &
     updateWrappers<value, targetStep> & {
       Field: field.component<buildCurrentStep<def, value, targetStep>>;
@@ -183,7 +192,7 @@ export namespace StepSpecificComponent {
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
     props,
-    additionalCtx extends Record<string, unknown> = {}
+    additionalCtx extends Record<string, unknown> = {},
   > = CreateComponent<
     Expand<
       input<def, value, targetStep, additionalCtx> &
@@ -195,7 +204,7 @@ export namespace StepSpecificComponent {
   export type options<
     value extends instantiateReactSteps,
     targetStep extends StepNumbers<value>,
-    additionalCtx extends Record<string, unknown> = {}
+    additionalCtx extends Record<string, unknown> = {},
   > = HelperFn.CtxDataSelector<value, [targetStep], additionalCtx> & {
     /**
      * If set to `true`, you'll be able to open the {@linkcode console} to view logs.
@@ -207,42 +216,42 @@ export namespace StepSpecificComponent {
 type IsLegacyFormAvailable<
   value extends instantiateReactSteps,
   chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
-  enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+  enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
 > = enabledFor extends MultiStepFormSchemaConfig.defaultEnabledFor
   ? true
   : enabledFor extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
-  ? chosenSteps[number] extends enabledFor[number]
-    ? true
-    : false
-  : enabledFor extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
-  ? chosenSteps[number] extends keyof enabledFor
-    ? true
-    : false
-  : false;
+    ? chosenSteps[number] extends enabledFor[number]
+      ? true
+      : false
+    : enabledFor extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
+      ? chosenSteps[number] extends keyof enabledFor
+        ? true
+        : false
+      : false;
 
 type LegacyFormComponent<
   value extends instantiateReactSteps,
   chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
   alias extends string,
   formProps,
-  enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>>
+  enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
 > = string extends alias
   ? {}
   : IsLegacyFormAvailable<value, chosenSteps, enabledFor> extends true
-  ? MultiStepFormSchemaConfig.formCtx<alias, formProps>
-  : {};
+    ? MultiStepFormSchemaConfig.formCtx<alias, formProps>
+    : {};
 
 export interface StepSpecificCreateComponentFn<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
-  targetStep extends StepNumbers<value>
+  targetStep extends StepNumbers<value>,
 > {
   /**
    * A utility function to easily create a component for the current step.
    * @param fn The callback function where the component is defined.
    */
   <props = undefined>(
-    fn: StepSpecificComponent.callback<def, value, targetStep, props>
+    fn: StepSpecificComponent.callback<def, value, targetStep, props>,
   ): CreatedMultiStepFormComponent<props>;
   /**
    * A utility function to easily create a component for the current step.
@@ -252,7 +261,13 @@ export interface StepSpecificCreateComponentFn<
    */
   <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
     options: StepSpecificComponent.options<value, targetStep, additionalCtx>,
-    fn: StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>
+    fn: StepSpecificComponent.callback<
+      def,
+      value,
+      targetStep,
+      props,
+      additionalCtx
+    >,
   ): CreatedMultiStepFormComponent<props>;
 }
 
@@ -268,12 +283,10 @@ export type CreateStepSpecificComponentCallback<
   _formInstance = undefined,
   _formAlias extends string = string,
   props = undefined,
-  _enabledFor extends HelperFnChosenSteps.main<
-    value,
-    StepNumbers<value>
-  > = MultiStepFormSchemaConfig.defaultEnabledFor,
+  _enabledFor extends HelperFnChosenSteps.main<value, StepNumbers<value>> =
+    MultiStepFormSchemaConfig.defaultEnabledFor,
   _extra = unknown,
-  additionalCtx extends Record<string, unknown> = {}
+  additionalCtx extends Record<string, unknown> = {},
 > = CreateComponent<
   Expand<
     HelperFnInput.BaseInput<value, chosenSteps, never, additionalCtx> &
@@ -289,7 +302,7 @@ export type CreateStepSpecificComponentCallback<
 // Because of this, there are a lot of `@ts-expect-error`s in the code.
 export type instantiateReactSteps<
   def = unknown,
-  value extends _instantiateSteps<def> = _instantiateSteps<def>
+  value extends _instantiateSteps<def> = _instantiateSteps<def>,
 > = Expand<{
   [key in keyof value]: Expand<
     BaseStepFunctions<def, value, key> & {
