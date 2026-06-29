@@ -1,4 +1,4 @@
-import type { steps } from '../steps';
+import type { instantiateSteps, StepNumbers } from '../steps';
 import type { HelperFnChosenSteps } from './helper-fn';
 import type { UpdateFn } from './update-fn';
 

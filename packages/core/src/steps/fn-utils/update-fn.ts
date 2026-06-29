@@ -10,7 +10,6 @@ import type {
 } from '@/utils/types';
 import type { AnySteps, instantiateSteps, StepNumbers } from '../steps';
 import type { HelperFn, HelperFnChosenSteps } from './helper-fn';
-import { CreateValidStep, ValidStepKey } from '../utils';
 
 export namespace UpdateFn {
   export type chosenFields<TCurrentStep extends AnySteps> =

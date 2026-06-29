@@ -13,6 +13,7 @@ import { addToTuple, mapToTuple } from '@/utils/helpers';
 import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import { Subscribable } from '../subscribable';
 import {
+  getDefaultValues,
   resolvedDeepPath,
   type getFieldForStep,
   type getDeepFields,
@@ -28,8 +29,10 @@ import type {
 import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
 import {
+  type AnyConfig,
   instantiateSteps,
   isValidSteps,
+  type StepResolvedData,
   type StepConfig,
   type StepNumbers,
 } from './steps';
@@ -42,6 +45,13 @@ export interface MultiStepFormStepSchemaFunctions<
   reset: ResetFn.general<value>;
   createHelperFn: GeneralHelperFn<value>;
 }
+export type OverrideStatus = 'idle' | 'loading' | 'resolved' | 'error';
+
+type StepOverrideResolutionState = {
+  status: OverrideStatus;
+  error?: unknown;
+  promise?: Promise<void>;
+};
 export type AsType = (typeof AS_TYPES)[number];
 type Quote<T extends string[]> = {
   [K in keyof T]: T[K] extends string ? `'${T[K]}'` : never;
@@ -263,21 +273,6 @@ function includesValue(
   return values.some((item) => item === value);
 }
 
-function parseScalarExpression(expression: string) {
-  const parts = expression.split(' | ').map((value) => value.trim());
-  const isQuoted = parts.every(
-    (value) => value.startsWith("'") && value.endsWith("'"),
-  );
-  const parsedValues = isQuoted
-    ? parts.map((value) => value.slice(1, -1))
-    : parts.map((value) => Number(value));
-
-  return {
-    expression,
-    parsedValues,
-  };
-}
-
 function createScalarParseError(
   expression: string,
   validValues: ReadonlyArray<string | number>,
@@ -350,7 +345,7 @@ function createAsArrayValue<
     parse: Object.assign(
       (value: unknown): values => {
         if (isMatchingArray(value, validValues)) {
-          return [...values] as values;
+          return [...values] as unknown as values;
         }
 
         throw createArrayParseError(validValues, value);
@@ -430,6 +425,14 @@ export class MultiStepFormStepSchema<
   readonly steps: MultiStepFormStepStepsConfig<def, value>;
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
   readonly #stepNumbers: Array<number>;
+  readonly #baseDefaultValues = new Map<
+    StepNumbers<value>,
+    Record<string, unknown>
+  >();
+  readonly #overrideState = new Map<
+    StepNumbers<value>,
+    StepOverrideResolutionState
+  >();
   readonly #storage: MultiStepFormStorage<
     value,
     StepSchema.inferStorageKey<def>
@@ -465,6 +468,12 @@ export class MultiStepFormStepSchema<
     this.#stepNumbers = Object.keys(this.value).map((key) =>
       Number.parseInt(key.replace('step', '')),
     );
+    for (const stepKey of Object.keys(this.value) as StepNumbers<value>[]) {
+      this.#baseDefaultValues.set(
+        stepKey,
+        getDefaultValues(this.value, stepKey) as Record<string, unknown>,
+      );
+    }
 
     this.steps = {
       value: this.#stepNumbers as unknown as ReadonlyArray<StepNumbers<value>>,
@@ -524,6 +533,110 @@ export class MultiStepFormStepSchema<
     };
 
     this.sync();
+    this.initializeOverrideState();
+  }
+
+  private initializeOverrideState() {
+    for (const stepKey of Object.keys(this.value) as StepNumbers<value>[]) {
+      this.#overrideState.set(stepKey, {
+        status:
+          this.hasOverrides(stepKey) && this.isStepUsingBaseDefaults(stepKey)
+            ? 'idle'
+            : 'resolved',
+      });
+    }
+  }
+
+  private getOverrideState<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    return (
+      this.#overrideState.get(step) ?? {
+        status: 'resolved' as const,
+      }
+    );
+  }
+
+  private setOverrideState<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+    state: StepOverrideResolutionState,
+  ) {
+    this.#overrideState.set(step, state);
+    this.notify();
+  }
+
+  private isStepUsingBaseDefaults<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    const currentDefaults = getDefaultValues(this.value, step);
+    const baseDefaults = this.#baseDefaultValues.get(step);
+
+    return JSON.stringify(currentDefaults) === JSON.stringify(baseDefaults);
+  }
+
+  private getStepOverride<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    const current = this.original[step as keyof def['steps']];
+
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+
+    return 'overrides' in current && typeof current.overrides === 'function'
+      ? current.overrides
+      : undefined;
+  }
+
+  private getResolvedStepData<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    const currentStep = this.value[step] as value[targetStep] & {
+      update?: unknown;
+      reset?: unknown;
+      createHelperFn?: unknown;
+    };
+    const { update, reset, createHelperFn, ...resolvedStep } = currentStep;
+
+    return resolvedStep as unknown as def['steps'][Extract<
+      targetStep,
+      keyof def['steps']
+    >] extends infer TStep
+      ? TStep extends AnyConfig
+        ? StepResolvedData<TStep>
+        : never
+      : never;
+  }
+
+  private applyStepOverrides<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+    overrides: Partial<Record<string, unknown>>,
+  ) {
+    const currentStep = this.value[step] as value[targetStep] & {
+      fields: Record<string, Record<string, unknown>>;
+    };
+    const fields = currentStep.fields;
+    const nextFields = { ...fields };
+
+    for (const [fieldName, fieldValue] of Object.entries(overrides)) {
+      invariant(
+        fieldName in nextFields,
+        `[resolveStep]: "${fieldName}" is not a valid field for ${step}`,
+      );
+
+      nextFields[fieldName] = {
+        ...nextFields[fieldName],
+        defaultValue: fieldValue,
+      };
+    }
+
+    return {
+      ...this.value,
+      [step]: {
+        ...currentStep,
+        fields: nextFields,
+      },
+    } as value;
   }
 
   /**
@@ -549,6 +662,100 @@ export class MultiStepFormStepSchema<
 
       this.value = { ...enrichedValues };
     }
+  }
+
+  hasOverrides<targetStep extends StepNumbers<value>>(step: targetStep) {
+    return typeof this.getStepOverride(step) === 'function';
+  }
+
+  getStepStatus<targetStep extends StepNumbers<value>>(step: targetStep) {
+    return this.getOverrideState(step).status;
+  }
+
+  getStepError<targetStep extends StepNumbers<value>>(step: targetStep) {
+    return this.getOverrideState(step).error;
+  }
+
+  async resolveStep<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    if (!this.hasOverrides(step)) {
+      return this.value[step];
+    }
+
+    const currentState = this.getOverrideState(step);
+
+    if (currentState.status === 'resolved') {
+      return this.value[step];
+    }
+
+    if (currentState.status === 'loading' && currentState.promise) {
+      await currentState.promise;
+
+      return this.value[step];
+    }
+
+    const override = this.getStepOverride(step);
+
+    invariant(
+      typeof override === 'function',
+      `[resolveStep]: "${step}" does not have a valid override resolver`,
+    );
+
+    const promise = Promise.resolve(override(this.getResolvedStepData(step)))
+      .then((overrides) => {
+        this.#overrideState.set(step, {
+          status: 'resolved',
+        });
+
+        if (Object.keys(overrides).length === 0) {
+          this.notify();
+
+          return;
+        }
+
+        this.handlePostUpdate(
+          this.applyStepOverrides(
+            step,
+            overrides as Partial<Record<string, unknown>>,
+          ),
+        );
+      })
+      .catch((error) => {
+        this.setOverrideState(step, {
+          status: 'error',
+          error,
+        });
+
+        throw error;
+      });
+
+    this.setOverrideState(step, {
+      status: 'loading',
+      promise,
+    });
+
+    await promise;
+
+    return this.value[step];
+  }
+
+  suspendStep<targetStep extends StepNumbers<value>>(step: targetStep) {
+    if (!this.hasOverrides(step)) {
+      return this.value[step];
+    }
+
+    const state = this.getOverrideState(step);
+
+    if (state.status === 'resolved') {
+      return this.value[step];
+    }
+
+    if (state.status === 'error') {
+      throw state.error;
+    }
+
+    throw this.resolveStep(step);
   }
 
   protected notify() {
