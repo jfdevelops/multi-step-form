@@ -83,9 +83,7 @@ export type StepDefaultValues<TFields extends FieldConfig<CasingType>> = {
   >;
 };
 
-type JustStepConfig<T> = {
-  [K in keyof T & keyof Config]: T[K];
-};
+type JustStepConfig<T> = Pick<T, keyof T & keyof Config>;
 
 export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
   /**
