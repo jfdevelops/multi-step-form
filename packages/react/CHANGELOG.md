@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.49
+
+### Minor Changes
+
+- 5468bc4: feat(react): add step-level overrides, suspend, and useStep support
+
+### Patch Changes
+
+- Updated dependencies [14ba84a]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.33
+
 ## 1.0.0-alpha.48
 
 ### Patch Changes
