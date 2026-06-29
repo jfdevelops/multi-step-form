@@ -1,5 +1,22 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.50
+
+### Minor Changes
+
+- a8a6ff4: feat(react): type `useStep` errors and expose override failures per step
+
+  `useStep()` now exposes override resolution errors on the current step and defaults the `error` property to `Error | undefined`. Callers can also override the error type at the hook call site with `useStep<MyError>()`.
+
+### Patch Changes
+
+- 2276a41: fix: tighten override field inference and preserve omitted field defaults
+
+  Resolved override data now exposes exact step field keys without a generic string index, which restores field inference in both core and React step consumers. This also adds regression coverage to ensure partial override patches do not remove untouched step fields at runtime.
+
+- Updated dependencies [2276a41]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.34
+
 ## 1.0.0-alpha.49
 
 ### Minor Changes
