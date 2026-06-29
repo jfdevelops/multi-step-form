@@ -34,6 +34,13 @@ import {
   getValidatedCustomInputHooks,
   resolvedCtxCreator,
 } from './utils';
+import {
+  Suspense,
+  createElement,
+  useEffect,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 
 export type CreateComponentFn<
   def extends StepSchema.Config,
@@ -158,6 +165,58 @@ export class MultiStepFormStepSchema<
     }
 
     return ctx;
+  }
+
+  private createUseStep<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    return () => {
+      const status = useSyncExternalStore(
+        this.subscribe,
+        () => this.getStepStatus(step as never),
+        () => this.getStepStatus(step as never),
+      );
+      const data = useSyncExternalStore(
+        this.subscribe,
+        () => this.value[step],
+        () => this.value[step],
+      );
+      const error = useSyncExternalStore(
+        this.subscribe,
+        () => this.getStepError(step as never),
+        () => this.getStepError(step as never),
+      );
+
+      useEffect(() => {
+        void this.resolveStep(step as never);
+      }, []);
+
+      return {
+        data,
+        status,
+        error,
+      };
+    };
+  }
+
+  private createStepSuspend<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    return (props: { children: ReactNode; fallback: ReactNode }) => {
+      const { children, fallback } = props;
+
+      const StepResolutionGate = () => {
+        this.suspendStep(step as never);
+
+        return children;
+      };
+
+      return createElement(
+        Suspense,
+        { fallback },
+        createElement(StepResolutionGate),
+      );
+    };
   }
 
   private createStepSpecificComponentImpl<
@@ -326,6 +385,9 @@ export class MultiStepFormStepSchema<
               ctxData,
               logger,
             }) as never,
+          suspendStep: () => {
+            this.suspendStep(step as never);
+          },
         });
 
         // Create useSelector hook for reactive value access via selector
@@ -343,12 +405,16 @@ export class MultiStepFormStepSchema<
           () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
           this.subscribe
         );
+        const useStep = this.createUseStep(step);
+        const SuspendStep = this.createStepSuspend(step);
 
         let fnInput = {
           ctx: resolvedCtx,
           onInputChange: this.#internal.createStepUpdaterFn(step),
           reset: this.#internal.createStepResetterFn(step),
           Field,
+          Suspend: SuspendStep,
+          useStep,
           useSelector,
           Selector,
           defaultValues: this.createDefaultValues(step as never) as never,

@@ -383,7 +383,7 @@ export function createMultiStepFormContext<
       (formatter) =>
         `Invalid step number "${
           options.targetStep
-        }". Valid steps are: ${formatter.format(as('array.string.untyped'))}`
+        }". Valid steps are: ${formatter.format(as('array.string.untyped').value)}`
     );
 
     return createComponent({ targetStep: options.targetStep })(cb);

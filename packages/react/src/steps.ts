@@ -6,12 +6,13 @@ import type {
   HelperFn,
   HelperFnChosenSteps,
   HelperFnInput,
+  OverrideStatus,
   ResetFn,
   StepNumbers,
   UpdateFn,
 } from '@jfdevelops/multi-step-form-core';
 import { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
-import type { ComponentPropsWithRef } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { UseSelector } from './hooks/use-selector';
@@ -105,6 +106,28 @@ export namespace StepSpecificComponent {
   > = Expand<{
     [key in targetStep]: HelperFnChosenSteps.currentStep<value, [key]>;
   }>;
+  export type useStepResult<
+    value extends instantiateReactSteps,
+    targetStep extends StepNumbers<value>,
+  > = {
+    data: HelperFnChosenSteps.currentStep<value, [targetStep]>;
+    status: OverrideStatus;
+    error: unknown;
+  };
+  export type useStep<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+  > = () => useStepResult<value, targetStep>;
+  export type suspendProps = {
+    children: ReactNode;
+    fallback: ReactNode;
+  };
+  export type suspendComponent<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    _targetStep extends StepNumbers<value>,
+  > = (props: suspendProps) => ReactNode;
 
   export type input<
     def extends StepSchema.Config,
@@ -140,6 +163,14 @@ export namespace StepSpecificComponent {
        * </Selector>
        */
       Selector: selector.component<buildCurrentStep<def, value, targetStep>>;
+      /**
+       * Reactively resolves the current step overrides and exposes the current resolution status.
+       */
+      useStep: useStep<def, value, targetStep>;
+      /**
+       * Suspends the current step until async overrides have been resolved.
+       */
+      Suspend: suspendComponent<def, value, targetStep>;
       /**
        * An object containing the default values for every field in the current step,
        * as defined in the schema config.
