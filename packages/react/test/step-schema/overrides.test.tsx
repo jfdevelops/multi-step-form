@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ComponentPropsWithRef, ReactElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
@@ -328,5 +328,110 @@ describe('step overrides', () => {
 
       return null;
     });
+  });
+
+  it('infers override fields at the react createMultiStepFormSchema entrypoint', () => {
+    createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+            phoneNumber: {
+              defaultValue: '',
+            },
+            saveToAccount: {
+              defaultValue: false,
+            },
+          },
+          overrides: ({ fields }) => {
+            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+            expectTypeOf(
+              fields.phoneNumber.defaultValue,
+            ).toEqualTypeOf<string>();
+            expectTypeOf(
+              fields.saveToAccount.defaultValue,
+            ).toEqualTypeOf<boolean>();
+
+            return {
+              firstName: fields.firstName.defaultValue,
+            };
+          },
+        },
+      },
+    });
+  });
+
+  it('preserves non-overridden fields through withForm and withContext', async () => {
+    const deferred = createDeferred<{ firstName: string }>();
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+            saveToAccount: {
+              defaultValue: false,
+            },
+          },
+          overrides: async ({ fields }) => {
+            expectTypeOf(
+              fields.saveToAccount.defaultValue,
+            ).toEqualTypeOf<boolean>();
+            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+
+            const values = await deferred.promise;
+
+            return {
+              firstName: values.firstName,
+            };
+          },
+        },
+      },
+    })
+      .withForm({
+        render() {
+          return function Form(props: ComponentPropsWithRef<'form'>) {
+            return <form {...props} />;
+          };
+        },
+      })
+      .withContext();
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(
+      ({ Field, Form, Suspend }) => (
+        <Suspend fallback={<p data-testid='loading'>Loading</p>}>
+          <Form>
+            <Field name='firstName'>
+              {({ defaultValue }) => (
+                <p data-testid='firstName'>{String(defaultValue)}</p>
+              )}
+            </Field>
+            <Field name='saveToAccount'>
+              {({ defaultValue }) => (
+                <p data-testid='saveToAccount'>{String(defaultValue)}</p>
+              )}
+            </Field>
+          </Form>
+        </Suspend>
+      ),
+    );
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('loading').textContent).toBe('Loading');
+
+    await act(async () => {
+      deferred.resolve({
+        firstName: 'Jordan',
+      });
+    });
+
+    expect(screen.getByTestId('firstName').textContent).toBe('Jordan');
+    expect(screen.getByTestId('saveToAccount').textContent).toBe('false');
   });
 });

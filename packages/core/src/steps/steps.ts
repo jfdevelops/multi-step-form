@@ -86,6 +86,13 @@ export type StepDefaultValues<TFields extends FieldConfig<CasingType>> = {
 };
 
 type JustStepConfig<T> = Pick<T, keyof T & keyof Config>;
+type OverrideStepConfig<T> = T extends Config<
+  infer TFields,
+  infer TCasing,
+  infer TValidator
+>
+  ? Config<TFields, TCasing, TValidator>
+  : never;
 
 export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
   /**
@@ -115,7 +122,7 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
    */
   steps: {
     [key in keyof TMap]: JustStepConfig<TMap[key]> & {
-      overrides?: StepOverrides<TMap[key] & AnyConfig>;
+      overrides?: StepOverrides<OverrideStepConfig<TMap[key]>>;
     };
   };
 };
