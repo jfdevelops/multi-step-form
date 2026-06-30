@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.51
+
+### Patch Changes
+
+- 9c04b45: fix: restore override field inference in react schema factory
+
+  Aligns the React schema factory with the core factory so step `overrides` callbacks receive properly inferred `fields` data. Also adds regression coverage to ensure partial override patches still preserve untouched step fields through `withForm()` and `withContext()`.
+
+- Updated dependencies [9c04b45]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.35
+
 ## 1.0.0-alpha.50
 
 ### Minor Changes
