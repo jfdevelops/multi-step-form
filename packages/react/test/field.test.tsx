@@ -176,4 +176,56 @@ describe('Field', () => {
     );
     expect(screen.getByTestId('defaultValue').textContent).toBe('Taylor');
   });
+
+  it('resets field values for resolved async step definitions', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: async () => ({
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        }),
+      },
+    });
+
+    await schema.stepSchema.resolveStep('step1');
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
+      <Field name='firstName'>
+        {({ defaultValue, onInputChange, reset }) => (
+          <div>
+            <p data-testid='async-defaultValue'>{defaultValue}</p>
+            <button
+              data-testid='async-update'
+              onClick={() => onInputChange('Jordan')}
+            >
+              update
+            </button>
+            <button data-testid='async-reset' onClick={() => reset()}>
+              reset
+            </button>
+          </div>
+        )}
+      </Field>
+    ));
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('async-defaultValue').textContent).toBe('Taylor');
+
+    await act(async () => {
+      screen.getByTestId('async-update').click();
+    });
+
+    expect(screen.getByTestId('async-defaultValue').textContent).toBe('Jordan');
+
+    await act(async () => {
+      screen.getByTestId('async-reset').click();
+    });
+
+    expect(screen.getByTestId('async-defaultValue').textContent).toBe('Taylor');
+  });
 });

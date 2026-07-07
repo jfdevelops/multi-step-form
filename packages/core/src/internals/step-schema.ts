@@ -100,6 +100,9 @@ export namespace MultiStepFormStepSchemaInternal {
      * @returns
      */
     setValue: (value: value) => void;
+    getResetStepValue?: <targetStep extends StepNumbers<value>>(
+      step: targetStep,
+    ) => value[targetStep];
   }
 }
 
@@ -135,6 +138,9 @@ export class MultiStepFormStepSchemaInternal<
   readonly #additionalEnrichedProps?: (step: number) => additionalEnrichedProps;
   readonly #getValue: () => value;
   readonly #setValue: (value: value) => void;
+  readonly #getResetStepValue?: <targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) => value[targetStep];
 
   private get value() {
     return this.#getValue();
@@ -147,13 +153,20 @@ export class MultiStepFormStepSchemaInternal<
       additionalEnrichedProps
     >
   ) {
-    const { getValue, setValue, originalValue, additionalEnrichedProps } =
+    const {
+      getValue,
+      setValue,
+      originalValue,
+      additionalEnrichedProps,
+      getResetStepValue,
+    } =
       options;
 
     this.#originalValue = originalValue;
     this.#getValue = getValue;
     this.#setValue = setValue;
     this.#additionalEnrichedProps = additionalEnrichedProps;
+    this.#getResetStepValue = getResetStepValue;
   }
 
   private handlePostUpdate(value: value) {
@@ -532,26 +545,28 @@ export class MultiStepFormStepSchemaInternal<
       debug,
       prefix: (value) => `${value}:reset${targetStep}`,
     });
-    const originalValues = instantiateSteps({
-      steps: this.#originalValue as instantiateStepsConfig['steps'],
-    });
-    const enrichedOriginalValues = this.enrichValues(
-      originalValues,
-      this.#additionalEnrichedProps
-    ) as value;
+    const currentValues = this.value;
+    const resetStepValue =
+      this.#getResetStepValue?.(targetStep) ?? currentValues[targetStep];
+    const resetSourceValues = {
+      ...currentValues,
+      [targetStep]: resetStepValue,
+    } as value;
 
     if (fields === 'all') {
       logger.info(`Resetting all fields for ${targetStep}`);
-      this.handlePostUpdate(enrichedOriginalValues);
+      this.handlePostUpdate(resetSourceValues);
       logger.info(`Reset all fields for ${targetStep}`);
+
+      return;
     }
 
-    let updatedValues = { ...enrichedOriginalValues };
+    let updatedValues = { ...currentValues };
     const reset = this.resetFields<targetStep, currentStep>({
       logger,
       targetStep,
       updatedValues,
-      values: enrichedOriginalValues,
+      values: resetSourceValues,
     });
 
     if (HelperFnChosenSteps.isTuple<DeepKeys<currentStep>>(fields)) {

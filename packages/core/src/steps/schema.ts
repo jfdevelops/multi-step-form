@@ -459,6 +459,7 @@ export class MultiStepFormStepSchema<
       originalValue: this.original,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next),
+      getResetStepValue: (step) => this.getResetStepValue(step),
     });
 
     this.value = this.#internal.enrichValues(this.value);
@@ -566,24 +567,184 @@ export class MultiStepFormStepSchema<
 
   private setBaseDefaultValues() {
     for (const stepKey of Object.keys(this.value) as StepNumbers<value>[]) {
-      const currentStep = this.value[stepKey] as {
-        fields?: Record<string, unknown>;
-      };
+      this.setBaseDefaultValue(
+        stepKey,
+        this.value[stepKey] as Record<string, unknown>,
+      );
+    }
+  }
+
+  private setBaseDefaultValue<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+    stepValue: Record<string, unknown>,
+  ) {
+    const defaultValues = this.extractStepDefaultValues(stepValue);
+
+    if (!defaultValues) {
+      return;
+    }
+
+    this.#baseDefaultValues.set(step, defaultValues);
+  }
+
+  private extractStepDefaultValues(stepValue: Record<string, unknown>) {
+    if (
+      typeof stepValue !== 'object' ||
+      stepValue === null ||
+      !('fields' in stepValue) ||
+      typeof stepValue.fields !== 'object' ||
+      stepValue.fields === null ||
+      Object.keys(stepValue.fields).length === 0
+    ) {
+      return;
+    }
+
+    return Object.fromEntries(
+      Object.entries(stepValue.fields as Record<string, unknown>).map(
+        ([fieldName, fieldValue]) => [
+          fieldName,
+          typeof fieldValue === 'object' &&
+          fieldValue !== null &&
+          'defaultValue' in fieldValue
+            ? (fieldValue as { defaultValue: unknown }).defaultValue
+            : undefined,
+        ],
+      ),
+    );
+  }
+
+  private mergeResolvedStepWithCurrentValues<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+    resolvedStep: value[targetStep],
+  ) {
+    const currentStep = this.value[step] as {
+      fields?: Record<string, Record<string, unknown>>;
+    };
+    const nextStep = resolvedStep as value[targetStep] & {
+      fields?: Record<string, Record<string, unknown>>;
+    };
+
+    if (
+      typeof currentStep !== 'object' ||
+      currentStep === null ||
+      typeof currentStep.fields !== 'object' ||
+      currentStep.fields === null ||
+      typeof nextStep !== 'object' ||
+      nextStep === null ||
+      typeof nextStep.fields !== 'object' ||
+      nextStep.fields === null
+    ) {
+      return resolvedStep;
+    }
+
+    const nextFields = { ...nextStep.fields };
+    let hasMergedStoredValue = false;
+
+    for (const [fieldName, fieldValue] of Object.entries(currentStep.fields)) {
+      const resolvedField = nextFields[fieldName];
 
       if (
-        typeof currentStep !== 'object' ||
-        currentStep === null ||
-        typeof currentStep.fields !== 'object' ||
-        Object.keys(currentStep.fields).length === 0
+        typeof fieldValue !== 'object' ||
+        fieldValue === null ||
+        typeof resolvedField !== 'object' ||
+        resolvedField === null ||
+        !('defaultValue' in fieldValue) ||
+        !('defaultValue' in resolvedField)
       ) {
         continue;
       }
 
-      this.#baseDefaultValues.set(
-        stepKey,
-        getDefaultValues(this.value, stepKey) as Record<string, unknown>,
-      );
+      nextFields[fieldName] = {
+        ...resolvedField,
+        defaultValue: fieldValue.defaultValue,
+      };
+      hasMergedStoredValue = true;
     }
+
+    if (!hasMergedStoredValue) {
+      return resolvedStep;
+    }
+
+    return {
+      ...nextStep,
+      fields: nextFields,
+    } as value[targetStep];
+  }
+
+  protected getResetStepValue<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    const fallbackStep = this.applyBaseDefaultValues(step, this.value[step]);
+    const resolvedDefinition = this.#resolvedAsyncStepDefinitions.get(step);
+    const originalStep =
+      resolvedDefinition ?? this.original[step as keyof def['steps']];
+
+    if (!originalStep || typeof originalStep === 'function') {
+      return fallbackStep;
+    }
+
+    try {
+      const instantiatedStep = instantiateSteps({
+        steps: {
+          [step]: originalStep,
+        },
+      })[step];
+
+      return this.applyBaseDefaultValues(
+        step,
+        this.#internal.enrichValues({
+          [step]: instantiatedStep,
+        } as Record<string, unknown>)[step] as value[targetStep],
+      );
+    } catch {
+      return fallbackStep;
+    }
+  }
+
+  private applyBaseDefaultValues<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+    stepValue: value[targetStep],
+  ) {
+    const baseDefaults = this.#baseDefaultValues.get(step);
+    const currentStep = stepValue as value[targetStep] & {
+      fields?: Record<string, Record<string, unknown>>;
+    };
+
+    if (
+      !baseDefaults ||
+      typeof currentStep !== 'object' ||
+      currentStep === null ||
+      typeof currentStep.fields !== 'object' ||
+      currentStep.fields === null
+    ) {
+      return stepValue;
+    }
+
+    const nextFields = { ...currentStep.fields };
+    let hasAppliedBaseDefaults = false;
+
+    for (const [fieldName, defaultValue] of Object.entries(baseDefaults)) {
+      const field = nextFields[fieldName];
+
+      if (typeof field !== 'object' || field === null) {
+        continue;
+      }
+
+      nextFields[fieldName] = {
+        ...field,
+        defaultValue,
+      };
+      hasAppliedBaseDefaults = true;
+    }
+
+    if (!hasAppliedBaseDefaults) {
+      return stepValue;
+    }
+
+    return {
+      ...currentStep,
+      fields: nextFields,
+    } as value[targetStep];
   }
 
   private initializeOverrideState() {
@@ -734,12 +895,19 @@ export class MultiStepFormStepSchema<
         [step]: resolvedStepDefinition,
       },
     })[step];
+    const mergedStep = this.mergeResolvedStepWithCurrentValues(
+      step,
+      instantiatedStep,
+    );
 
-    this.handlePostUpdate({
-      ...this.value,
-      [step]: instantiatedStep,
-    } as value);
-    this.setBaseDefaultValues();
+    this.setBaseDefaultValue(step, instantiatedStep as Record<string, unknown>);
+
+    this.handlePostUpdate(
+      this.#internal.enrichValues({
+        ...this.value,
+        [step]: mergedStep,
+      } as Record<string, unknown>) as value,
+    );
   }
 
   /**
@@ -770,7 +938,7 @@ export class MultiStepFormStepSchema<
 
   async resolveStep<targetStep extends StepNumbers<value>>(
     step: targetStep,
-  ) {
+  ): Promise<value[targetStep]> {
     const currentState = this.getOverrideState(step);
 
     if (currentState.status === 'resolved') {

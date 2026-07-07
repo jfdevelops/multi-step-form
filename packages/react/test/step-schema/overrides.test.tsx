@@ -253,6 +253,80 @@ describe('step overrides', () => {
     expect(screen.getByTestId('mixed-step2-value').textContent).toBe('31');
   });
 
+  it('useStep preserves persisted async step values after the step resolves', async () => {
+    const storageKey = `react-async-step-persist-${Date.now()}`;
+    const seedSchema = createMultiStepFormSchema({
+      storage: {
+        key: storageKey,
+        store: window.localStorage,
+      },
+      steps: {
+        step1: async () => ({
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        }),
+      },
+    });
+
+    await seedSchema.stepSchema.resolveStep('step1');
+    seedSchema.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Jordan',
+    });
+
+    const deferred = createDeferred<{ title: string }>();
+    const schema = createMultiStepFormSchema({
+      storage: {
+        key: storageKey,
+        store: window.localStorage,
+      },
+      steps: {
+        step1: async () => ({
+          title: (await deferred.promise).title,
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        }),
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ useStep }) => {
+      const { data, status } = useStep();
+
+      return (
+        <>
+          <p data-testid='persisted-status'>{status}</p>
+          <p data-testid='persisted-value'>
+            {data.fields.firstName.defaultValue}
+          </p>
+          <p data-testid='persisted-title'>{data.title}</p>
+        </>
+      );
+    });
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('persisted-value').textContent).toBe('Jordan');
+
+    await act(async () => {
+      deferred.resolve({
+        title: 'Resolved Step 1',
+      });
+    });
+
+    expect(screen.getByTestId('persisted-status').textContent).toBe('resolved');
+    expect(screen.getByTestId('persisted-value').textContent).toBe('Jordan');
+    expect(screen.getByTestId('persisted-title').textContent).toBe(
+      'Resolved Step 1',
+    );
+  });
+
   it('suspends the full step through Suspend', async () => {
     const deferred = createDeferred<{ firstName: string }>();
     const schema = createMultiStepFormSchema({
