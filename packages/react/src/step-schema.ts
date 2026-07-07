@@ -2,7 +2,6 @@ import {
   buildValuePath,
   createCtx,
   createInvariant,
-  instantiateSteps as instantiateStepsCore,
   type Expand,
   getDefaultValues,
   type HelperFn,
@@ -101,44 +100,60 @@ export class MultiStepFormStepSchema<
   implements HelperFunctions<def, value>
 {
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  value: value;
+  declare value: value;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+  private internal?: MultiStepFormStepSchemaInternal<def, value>;
+  private formId?: string;
+  private instantiatedForm?: ReturnType<
+    ReturnType<typeof MultiStepFormSchemaConfig.instantiateFormConfig<def>>
+  >;
 
   constructor(config: MultiStepFormStepSchema.config<def, value>) {
     const { form, ...rest } = config;
 
     super(rest as never);
-
-    this.value = instantiateStepsCore({ steps: this.original });
+    this.formId = form?.id;
 
     // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-    this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
+    this.internal = new MultiStepFormStepSchemaInternal<def, value>({
       originalValue: this.original,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next as never),
     });
 
-    this.sync();
-
     const createFormConfig = MultiStepFormSchemaConfig.instantiateFormConfig(
       this.value as never,
       this.steps.value
     );
-    const instantiatedForm = createFormConfig(form as never);
-    this.value = this.#internal.enrichValues(this.value, (step) => {
-      const targetStep = `step${step}` as StepNumbers<value>;
+    this.instantiatedForm = createFormConfig(form as never);
+    this.value = this.enrichWithReactHelpers(this.value);
+  }
 
-      const id = form?.id ?? targetStep;
+  private enrichWithReactHelpers(next: value) {
+    return this.internal!.enrichValues(next, (step) => {
+      const targetStep = `step${step}` as StepNumbers<value>;
+      const id = this.formId ?? targetStep;
 
       return {
         createComponent: this.createStepSpecificComponentFactory(targetStep, {
           isStepSpecific: true,
           defaultId: id,
-          form: instantiatedForm,
+          form: this.instantiatedForm,
         }),
       };
     });
+  }
+
+  protected override handlePostUpdate(next: value) {
+    super.handlePostUpdate(this.enrichWithReactHelpers(next));
+  }
+
+  override sync() {
+    super.sync();
+    if (!this.internal) {
+      return;
+    }
+    this.value = this.enrichWithReactHelpers(this.value);
   }
 
   private createResolvedCtx<
@@ -412,8 +427,8 @@ export class MultiStepFormStepSchema<
 
         let fnInput = {
           ctx: resolvedCtx,
-          onInputChange: this.#internal.createStepUpdaterFn(step),
-          reset: this.#internal.createStepResetterFn(step),
+          onInputChange: this.internal!.createStepUpdaterFn(step),
+          reset: this.internal!.createStepResetterFn(step),
           Field,
           Suspend: SuspendStep,
           useStep,
@@ -542,8 +557,8 @@ export class MultiStepFormStepSchema<
     return createComponent({
       fn,
       input: ({ stepData }) => ({
-        reset: this.#internal.createHelperFnInputReset(stepData),
-        update: this.#internal.createHelperFnInputUpdate(stepData),
+        reset: this.internal!.createHelperFnInputReset(stepData),
+        update: this.internal!.createHelperFnInputUpdate(stepData),
       }),
       options,
       value: this.value,

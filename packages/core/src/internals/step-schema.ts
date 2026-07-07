@@ -11,7 +11,7 @@ import type { UpdateFn } from '@/steps/fn-utils/update-fn';
 import {
   instantiateSteps,
   type instantiateStepsConfig,
-  type StepConfig,
+  type instantiateAsyncStepsConfig,
   type StepNumbers,
 } from '@/steps/steps';
 import { functionalUpdate, omit } from '@/steps/utils';
@@ -105,11 +105,12 @@ export namespace MultiStepFormStepSchemaInternal {
 
 export namespace StepSchema {
   export type Config<
-    TSteps extends StepConfig = StepConfig,
+    TSteps extends instantiateAsyncStepsConfig['steps'] = instantiateAsyncStepsConfig['steps'],
     TCasing extends CasingType = DefaultCasing,
     TStorageKey extends string = string
-  > = instantiateStepsConfig<TSteps> &
-    NameTransformCasingOptions<TCasing> & {
+  > = {
+    steps: TSteps;
+  } & NameTransformCasingOptions<TCasing> & {
       /**
        * The options for the storage module.
        */
@@ -532,7 +533,7 @@ export class MultiStepFormStepSchemaInternal<
       prefix: (value) => `${value}:reset${targetStep}`,
     });
     const originalValues = instantiateSteps({
-      steps: this.#originalValue,
+      steps: this.#originalValue as instantiateStepsConfig['steps'],
     });
     const enrichedOriginalValues = this.enrichValues(
       originalValues,

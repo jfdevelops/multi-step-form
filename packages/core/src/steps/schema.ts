@@ -30,6 +30,7 @@ import type { ResetFn } from './fn-utils/reset-fn';
 import type { UpdateFn } from './fn-utils/update-fn';
 import {
   type AnyConfig,
+  type AsyncStepDefinition,
   instantiateSteps,
   isValidSteps,
   type StepResolvedData,
@@ -429,6 +430,10 @@ export class MultiStepFormStepSchema<
     StepNumbers<value>,
     Record<string, unknown>
   >();
+  readonly #resolvedAsyncStepDefinitions = new Map<
+    StepNumbers<value>,
+    Record<string, unknown>
+  >();
   readonly #overrideState = new Map<
     StepNumbers<value>,
     StepOverrideResolutionState
@@ -449,8 +454,7 @@ export class MultiStepFormStepSchema<
     ) as def['nameTransformCasing'];
 
     this.original = steps;
-
-    this.value = instantiateSteps({ steps });
+    this.value = this.instantiateInitialSteps();
     this.#internal = new MultiStepFormStepSchemaInternal({
       originalValue: this.original,
       getValue: () => this.value,
@@ -465,15 +469,10 @@ export class MultiStepFormStepSchema<
       store: storage?.store,
       throwWhenUndefined: storage?.throwWhenUndefined,
     });
-    this.#stepNumbers = Object.keys(this.value).map((key) =>
+    this.#stepNumbers = Object.keys(this.original).map((key) =>
       Number.parseInt(key.replace('step', '')),
     );
-    for (const stepKey of Object.keys(this.value) as StepNumbers<value>[]) {
-      this.#baseDefaultValues.set(
-        stepKey,
-        getDefaultValues(this.value, stepKey) as Record<string, unknown>,
-      );
-    }
+    this.setBaseDefaultValues();
 
     this.steps = {
       value: this.#stepNumbers as unknown as ReadonlyArray<StepNumbers<value>>,
@@ -536,11 +535,63 @@ export class MultiStepFormStepSchema<
     this.initializeOverrideState();
   }
 
-  private initializeOverrideState() {
+  private instantiateInitialSteps() {
+    const resolvedSteps = Object.entries(this.original).reduce(
+      (acc, [stepKey, stepValue]) => {
+        if (typeof stepValue === 'function') {
+          acc[stepKey] = {
+            title: stepKey,
+            nameTransformCasing: this.defaultNameTransformationCasing,
+            fields: {},
+          };
+
+          return acc;
+        }
+
+        const instantiatedStep = instantiateSteps({
+          steps: {
+            [stepKey]: stepValue,
+          },
+        })[stepKey as keyof typeof acc];
+
+        acc[stepKey] = instantiatedStep;
+
+        return acc;
+      },
+      {} as Record<string, unknown>,
+    );
+
+    return resolvedSteps as value;
+  }
+
+  private setBaseDefaultValues() {
     for (const stepKey of Object.keys(this.value) as StepNumbers<value>[]) {
+      const currentStep = this.value[stepKey] as {
+        fields?: Record<string, unknown>;
+      };
+
+      if (
+        typeof currentStep !== 'object' ||
+        currentStep === null ||
+        typeof currentStep.fields !== 'object' ||
+        Object.keys(currentStep.fields).length === 0
+      ) {
+        continue;
+      }
+
+      this.#baseDefaultValues.set(
+        stepKey,
+        getDefaultValues(this.value, stepKey) as Record<string, unknown>,
+      );
+    }
+  }
+
+  private initializeOverrideState() {
+    for (const stepKey of Object.keys(this.original) as StepNumbers<value>[]) {
       this.#overrideState.set(stepKey, {
         status:
-          this.hasOverrides(stepKey) && this.isStepUsingBaseDefaults(stepKey)
+          this.hasAsyncStepDefinition(stepKey) ||
+          (this.hasOverrides(stepKey) && this.isStepUsingBaseDefaults(stepKey))
             ? 'idle'
             : 'resolved',
       });
@@ -577,7 +628,9 @@ export class MultiStepFormStepSchema<
   private getStepOverride<targetStep extends StepNumbers<value>>(
     step: targetStep,
   ) {
-    const current = this.original[step as keyof def['steps']];
+    const current =
+      this.#resolvedAsyncStepDefinitions.get(step) ??
+      this.original[step as keyof def['steps']];
 
     if (!current || typeof current !== 'object') {
       return undefined;
@@ -650,6 +703,45 @@ export class MultiStepFormStepSchema<
     return this;
   }
 
+  private hasAsyncStepDefinition<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    return (
+      typeof this.original[step as keyof def['steps']] === 'function' &&
+      !this.#resolvedAsyncStepDefinitions.has(step)
+    );
+  }
+
+  private async resolveAsyncStepDefinition<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ) {
+    if (!this.hasAsyncStepDefinition(step)) {
+      return;
+    }
+
+    const stepDefinition = this.original[
+      step as keyof def['steps']
+    ] as AsyncStepDefinition<AnyConfig>;
+    const resolvedStepDefinition = await stepDefinition();
+
+    this.#resolvedAsyncStepDefinitions.set(
+      step,
+      resolvedStepDefinition as Record<string, unknown>,
+    );
+
+    const instantiatedStep = instantiateSteps({
+      steps: {
+        [step]: resolvedStepDefinition,
+      },
+    })[step];
+
+    this.handlePostUpdate({
+      ...this.value,
+      [step]: instantiatedStep,
+    } as value);
+    this.setBaseDefaultValues();
+  }
+
   /**
    * Syncs the values from storage to {@linkcode value}.
    */
@@ -679,10 +771,6 @@ export class MultiStepFormStepSchema<
   async resolveStep<targetStep extends StepNumbers<value>>(
     step: targetStep,
   ) {
-    if (!this.hasOverrides(step)) {
-      return this.value[step];
-    }
-
     const currentState = this.getOverrideState(step);
 
     if (currentState.status === 'resolved') {
@@ -695,15 +783,20 @@ export class MultiStepFormStepSchema<
       return this.value[step];
     }
 
-    const override = this.getStepOverride(step);
+    const promise = this.resolveAsyncStepDefinition(step)
+      .then(async () => {
+        const override = this.getStepOverride(step);
 
-    invariant(
-      typeof override === 'function',
-      `[resolveStep]: "${step}" does not have a valid override resolver`,
-    );
+        if (typeof override !== 'function') {
+          this.setOverrideState(step, {
+            status: 'resolved',
+          });
 
-    const promise = Promise.resolve(override(this.getResolvedStepData(step)))
-      .then((overrides) => {
+          return;
+        }
+
+        const overrides = await override(this.getResolvedStepData(step));
+
         this.#overrideState.set(step, {
           status: 'resolved',
         });
@@ -741,10 +834,6 @@ export class MultiStepFormStepSchema<
   }
 
   suspendStep<targetStep extends StepNumbers<value>>(step: targetStep) {
-    if (!this.hasOverrides(step)) {
-      return this.value[step];
-    }
-
     const state = this.getOverrideState(step);
 
     if (state.status === 'resolved') {

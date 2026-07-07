@@ -86,13 +86,25 @@ export type StepDefaultValues<TFields extends FieldConfig<CasingType>> = {
 };
 
 type JustStepConfig<T> = Pick<T, keyof T & keyof Config>;
-type OverrideStepConfig<T> = T extends Config<
+type OverrideStepConfig<T> = T extends AnyConfig
+  ? T
+  : T extends Config<
   infer TFields,
   infer TCasing,
   infer TValidator
 >
   ? Config<TFields, TCasing, TValidator>
   : never;
+type SyncStepDefinition<T> = (T extends {
+  title: string;
+  fields: FieldConfig<CasingType>;
+}
+  ? T
+  : JustStepConfig<T>) & {
+  overrides?: StepOverrides<OverrideStepConfig<T>>;
+};
+export type AsyncStepDefinition<T> = () =>
+  Promise<SyncStepDefinition<T>>;
 
 export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
   /**
@@ -119,11 +131,16 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
    *   },
    * }
    * ```
-   */
+  */
   steps: {
-    [key in keyof TMap]: JustStepConfig<TMap[key]> & {
-      overrides?: StepOverrides<OverrideStepConfig<TMap[key]>>;
-    };
+    [key in keyof TMap]: SyncStepDefinition<TMap[key]>;
+  };
+};
+export type instantiateAsyncStepsConfig<TMap extends StepConfig = StepConfig> = {
+  steps: {
+    [key in keyof TMap]:
+      | instantiateStepsConfig<TMap>['steps'][key]
+      | AsyncStepDefinition<TMap[key]>;
   };
 };
 /**
@@ -141,31 +158,44 @@ export interface StepExtension<
   _TKey extends keyof TValue,
 > {}
 
-export type _instantiateSteps<T = unknown> = [T] extends [object]
-  ? T extends instantiateStepsConfig
-    ? {
-        -readonly [key in keyof T['steps']]: Expand<
+type ResolvedStepConfig<T> = T extends AsyncStepDefinition<infer TConfig>
+  ? TConfig
+  : T;
+type InferStepMapFromConfig<T> = T extends {
+  steps: infer TSteps extends Record<string, unknown>;
+}
+  ? {
+      [key in keyof TSteps]: ResolvedStepConfig<TSteps[key]>;
+    }
+  : never;
+
+export type _instantiateSteps<T = unknown> =
+  [InferStepMapFromConfig<T>] extends [never]
+    ? {}
+    : {
+        -readonly [key in keyof InferStepMapFromConfig<T>]: Expand<
           {
             title: string;
             nameTransformCasing: inferNameTransformCasing<
-              T['steps'][key],
+              InferStepMapFromConfig<T>[key],
               DefaultCasing
             >;
             fields: StripStringIndex<
               instantiateFields<
-                T['steps'][key],
-                inferNameTransformCasing<T['steps'][key], DefaultCasing>
+                InferStepMapFromConfig<T>[key],
+                inferNameTransformCasing<
+                  InferStepMapFromConfig<T>[key],
+                  DefaultCasing
+                >
               >
             >;
-          } & (T['steps'][key] extends {
+          } & (InferStepMapFromConfig<T>[key] extends {
             description: infer description extends string;
           }
             ? { description: description }
             : {})
         >;
-      }
-    : {}
-  : {};
+      };
 export type BaseStepFunctions<
   def,
   value extends _instantiateSteps<def>,
@@ -199,6 +229,33 @@ export type getCurrentStep<
   value extends instantiateSteps,
   stepNumbers extends StepNumbers<value>,
 > = value[stepNumbers];
+
+function hasAsyncStepDefinition(steps: Record<string, unknown>) {
+  return Object.values(steps).some((stepValue) => typeof stepValue === 'function');
+}
+
+export function resolveStepDefinitions<const TMap extends StepConfig>(
+  steps: instantiateAsyncStepsConfig<TMap>['steps'],
+):
+  | instantiateStepsConfig<TMap>['steps']
+  | Promise<instantiateStepsConfig<TMap>['steps']> {
+  if (!hasAsyncStepDefinition(steps as Record<string, unknown>)) {
+    return steps as instantiateStepsConfig<TMap>['steps'];
+  }
+
+  return Promise.all(
+    Object.entries(steps).map(async ([stepKey, stepValue]) => {
+      const resolved =
+        typeof stepValue === 'function' ? await stepValue() : stepValue;
+
+      return [stepKey, resolved] as const;
+    }),
+  ).then((resolvedEntries) => {
+    return Object.fromEntries(
+      resolvedEntries,
+    ) as instantiateStepsConfig<TMap>['steps'];
+  });
+}
 
 export function instantiateSteps<
   const def extends instantiateStepsConfig,
@@ -240,7 +297,6 @@ export function instantiateSteps<
       nameTransformCasing = DEFAULT_CASING,
     } = stepValue;
 
-    // title validation
     invariant(title, 'A title must be provided for each step.', TypeError);
     invariant(
       typeof title === 'string',
@@ -281,7 +337,6 @@ export function instantiateSteps<
     resolvedSteps[stepKey] = {
       ...(resolvedSteps[stepKey] as Record<string, unknown>),
       title,
-      // Only add the description if it's defined
       ...(typeof description === 'string' ? { description } : {}),
       nameTransformCasing,
       fields: instantiatedFields,
