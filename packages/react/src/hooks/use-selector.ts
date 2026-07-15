@@ -10,9 +10,9 @@ import { useRef, useSyncExternalStore } from 'react';
 
 /**
  * Deep equality check that compares values regardless of property order.
- * Handles objects, arrays, primitives, and null/undefined.
+ * Handles objects, arrays, dates, primitives, and null/undefined.
  */
-function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(a: unknown, b: unknown) {
   // Same reference or both are the same primitive value
   if (a === b) {
     return true;
@@ -31,6 +31,15 @@ function deepEqual(a: unknown, b: unknown): boolean {
   // Both are primitives (but not equal due to first check)
   if (typeof a !== 'object') {
     return false;
+  }
+
+  // Dates are equal when their timestamps match, including invalid dates
+  if (a instanceof Date || b instanceof Date) {
+    return (
+      a instanceof Date &&
+      b instanceof Date &&
+      Object.is(a.getTime(), b.getTime())
+    );
   }
 
   // Both are arrays
