@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.36
+
+### Patch Changes
+
+- 81ccf36: fix: expose the helper-style `update` API to step-specific components
+
 ## 1.0.0-alpha.35
 
 ### Patch Changes
