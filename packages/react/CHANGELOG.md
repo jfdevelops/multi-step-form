@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.53
+
+### Patch Changes
+
+- 81ccf36: fix: expose the helper-style `update` API to step-specific components
+- Updated dependencies [81ccf36]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.36
+
 ## 1.0.0-alpha.52
 
 ### Patch Changes
