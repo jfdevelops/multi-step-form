@@ -257,6 +257,9 @@ describe('creating components via "createComponent" fn', () => {
               foo: {
                 defaultValue: '',
               },
+              sibling: {
+                defaultValue: '',
+              },
             },
           },
           step2: {
@@ -283,7 +286,7 @@ describe('creating components via "createComponent" fn', () => {
           ComponentPropsWithRef<'form'>,
           MultiStepFormSchemaConfig.defaultEnabledFor
         >
-      >(({ ctx, onInputChange }) => (
+      >(({ ctx, onInputChange, update }) => (
         <div>
           <p>Step 1 Title: {ctx.step1.title}</p>
           <input
@@ -312,7 +315,7 @@ describe('creating components via "createComponent" fn', () => {
 
       expect(lastCall).toBeDefined();
 
-      const [{ ctx, onInputChange }] = lastCall!;
+      const [{ ctx, onInputChange, update }] = lastCall!;
 
       expect(ctx).toBeDefined();
       expect(ctx).toHaveProperty('step1');
@@ -327,6 +330,22 @@ describe('creating components via "createComponent" fn', () => {
       });
       expect(schema.stepSchema.value.step1.fields.foo.defaultValue).toBe(
         'New value',
+      );
+      expect(update).toBeTypeOf('function');
+      update({
+        targetStep: 'step1',
+        fields: ['fields.sibling.defaultValue'],
+        updater: () => 'Updated directly',
+      });
+      expect(schema.stepSchema.value.step1.fields.sibling.defaultValue).toBe(
+        'Updated directly',
+      );
+      update.step1({
+        fields: ['fields.sibling.defaultValue'],
+        updater: () => 'Updated through step helper',
+      });
+      expect(schema.stepSchema.value.step1.fields.sibling.defaultValue).toBe(
+        'Updated through step helper',
       );
     });
 

@@ -602,7 +602,7 @@ export class MultiStepFormStepSchemaInternal<
           {} as UpdateFn.createHelperFnForAllSteps<value, chosenSteps>
         );
         const update = Object.assign(
-          this.update,
+          this.update.bind(this),
           stepSpecificUpdateFn
         ) as UpdateFn.HelperFn<value, chosenSteps>;
 
@@ -618,7 +618,7 @@ export class MultiStepFormStepSchemaInternal<
           {} as UpdateFn.createHelperFnForObjectSteps<value, chosenSteps>
         );
         const update = Object.assign(
-          this.update,
+          this.update.bind(this),
           stepSpecificUpdateFn
         ) as UpdateFn.HelperFn<value, chosenSteps>;
 
@@ -633,7 +633,7 @@ export class MultiStepFormStepSchemaInternal<
           return acc;
         }, {} as UpdateFn.createHelperFnForTupleSteps<value, chosenSteps>);
         const update = Object.assign(
-          this.update,
+          this.update.bind(this),
           stepSpecificUpdateFn
         ) as UpdateFn.HelperFn<value, chosenSteps>;
 
