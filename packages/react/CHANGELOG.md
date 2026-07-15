@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.52
+
+### Patch Changes
+
+- d6ce32e: fix: compare Date objects by timestamp in selectors
+
 ## 1.0.0-alpha.51
 
 ### Patch Changes
