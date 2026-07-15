@@ -412,6 +412,7 @@ export class MultiStepFormStepSchema<
 
         let fnInput = {
           ctx: resolvedCtx,
+          update: this.#internal.createHelperFnInputUpdate(stepData),
           onInputChange: this.#internal.createStepUpdaterFn(step),
           reset: this.#internal.createStepResetterFn(step),
           Field,
