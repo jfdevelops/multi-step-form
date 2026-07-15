@@ -70,6 +70,36 @@ describe('multi step form step schema: reset', () => {
     );
   });
 
+  it('resets async steps from resolved definitions', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: async () => ({
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        }),
+      },
+    });
+
+    await schema.stepSchema.resolveStep('step1');
+    schema.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Jordan',
+    });
+
+    expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      'Jordan',
+    );
+
+    expect(() => schema.stepSchema.value.step1.reset()).not.toThrow();
+    expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      'Taylor',
+    );
+  });
+
   describe('tuple notation', () => {
     it('should reset the specified field', () => {
       const schema = createMultiStepFormSchema({

@@ -7,7 +7,6 @@ import {
   type HelperFnChosenSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
-  type StepConfig,
   type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import {
@@ -216,8 +215,8 @@ export class MultiStepFormSchema<
   }
 }
 
-export function createMultiStepFormSchema<const steps extends StepConfig>(
-  options: StepSchema.Config<steps>,
-) {
+export function createMultiStepFormSchema<
+  const steps extends StepSchema.Config['steps'],
+>(options: StepSchema.Config<steps>) {
   return new MultiStepFormSchema<StepSchema.Config<steps>>(options);
 }

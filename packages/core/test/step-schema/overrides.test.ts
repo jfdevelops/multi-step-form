@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMultiStepFormSchema } from '../../src';
+import { createMockStorage } from '../utils/create-mock-storage';
 
 describe('multi step form step schema: overrides', () => {
   it('resolves async overrides for a single step', async () => {
@@ -94,6 +95,53 @@ describe('multi step form step schema: overrides', () => {
     expect(schema.stepSchema.getValue('step1', 'saveToAccount')).toBe(false);
     expect(schema.stepSchema.value.step1.fields.saveToAccount.defaultValue).toBe(
       false,
+    );
+  });
+
+  it('preserves persisted async step values when the step definition resolves', async () => {
+    const store = createMockStorage();
+    const storageKey = `async-step-persist-${Date.now()}`;
+    const createSchema = () =>
+      createMultiStepFormSchema({
+        storage: {
+          key: storageKey,
+          store,
+        },
+        steps: {
+          step1: async () => ({
+            title: 'Step 1',
+            description: 'Resolved asynchronously',
+            fields: {
+              firstName: {
+                defaultValue: 'Taylor',
+              },
+            },
+          }),
+        },
+      });
+
+    const initialSchema = createSchema();
+
+    await initialSchema.stepSchema.resolveStep('step1');
+    initialSchema.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Jordan',
+    });
+
+    const rehydratedSchema = createSchema();
+
+    expect(rehydratedSchema.stepSchema.getValue('step1', 'firstName')).toBe(
+      'Jordan',
+    );
+
+    await rehydratedSchema.stepSchema.resolveStep('step1');
+
+    expect(rehydratedSchema.stepSchema.getStepStatus('step1')).toBe('resolved');
+    expect(rehydratedSchema.stepSchema.getValue('step1', 'firstName')).toBe(
+      'Jordan',
+    );
+    expect(rehydratedSchema.stepSchema.value.step1.description).toBe(
+      'Resolved asynchronously',
     );
   });
 });

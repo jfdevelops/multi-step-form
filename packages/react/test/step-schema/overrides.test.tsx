@@ -69,6 +69,264 @@ function createDeferred<T>() {
 }
 
 describe('step overrides', () => {
+  it('useStep returns resolved data immediately for fully sync step definitions', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        },
+        step2: {
+          title: 'Step 2',
+          fields: {
+            age: {
+              defaultValue: 42,
+            },
+          },
+        },
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ useStep }) => {
+      const { data, status, error } = useStep();
+
+      return (
+        <>
+          <p data-testid='status'>{status}</p>
+          <p data-testid='value'>{data.fields.firstName.defaultValue}</p>
+          <p data-testid='error'>{error === undefined ? 'none' : 'error'}</p>
+        </>
+      );
+    });
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('status').textContent).toBe('resolved');
+    expect(screen.getByTestId('value').textContent).toBe('Taylor');
+    expect(screen.getByTestId('error').textContent).toBe('none');
+  });
+
+  it('useStep resolves fully async step definitions without top-level schema await', async () => {
+    const firstName = createDeferred<string>();
+    const age = createDeferred<number>();
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: async () => ({
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: await firstName.promise,
+            },
+          },
+        }),
+        step2: async () => ({
+          title: 'Step 2',
+          fields: {
+            age: {
+              defaultValue: await age.promise,
+            },
+          },
+        }),
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ useStep }) => {
+      const { data, status } = useStep();
+
+      return (
+        <>
+          <p data-testid='step1-status'>{status}</p>
+          <p data-testid='step1-value'>
+            {status === 'resolved'
+              ? data.fields.firstName.defaultValue
+              : 'pending'}
+          </p>
+        </>
+      );
+    });
+
+    const Step2 = schema.stepSchema.value.step2.createComponent(({ useStep }) => {
+      const { data, status } = useStep();
+
+      return (
+        <>
+          <p data-testid='step2-status'>{status}</p>
+          <p data-testid='step2-value'>
+            {status === 'resolved' ? String(data.fields.age.defaultValue) : 'pending'}
+          </p>
+        </>
+      );
+    });
+
+    const screen = await renderInJsdom(
+      <>
+        <Step1 />
+        <Step2 />
+      </>,
+    );
+
+    expect(screen.getByTestId('step1-value').textContent).toBe('pending');
+    expect(screen.getByTestId('step2-value').textContent).toBe('pending');
+
+    await act(async () => {
+      firstName.resolve('Jordan');
+      age.resolve(27);
+    });
+
+    expect(screen.getByTestId('step1-status').textContent).toBe('resolved');
+    expect(screen.getByTestId('step2-status').textContent).toBe('resolved');
+    expect(screen.getByTestId('step1-value').textContent).toBe('Jordan');
+    expect(screen.getByTestId('step2-value').textContent).toBe('27');
+  });
+
+  it('useStep handles mixed sync and async step definitions', async () => {
+    const asyncAge = createDeferred<number>();
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        },
+        step2: async () => ({
+          title: 'Step 2',
+          fields: {
+            age: {
+              defaultValue: await asyncAge.promise,
+            },
+          },
+        }),
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ useStep }) => {
+      const { data, status } = useStep();
+
+      return (
+        <>
+          <p data-testid='mixed-step1-status'>{status}</p>
+          <p data-testid='mixed-step1-value'>{data.fields.firstName.defaultValue}</p>
+        </>
+      );
+    });
+
+    const Step2 = schema.stepSchema.value.step2.createComponent(({ useStep }) => {
+      const { data, status } = useStep();
+
+      return (
+        <>
+          <p data-testid='mixed-step2-status'>{status}</p>
+          <p data-testid='mixed-step2-value'>
+            {status === 'resolved' ? String(data.fields.age.defaultValue) : 'pending'}
+          </p>
+        </>
+      );
+    });
+
+    const screen = await renderInJsdom(
+      <>
+        <Step1 />
+        <Step2 />
+      </>,
+    );
+
+    expect(screen.getByTestId('mixed-step1-status').textContent).toBe(
+      'resolved',
+    );
+    expect(screen.getByTestId('mixed-step1-value').textContent).toBe('Taylor');
+    expect(screen.getByTestId('mixed-step2-value').textContent).toBe('pending');
+
+    await act(async () => {
+      asyncAge.resolve(31);
+    });
+
+    expect(screen.getByTestId('mixed-step2-status').textContent).toBe(
+      'resolved',
+    );
+    expect(screen.getByTestId('mixed-step2-value').textContent).toBe('31');
+  });
+
+  it('useStep preserves persisted async step values after the step resolves', async () => {
+    const storageKey = `react-async-step-persist-${Date.now()}`;
+    const seedSchema = createMultiStepFormSchema({
+      storage: {
+        key: storageKey,
+        store: window.localStorage,
+      },
+      steps: {
+        step1: async () => ({
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        }),
+      },
+    });
+
+    await seedSchema.stepSchema.resolveStep('step1');
+    seedSchema.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Jordan',
+    });
+
+    const deferred = createDeferred<{ title: string }>();
+    const schema = createMultiStepFormSchema({
+      storage: {
+        key: storageKey,
+        store: window.localStorage,
+      },
+      steps: {
+        step1: async () => ({
+          title: (await deferred.promise).title,
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        }),
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ useStep }) => {
+      const { data, status } = useStep();
+
+      return (
+        <>
+          <p data-testid='persisted-status'>{status}</p>
+          <p data-testid='persisted-value'>
+            {data.fields.firstName.defaultValue}
+          </p>
+          <p data-testid='persisted-title'>{data.title}</p>
+        </>
+      );
+    });
+
+    const screen = await renderInJsdom(<Step1 />);
+
+    expect(screen.getByTestId('persisted-value').textContent).toBe('Jordan');
+
+    await act(async () => {
+      deferred.resolve({
+        title: 'Resolved Step 1',
+      });
+    });
+
+    expect(screen.getByTestId('persisted-status').textContent).toBe('resolved');
+    expect(screen.getByTestId('persisted-value').textContent).toBe('Jordan');
+    expect(screen.getByTestId('persisted-title').textContent).toBe(
+      'Resolved Step 1',
+    );
+  });
+
   it('suspends the full step through Suspend', async () => {
     const deferred = createDeferred<{ firstName: string }>();
     const schema = createMultiStepFormSchema({

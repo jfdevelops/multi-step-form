@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     name: packageJson.name,
     environment: 'jsdom',
+    pool: 'threads',
+    maxWorkers: 1,
+    fileParallelism: false,
     browser: useBrowserMode
       ? {
           enabled: true,

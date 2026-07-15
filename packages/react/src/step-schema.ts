@@ -2,7 +2,6 @@ import {
   buildValuePath,
   createCtx,
   createInvariant,
-  instantiateSteps as instantiateStepsCore,
   type Expand,
   getDefaultValues,
   type HelperFn,
@@ -101,44 +100,141 @@ export class MultiStepFormStepSchema<
   implements HelperFunctions<def, value>
 {
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  value: value;
+  declare value: value;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+  private internal?: MultiStepFormStepSchemaInternal<def, value>;
+  private formId?: string;
+  private instantiatedForm?: ReturnType<
+    ReturnType<typeof MultiStepFormSchemaConfig.instantiateFormConfig<def>>
+  >;
+  readonly #initialFieldDefaultValues = new Map<string, unknown>();
 
   constructor(config: MultiStepFormStepSchema.config<def, value>) {
     const { form, ...rest } = config;
 
     super(rest as never);
-
-    this.value = instantiateStepsCore({ steps: this.original });
+    this.formId = form?.id;
 
     // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-    this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
+    this.internal = new MultiStepFormStepSchemaInternal<def, value>({
       originalValue: this.original,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next as never),
+      getResetStepValue: (step) => this.getResetStepValue(step as never),
     });
-
-    this.sync();
 
     const createFormConfig = MultiStepFormSchemaConfig.instantiateFormConfig(
       this.value as never,
       this.steps.value
     );
-    const instantiatedForm = createFormConfig(form as never);
-    this.value = this.#internal.enrichValues(this.value, (step) => {
-      const targetStep = `step${step}` as StepNumbers<value>;
+    this.instantiatedForm = createFormConfig(form as never);
+    this.value = this.enrichWithReactHelpers(this.value);
+  }
 
-      const id = form?.id ?? targetStep;
+  private enrichWithReactHelpers(next: value) {
+    return this.internal!.enrichValues(next, (step) => {
+      const targetStep = `step${step}` as StepNumbers<value>;
+      const id = this.formId ?? targetStep;
 
       return {
         createComponent: this.createStepSpecificComponentFactory(targetStep, {
           isStepSpecific: true,
           defaultId: id,
-          form: instantiatedForm,
+          form: this.instantiatedForm,
         }),
       };
     });
+  }
+
+  private mergeStoredFieldValues<targetStep extends StepNumbers<value>>(
+    previousStep: value[targetStep],
+    nextStep: value[targetStep],
+  ) {
+    const current = previousStep as value[targetStep] & {
+      fields?: Record<string, Record<string, unknown>>;
+    };
+    const resolved = nextStep as value[targetStep] & {
+      fields?: Record<string, Record<string, unknown>>;
+    };
+
+    if (
+      typeof current !== 'object' ||
+      current === null ||
+      typeof current.fields !== 'object' ||
+      current.fields === null ||
+      typeof resolved !== 'object' ||
+      resolved === null ||
+      typeof resolved.fields !== 'object' ||
+      resolved.fields === null
+    ) {
+      return nextStep;
+    }
+
+    const fields = { ...resolved.fields };
+    let hasMergedStoredValue = false;
+
+    for (const [fieldName, fieldValue] of Object.entries(current.fields)) {
+      const resolvedField = fields[fieldName];
+
+      if (
+        typeof fieldValue !== 'object' ||
+        fieldValue === null ||
+        typeof resolvedField !== 'object' ||
+        resolvedField === null ||
+        !('defaultValue' in fieldValue) ||
+        !('defaultValue' in resolvedField)
+      ) {
+        continue;
+      }
+
+      fields[fieldName] = {
+        ...resolvedField,
+        defaultValue: fieldValue.defaultValue,
+      };
+      hasMergedStoredValue = true;
+    }
+
+    if (!hasMergedStoredValue) {
+      return nextStep;
+    }
+
+    return {
+      ...resolved,
+      fields,
+    } as value[targetStep];
+  }
+
+  protected override handlePostUpdate(next: value) {
+    super.handlePostUpdate(this.enrichWithReactHelpers(next));
+  }
+
+  override sync() {
+    super.sync();
+    if (!this.internal) {
+      return;
+    }
+    this.value = this.enrichWithReactHelpers(this.value);
+  }
+
+  override async resolveStep<targetStep extends StepNumbers<value>>(
+    step: targetStep,
+  ): Promise<value[targetStep]> {
+    const previousStep = this.value[step];
+    const shouldPreserveStoredValues =
+      typeof this.original[step as keyof def['steps']] === 'function';
+    const resolved = await super.resolveStep(step);
+    const mergedStep = shouldPreserveStoredValues
+      ? this.mergeStoredFieldValues(previousStep, this.value[step])
+      : this.value[step];
+
+    if (mergedStep !== this.value[step]) {
+      this.handlePostUpdate({
+        ...this.value,
+        [step]: mergedStep,
+      } as value);
+    }
+
+    return resolved;
   }
 
   private createResolvedCtx<
@@ -323,6 +419,7 @@ export class MultiStepFormStepSchema<
             const builtValuePath = buildValuePath(name);
             const fieldName = String(name);
             const [parentFieldName] = fieldName.split('.');
+            const resetFieldKey = `${step}:${builtValuePath}`;
             const fieldsRecord = currentStep.fields as Record<string, unknown>;
             const {
               label,
@@ -335,6 +432,10 @@ export class MultiStepFormStepSchema<
             };
 
             const targetFields = `fields.${builtValuePath}`;
+
+            if (!this.#initialFieldDefaultValues.has(resetFieldKey)) {
+              this.#initialFieldDefaultValues.set(resetFieldKey, defaultValue);
+            }
 
             return {
               defaultValue,
@@ -371,11 +472,16 @@ export class MultiStepFormStepSchema<
                 });
               },
               reset: (options?: UpdateFn.DebugOptions) =>
-                this.reset({
-                  fields: [targetFields] as never,
-                  targetStep: step,
+                this.update({
+                  partial: false,
+                  strict: true,
                   debug: options?.debug,
                   silentErrors: options?.silentErrors,
+                  targetStep: step,
+                  updater: this.#initialFieldDefaultValues.get(
+                    resetFieldKey,
+                  ) as never,
+                  fields: [targetFields] as never,
                 }),
             } as never;
           },
@@ -412,8 +518,8 @@ export class MultiStepFormStepSchema<
 
         let fnInput = {
           ctx: resolvedCtx,
-          onInputChange: this.#internal.createStepUpdaterFn(step),
-          reset: this.#internal.createStepResetterFn(step),
+          onInputChange: this.internal!.createStepUpdaterFn(step),
+          reset: this.internal!.createStepResetterFn(step),
           Field,
           Suspend: SuspendStep,
           useStep,
@@ -542,8 +648,8 @@ export class MultiStepFormStepSchema<
     return createComponent({
       fn,
       input: ({ stepData }) => ({
-        reset: this.#internal.createHelperFnInputReset(stepData),
-        update: this.#internal.createHelperFnInputUpdate(stepData),
+        reset: this.internal!.createHelperFnInputReset(stepData),
+        update: this.internal!.createHelperFnInputUpdate(stepData),
       }),
       options,
       value: this.value,
