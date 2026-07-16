@@ -3,6 +3,91 @@ import { createMultiStepFormSchema } from '../../src';
 import { createMockStorage } from '../utils/create-mock-storage';
 
 describe('multi step form step schema: update', () => {
+  it('updates only the target step when fields is all', () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          fields: {
+            firstName: { defaultValue: '' },
+          },
+          title: 'Step 1',
+        },
+        step3: {
+          fields: {
+            time: { defaultValue: '08:00' },
+          },
+          title: 'Step 3',
+        },
+      },
+    });
+    const {
+      update: _update,
+      reset: _reset,
+      createHelperFn: _createHelperFn,
+      ...step3
+    } = schema.stepSchema.value.step3;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    schema.stepSchema.update({
+      targetStep: 'step3',
+      updater: {
+        ...step3,
+        fields: {
+          ...step3.fields,
+          time: { ...step3.fields.time, defaultValue: '09:00' },
+        },
+      } as never,
+    });
+
+    expect(schema.stepSchema.value.step1.title).toBe('Step 1');
+    expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
+    expect(schema.stepSchema.value.step3.fields.time.defaultValue).toBe('09:00');
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('includes update context and formatted details in mismatch errors', () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step3: {
+          fields: {
+            location: { defaultValue: '' },
+            time: { defaultValue: '08:00' },
+          },
+          title: 'Step 3',
+        },
+      },
+    });
+    const invalidStepUpdate = {
+      fields: {
+        location: { defaultValue: 'Office' },
+      },
+      title: 'Step 3',
+    } as never;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(() =>
+      schema.stepSchema.update({
+        targetStep: 'step3',
+        updater: invalidStepUpdate,
+      })
+    ).toThrowError(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          '[update]: value mismatches for targetStep="step3", fields="all", strict=true, partial=false'
+        ),
+      })
+    );
+
+    expect(() =>
+      schema.stepSchema.update({
+        targetStep: 'step3',
+        updater: invalidStepUpdate,
+      })
+    ).toThrowError(/Missing key at "fields\.time"/);
+    consoleError.mockRestore();
+  });
+
   it.skip('should update the specified data immutably', () => {
     const schema = createMultiStepFormSchema({
       steps: {

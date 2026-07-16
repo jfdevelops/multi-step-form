@@ -143,8 +143,11 @@ export namespace UpdateFn {
     /**
      * The specific fields to update.
      *
-     * Optionally provide a value to narrow the results of the `ctx` in the
-     * updater `fn`.
+     * Omit this option or use `"all"` when the updater returns the full step
+     * object (excluding helper functions). Use an array of paths, such as
+     * `["fields.email.defaultValue"]`, or an object path config when patching
+     * selected values. Step-specific update helpers are preferred for patches.
+     * @default "all"
      */
     fields?: fields;
   }

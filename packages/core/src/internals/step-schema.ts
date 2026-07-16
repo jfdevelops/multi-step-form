@@ -1,4 +1,5 @@
 import { createCtx } from '@/steps';
+import { UpdateMismatchError } from '@/errors/update-mismatch';
 import type { NameTransformCasingOptions } from '@/steps/fields';
 import { HelperFn, HelperFnChosenSteps } from '@/steps/fn-utils/helper-fn';
 import type {
@@ -36,6 +37,8 @@ import {
 } from '@/utils/validator';
 
 function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
+  targetStep: string;
+  fields: unknown;
   strict: boolean;
   partial: boolean;
   silenceErrors: boolean;
@@ -43,7 +46,16 @@ function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   paths: paths[];
   actual: path.pickBy<def, paths>;
 }) {
-  const { strict, partial, actual, obj, paths, silenceErrors } = options;
+  const {
+    targetStep,
+    fields,
+    strict,
+    partial,
+    actual,
+    obj,
+    paths,
+    silenceErrors,
+  } = options;
 
   // Define the logic for when the update is considered valid
   const { mismatches, ok } = path.equalsAtPaths(obj, paths, actual);
@@ -71,13 +83,18 @@ function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   }
 
   if (!silenceErrors) {
-    invariant(
-      isValid,
-      `[update]: found value mismatches in ${path.printMismatches({
-        ok,
+    path.printMismatches({ ok, mismatches });
+
+    if (!isValid) {
+      throw new UpdateMismatchError({
+        targetStep,
+        fields,
+        strict,
+        partial,
         mismatches,
-      })}`
-    );
+        mismatchDetails: path.formatMismatches({ ok, mismatches }),
+      });
+    }
   }
 }
 
@@ -283,66 +300,50 @@ export class MultiStepFormStepSchemaInternal<
       );
 
       const functionKeys = new Set(['update', 'reset', 'createHelperFn']);
-      const stepKeys = Object.keys(this.value);
-      const updaterResultKeys = Object.keys(
-        updated as Record<string, unknown>
-      ).filter((value) => !functionKeys.has(value));
-      const missingKeys = stepKeys.filter(
-        (key) => !updaterResultKeys.includes(key)
+      const currentStepEntries = Object.entries(
+        currentStep as Record<string, unknown>
       );
+      const updatedStep = Object.fromEntries(
+        Object.entries(updated as Record<string, unknown>).filter(
+          ([key]) => !functionKeys.has(key)
+        )
+      );
+      const functions = Object.fromEntries(
+        currentStepEntries.filter(([key]) => functionKeys.has(key))
+      );
+      const expectedStep = Object.fromEntries(
+        currentStepEntries.filter(([key]) => !functionKeys.has(key))
+      );
+      const paths = path.createDeep(expectedStep);
 
-      for (const stepKey of stepKeys) {
-        // @ts-expect-error - we know the keys are present
-        const { update, reset, createHelperFn, ...currentStep } =
-          this.value[stepKey as keyof value];
+      verifyUpdate({
+        targetStep,
+        fields,
+        strict,
+        partial,
+        silenceErrors,
+        obj: expectedStep,
+        paths,
+        actual: updatedStep as never,
+      });
 
-        invariant(
-          updaterResultKeys.length === Object.keys(currentStep).length,
-          (formatter) => {
-            return `[update]: "updater" is missing keys ${formatter.format(
-              missingKeys
-            )}`;
-          }
-        );
-        const functions = { update, reset, createHelperFn };
-        const obj = { ...currentStep, update, reset, createHelperFn };
-        const paths = path.createDeep(obj);
-        const actual: Record<string, unknown> = {
-          ...updated,
+      logger.info('The entire step will be updated');
+
+      updatedValue = {
+        ...updatedValue,
+        [targetStep]: {
+          ...path.updateAt({
+            obj: expectedStep,
+            paths,
+            value: updatedStep as never,
+            partial,
+          }),
           ...functions,
-        };
+        },
+      };
 
-        verifyUpdate({
-          strict,
-          partial,
-          silenceErrors,
-          obj,
-          paths,
-          actual: actual as never,
-        });
-
-        logger.info('The entire step will be updated');
-
-        const currentUpdatedValue = updatedValue[
-          stepKey as keyof value
-        ] as Record<string, unknown>;
-        const updatedAtPath = path.updateAt({
-          obj: currentUpdatedValue,
-          paths,
-          value: actual as never,
-          partial,
-        });
-
-        updatedValue = {
-          ...updatedValue,
-          [targetStep]: updatedAtPath,
-        };
-
-        this.handlePostUpdate(updatedValue);
-        logger.info(
-          `The new value is: ${JSON.stringify(updatedValue, null, 2)}`
-        );
-      }
+      this.handlePostUpdate(updatedValue);
+      logger.info(`The new value is: ${JSON.stringify(updatedValue, null, 2)}`);
 
       return;
     }
@@ -362,6 +363,8 @@ export class MultiStepFormStepSchemaInternal<
       );
 
       verifyUpdate({
+        targetStep,
+        fields,
         strict,
         partial,
         silenceErrors,
@@ -411,6 +414,8 @@ export class MultiStepFormStepSchemaInternal<
 
       // TODO validate all values (deepest) are `true`
       verifyUpdate({
+        targetStep,
+        fields,
         strict,
         partial,
         silenceErrors,
