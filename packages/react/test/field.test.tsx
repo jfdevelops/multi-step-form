@@ -17,6 +17,7 @@ afterEach(async () => {
     });
     container.remove();
   }
+  window.localStorage.clear();
 });
 
 async function renderInJsdom(ui: ReactElement) {
@@ -46,6 +47,55 @@ async function renderInJsdom(ui: ReactElement) {
 }
 
 describe('Field', () => {
+  it('preserves a suspended input node and focus after a value update', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        },
+      },
+    });
+
+    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
+      <Field name='firstName' suspend fallback={<div>Loading</div>}>
+        {({ defaultValue, onInputChange }) => (
+          <input
+            data-testid='firstName'
+            value={defaultValue}
+            onChange={(event) => onInputChange(event.target.value)}
+          />
+        )}
+      </Field>
+    ));
+
+    const screen = await renderInJsdom(<Step1 />);
+    const originalInput = screen.getByTestId('firstName') as HTMLInputElement;
+
+    originalInput.focus();
+    expect(document.activeElement).toBe(originalInput);
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )?.set;
+
+      valueSetter?.call(originalInput, 'Jordan');
+      originalInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const updatedInput = screen.getByTestId('firstName') as HTMLInputElement;
+
+    expect(updatedInput).toBe(originalInput);
+    expect(document.activeElement).toBe(originalInput);
+    expect(updatedInput.value).toBe('Jordan');
+  });
+
   it('renders each children property to the dom', async () => {
     const date = new Date('2024-01-01T00:00:00.000Z');
     const schema = createMultiStepFormSchema({

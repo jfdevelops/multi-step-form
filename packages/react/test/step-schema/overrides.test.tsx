@@ -1,7 +1,8 @@
 import type { ComponentPropsWithRef, ReactElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
+import type { OverrideStatus } from '@jfdevelops/multi-step-form-core';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { createMultiStepFormSchema } from '../../src';
 
 (
@@ -202,6 +203,161 @@ describe('step overrides', () => {
     expect(screen.getByTestId('value').textContent).toBe('Jordan');
   });
 
+  it('isolates primitive and object useStep selectors', async () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: { defaultValue: 'Taylor' },
+            lastName: { defaultValue: 'Smith' },
+            email: { defaultValue: 'taylor@example.com' },
+            phoneNumber: { defaultValue: '555-0100' },
+          },
+        },
+      },
+    });
+    const firstNameRender = vi.fn();
+    const contactDetailsRender = vi.fn();
+
+    const FirstName = schema.stepSchema.value.step1.createComponent(
+      ({ useStep }) => {
+        const firstName = useStep({
+          selector: ({ data }) => data.fields.firstName.defaultValue,
+        });
+        firstNameRender();
+
+        return <p data-testid='selected-first-name'>{firstName}</p>;
+      },
+    );
+    const ContactDetails = schema.stepSchema.value.step1.createComponent(
+      ({ useStep }) => {
+        const contactDetails = useStep({
+          selector: ({ data }) => ({
+            email: data.fields.email.defaultValue,
+            phoneNumber: data.fields.phoneNumber.defaultValue,
+          }),
+        });
+        contactDetailsRender();
+
+        return <p data-testid='contact-details'>{contactDetails.email}</p>;
+      },
+    );
+    const Controls = schema.stepSchema.value.step1.createComponent(
+      ({ Field }) => (
+        <>
+          <Field name='lastName'>
+            {({ onInputChange }) => (
+              <button
+                data-testid='update-last-name'
+                onClick={() => onInputChange('Jones')}
+              />
+            )}
+          </Field>
+          <Field name='firstName'>
+            {({ onInputChange }) => (
+              <button
+                data-testid='update-first-name'
+                onClick={() => onInputChange('Jordan')}
+              />
+            )}
+          </Field>
+          <Field name='email'>
+            {({ onInputChange }) => (
+              <button
+                data-testid='update-email'
+                onClick={() => onInputChange('jordan@example.com')}
+              />
+            )}
+          </Field>
+        </>
+      ),
+    );
+
+    const screen = await renderInJsdom(
+      <>
+        <FirstName />
+        <ContactDetails />
+        <Controls />
+      </>,
+    );
+
+    expect(firstNameRender).toHaveBeenCalledTimes(1);
+    expect(contactDetailsRender).toHaveBeenCalledTimes(1);
+
+    await act(async () => screen.getByTestId('update-last-name').click());
+
+    expect(firstNameRender).toHaveBeenCalledTimes(1);
+    expect(contactDetailsRender).toHaveBeenCalledTimes(1);
+
+    await act(async () => screen.getByTestId('update-first-name').click());
+
+    expect(firstNameRender).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('selected-first-name').textContent).toBe(
+      'Jordan',
+    );
+    expect(contactDetailsRender).toHaveBeenCalledTimes(1);
+
+    await act(async () => screen.getByTestId('update-email').click());
+
+    expect(contactDetailsRender).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('contact-details').textContent).toBe(
+      'jordan@example.com',
+    );
+  });
+
+  it('resolves overrides and isolates a status selector from field updates', async () => {
+    const deferred = createDeferred<{ firstName: string }>();
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: { defaultValue: '' },
+          },
+          overrides: async () => deferred.promise,
+        },
+      },
+    });
+    const statusRender = vi.fn();
+
+    const Status = schema.stepSchema.value.step1.createComponent(
+      ({ useStep, Field }) => {
+        const status = useStep({
+          selector: (result) => result.status,
+        });
+        statusRender(status);
+
+        return (
+          <>
+            <p data-testid='selected-status'>{status}</p>
+            <Field name='firstName'>
+              {({ onInputChange }) => (
+                <button
+                  data-testid='update-resolved-field'
+                  onClick={() => onInputChange('Alex')}
+                />
+              )}
+            </Field>
+          </>
+        );
+      },
+    );
+
+    const screen = await renderInJsdom(<Status />);
+
+    expect(schema.stepSchema.getStepStatus('step1')).toBe('loading');
+
+    await act(async () => deferred.resolve({ firstName: 'Jordan' }));
+
+    expect(screen.getByTestId('selected-status').textContent).toBe('resolved');
+    const renderCountAfterResolution = statusRender.mock.calls.length;
+
+    await act(async () => screen.getByTestId('update-resolved-field').click());
+
+    expect(statusRender).toHaveBeenCalledTimes(renderCountAfterResolution);
+  });
+
   it('keeps non-overridden fields available after async step resolution', async () => {
     const deferred = createDeferred<{ firstName: string }>();
     const schema = createMultiStepFormSchema({
@@ -318,13 +474,33 @@ describe('step overrides', () => {
 
     schema.stepSchema.value.step1.createComponent(({ useStep }) => {
       const defaultResult = useStep();
-      const customResult = useStep<CustomError>();
+      const undefinedSelectorResult = useStep(undefined);
+      const error = new CustomError('Failed to load step defaults');
+      const customResult = useStep({
+        error,
+      });
+      const firstName = useStep({
+        selector: ({ data }) => data.fields.firstName.defaultValue,
+      });
+      const status = useStep({
+        selector: (result) => result.status,
+      });
+      const customError = useStep({
+        error,
+        selector: (result) => result.error,
+      });
 
       expectTypeOf(
         defaultResult.data.fields.firstName.defaultValue,
       ).toEqualTypeOf<string>();
       expectTypeOf(defaultResult.error).toEqualTypeOf<Error | undefined>();
+      expectTypeOf(
+        undefinedSelectorResult.data.fields.firstName.defaultValue,
+      ).toEqualTypeOf<string>();
       expectTypeOf(customResult.error).toEqualTypeOf<CustomError | undefined>();
+      expectTypeOf(firstName).toEqualTypeOf<string>();
+      expectTypeOf(status).toEqualTypeOf<OverrideStatus>();
+      expectTypeOf(customError).toEqualTypeOf<CustomError | undefined>();
 
       return null;
     });

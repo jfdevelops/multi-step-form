@@ -149,6 +149,12 @@ export namespace field {
   ) {
     const { propsCreator, subscribe, getValue, selectorCtx, suspendStep } = options;
 
+    function FieldResolutionGate({ children }: { children: ReactNode }) {
+      suspendStep?.();
+
+      return children;
+    }
+
     const Field: field.component<step> = (props) => {
       const { name, children, selectorFn } = props;
 
@@ -193,15 +199,9 @@ export namespace field {
       };
 
       if (props.suspend) {
-        function FieldResolutionGate() {
-          suspendStep?.();
-
-          return renderChildren();
-        }
-
         return (
           <Suspense fallback={props.fallback}>
-            <FieldResolutionGate />
+            <FieldResolutionGate>{renderChildren()}</FieldResolutionGate>
           </Suspense>
         );
       }

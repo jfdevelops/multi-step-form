@@ -23,7 +23,7 @@ import {
 } from '@jfdevelops/multi-step-form-core/_internals';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
-import { createUseSelector } from './hooks/use-selector';
+import { createUseSelector, deepEqual } from './hooks/use-selector';
 import { selector } from './selector';
 import {
   type instantiateReactSteps,
@@ -41,9 +41,9 @@ import {
   Suspense,
   createElement,
   useEffect,
-  useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
 
 export type CreateComponentFn<
   def extends StepSchema.Config,
@@ -173,21 +173,76 @@ export class MultiStepFormStepSchema<
   private createUseStep<targetStep extends StepNumbers<value>>(
     step: targetStep,
   ): StepSpecificComponent.useStep<def, value, targetStep> {
-    return <TError = Error>() => {
-      const status = useSyncExternalStore(
+    type StepResult<TError extends Error = Error> =
+      StepSpecificComponent.useStepResult<value, targetStep, TError>;
+
+    let cachedSnapshot: StepResult | undefined;
+
+    const getSnapshot = () => {
+      const data = this.value[step] as HelperFnChosenSteps.currentStep<
+        value,
+        [targetStep]
+      >;
+      const status = this.getStepStatus(step as never);
+      const error = this.getStepError(step as never);
+
+      if (
+        cachedSnapshot &&
+        Object.is(cachedSnapshot.data, data) &&
+        Object.is(cachedSnapshot.status, status) &&
+        Object.is(cachedSnapshot.error, error)
+      ) {
+        return cachedSnapshot;
+      }
+
+      const nextSnapshot: StepResult = {
+        data,
+        status,
+        error: error as Error | undefined,
+      };
+      cachedSnapshot = nextSnapshot;
+
+      return nextSnapshot;
+    };
+
+    function identity<T>(result: T) {
+      return result;
+    }
+
+    function selectedValuesEqual(first: unknown, second: unknown) {
+      if (Object.is(first, second)) {
+        return true;
+      }
+
+      if (
+        first === null ||
+        second === null ||
+        typeof first !== 'object' ||
+        typeof second !== 'object'
+      ) {
+        return false;
+      }
+
+      return deepEqual(first, second);
+    }
+
+    const useStep = <TError extends Error = Error, TSelected = StepResult<TError>>(
+      options?: StepSpecificComponent.useStepOptions<
+        def,
+        value,
+        targetStep,
+        TError,
+        TSelected
+      >,
+    ) => {
+      const getTypedSnapshot = () => getSnapshot() as StepResult<TError>;
+      const selected = useSyncExternalStoreWithSelector(
         this.subscribe,
-        () => this.getStepStatus(step as never),
-        () => this.getStepStatus(step as never),
-      );
-      const data = useSyncExternalStore(
-        this.subscribe,
-        () => this.value[step],
-        () => this.value[step],
-      ) as HelperFnChosenSteps.currentStep<value, [targetStep]>;
-      const error = useSyncExternalStore(
-        this.subscribe,
-        () => this.getStepError(step as never),
-        () => this.getStepError(step as never),
+        getTypedSnapshot,
+        getTypedSnapshot,
+        options?.selector ??
+          (identity as (result: StepResult<TError>) => TSelected),
+        selectedValuesEqual,
       );
 
       useEffect(() => {
@@ -196,12 +251,10 @@ export class MultiStepFormStepSchema<
         });
       }, []);
 
-      return {
-        data,
-        status,
-        error: error as TError | undefined,
-      };
+      return selected;
     };
+
+    return useStep as StepSpecificComponent.useStep<def, value, targetStep>;
   }
 
   private createStepSuspend<targetStep extends StepNumbers<value>>(
@@ -337,7 +390,6 @@ export class MultiStepFormStepSchema<
                 validFields: allAvailableFields,
               },
             );
-
             InvalidInternalStateError.invariant(
               'update' in currentStep,
               {
