@@ -286,7 +286,7 @@ describe('creating components via "createComponent" fn', () => {
           ComponentPropsWithRef<'form'>,
           MultiStepFormSchemaConfig.defaultEnabledFor
         >
-      >(({ ctx, onInputChange, update }) => (
+      >(({ ctx, onInputChange }) => (
         <div>
           <p>Step 1 Title: {ctx.step1.title}</p>
           <input

@@ -118,15 +118,23 @@ export namespace StepSpecificComponent {
     status: OverrideStatus;
     error: TError | undefined;
   };
+  export type useStepOptions<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    error extends Error = Error,
+    selected = useStepResult<value, targetStep, error>,
+  > = {
+    error?: error;
+    selector?: (ctx: useStepResult<value, targetStep, error>) => selected;
+  };
   export type useStep<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
-  > = <error extends Error = Error>() => useStepResult<
-    value,
-    targetStep,
-    error
-  >;
+  > = <error extends Error = Error, selected = useStepResult<value, targetStep, error>>(
+    options?: useStepOptions<def, value, targetStep, error, selected>,
+  ) => selected;
 
   export type suspendProps = {
     children: ReactNode;
@@ -173,7 +181,28 @@ export namespace StepSpecificComponent {
        */
       Selector: selector.component<buildCurrentStep<def, value, targetStep>>;
       /**
-       * Reactively resolves the current step overrides and exposes the current resolution status.
+       * Reactively resolves the current step overrides and exposes its state.
+       *
+       * Calling `useStep()` subscribes to the complete `{ data, status, error }`
+       * result. Pass a selector in the options when the component only needs a
+       * small part of the step state; the component then rerenders only when
+       * that selected result changes. Object and array selections use
+       * structural equality.
+       *
+       * Event handlers that only need a value when invoked should prefer a
+       * non-reactive snapshot or getter when one is available.
+       *
+       * @example
+       * const firstName = useStep({
+       *   selector: ({ data }) => data.fields.firstName.defaultValue,
+       * });
+       *
+       * const contactDetails = useStep({
+       *   selector: ({ data }) => ({
+       *     email: data.fields.email.defaultValue,
+       *     phoneNumber: data.fields.phoneNumber.defaultValue,
+       *   }),
+       * });
        */
       useStep: useStep<def, value, targetStep>;
       /**
