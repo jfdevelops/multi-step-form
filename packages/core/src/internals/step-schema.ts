@@ -1,4 +1,10 @@
 import { createCtx } from '@/steps';
+import { InvalidContextError } from '@/errors/invalid-context';
+import { InvalidInternalStateError } from '@/errors/invalid-internal-state';
+import { InvalidKeyError } from '@/errors/invalid-key';
+import { InvalidStepError } from '@/errors/invalid-step';
+import { InvalidUpdateError } from '@/errors/invalid-update';
+import { InvalidHelperInputError } from '@/errors/invalid-helper-input';
 import { UpdateMismatchError } from '@/errors/update-mismatch';
 import type { NameTransformCasingOptions } from '@/steps/fields';
 import { HelperFn, HelperFnChosenSteps } from '@/steps/fn-utils/helper-fn';
@@ -18,7 +24,6 @@ import {
 import { functionalUpdate, omit } from '@/steps/utils';
 import type { BaseStorageConfig, DefaultStorageKey } from '@/storage';
 import {
-  invariant,
   MultiStepFormLogger,
   type CasingType,
   type DeepKeys,
@@ -26,10 +31,8 @@ import {
 } from '@/utils';
 import {
   comparePartialArray,
-  printErrors,
   typedObjectKeys,
 } from '@/utils/helpers';
-import { createInvariant, type Invariant } from '@/utils/invariant';
 import { path } from '@/utils/path';
 import {
   runStandardValidation,
@@ -189,18 +192,26 @@ export class MultiStepFormStepSchemaInternal<
     }
   ) {
     const { logger, values, ctxData } = options;
-    invariant(
+    InvalidContextError.invariant(
       typeof ctxData === 'function',
-      '[update]: "ctxData" must be a function'
+      {
+        reason: '"ctxData" must be a function',
+        value: ctxData,
+        expected: 'function',
+      },
     );
     logger.info('Custom "ctx" will be used');
 
     const additionalCtx = ctxData({ ctx: values as never });
 
-    invariant(
+    InvalidContextError.invariant(
       typeof additionalCtx === 'object' &&
         Object.keys(additionalCtx).length > 0,
-      '[update]: "ctxData" must return an object with keys'
+      {
+        reason: '"ctxData" must return an object with keys',
+        value: additionalCtx,
+        expected: 'non-empty object',
+      },
     );
 
     logger.info(
@@ -252,16 +263,24 @@ export class MultiStepFormStepSchemaInternal<
     });
 
     logger.info(`${targetStep} will be updated`);
-    invariant(
+    InvalidStepError.invariant(
       targetStep in this.value,
-      `[update]: The target step ${targetStep} isn't a valid step. Please select a valid step`
+      {
+        reason: `The target step ${targetStep} isn't valid`,
+        targetStep,
+        validSteps: Object.keys(this.value),
+      },
     );
 
     const { [targetStep]: currentStep, ...values } = this.value;
 
-    invariant(
+    InvalidUpdateError.invariant(
       'updater' in options,
-      '[update]: No "updater" was found. Please provide a value to the "updater" property'
+      {
+        reason: 'No "updater" was found',
+        targetStep,
+        expected: 'updater property',
+      },
     );
 
     const updater = options.updater;
@@ -294,9 +313,14 @@ export class MultiStepFormStepSchemaInternal<
 
     // default case: updating all fields for the current step
     if (fields === 'all') {
-      invariant(
+      InvalidUpdateError.invariant(
         typeof updated === 'object',
-        '[update]: "updater" must be an object or a function that returns an object'
+        {
+          reason: '"updater" must be an object or return an object',
+          targetStep,
+          value: updated,
+          expected: 'object',
+        },
       );
 
       const functionKeys = new Set(['update', 'reset', 'createHelperFn']);
@@ -353,13 +377,12 @@ export class MultiStepFormStepSchemaInternal<
     if (Array.isArray(fields)) {
       const compareResult = comparePartialArray(currentStepDeepKeys, fields);
 
-      invariant(
+      InvalidKeyError.invariant(
         compareResult.status === 'success',
-        `[update]: Found errors with the provided fields\n${
-          compareResult.status === 'error'
-            ? printErrors(compareResult.errors)
-            : ''
-        }`
+        {
+          invalidKeys: fields,
+          validKeys: currentStepDeepKeys,
+        },
       );
 
       verifyUpdate({
@@ -403,13 +426,12 @@ export class MultiStepFormStepSchemaInternal<
         keys as never
       );
 
-      invariant(
+      InvalidKeyError.invariant(
         compareResult.status === 'success',
-        `[update]: Found errors with the provided fields\n${
-          compareResult.status === 'error'
-            ? printErrors(compareResult.errors)
-            : ''
-        }`
+        {
+          invalidKeys: keys,
+          validKeys: currentStepDeepKeys,
+        },
       );
 
       // TODO validate all values (deepest) are `true`
@@ -776,9 +798,14 @@ export class MultiStepFormStepSchemaInternal<
           let ctx = createCtx(this.value, stepData);
 
           if ('validator' in optionsOrFunction) {
-            invariant(
+            InvalidHelperInputError.invariant(
               typeof input === 'object',
-              'An input is expected since you provided a validator'
+              {
+                reason: 'An input is expected when a validator is provided',
+                helper: 'createHelperFn',
+                value: input,
+                expected: 'object',
+              },
             );
 
             runStandardValidation(
@@ -789,9 +816,13 @@ export class MultiStepFormStepSchemaInternal<
             if (optionsOrFunction.ctxData) {
               const ctxData = optionsOrFunction.ctxData;
 
-              invariant(
+              InvalidContextError.invariant(
                 typeof ctxData === 'function',
-                'Option "ctxData" must be a function'
+                {
+                  reason: 'Option "ctxData" must be a function',
+                  value: ctxData,
+                  expected: 'function',
+                },
               );
 
               const logger = new MultiStepFormLogger({
@@ -889,17 +920,23 @@ export class MultiStepFormStepSchemaInternal<
     values extends Record<string, unknown>,
     additionalProps extends Record<string, unknown>
   >(values: values, additionalProps?: (step: number) => additionalProps) {
-    const invariant: Invariant = createInvariant('[enrichValues]');
-
-    invariant(
+    InvalidInternalStateError.invariant(
       typeof values === 'object' && values !== null,
-      'The values must be an object'
+      {
+        reason: 'The values must be an object',
+        operation: 'enrichValues',
+        value: values,
+      },
     );
 
     if (additionalProps) {
-      invariant(
+      InvalidInternalStateError.invariant(
         typeof additionalProps === 'function',
-        'The additional props must be a function'
+        {
+          reason: 'The additional props must be a function',
+          operation: 'enrichValues',
+          value: additionalProps,
+        },
       );
     }
 
@@ -909,9 +946,13 @@ export class MultiStepFormStepSchemaInternal<
       const targetStep = key as StepNumbers<value>;
       const step = Number.parseInt(targetStep.replace('step', ''));
 
-      invariant(
+      InvalidInternalStateError.invariant(
         typeof stepValue === 'object' && stepValue !== null,
-        `The value for ${key} must be an object`
+        {
+          reason: `The value for ${key} must be an object`,
+          operation: 'enrichValues',
+          value: stepValue,
+        },
       );
 
       enriched[targetStep as keyof values] = {

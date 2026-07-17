@@ -1,5 +1,6 @@
-import { comparePartialArray, printErrors } from '@/utils/helpers';
-import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
+import { InvalidContextError } from '@/errors/invalid-context';
+import { InvalidKeyError } from '@/errors/invalid-key';
+import { InvalidStepError } from '@/errors/invalid-step';
 import type { Updater } from '@/utils/types';
 import { HelperFn, HelperFnChosenSteps } from './fn-utils/helper-fn';
 import type { getCurrentStep, instantiateSteps, StepNumbers } from './steps';
@@ -39,11 +40,17 @@ export type StrippedResolvedStep<
  * @returns The extracted step number.
  */
 export function extractNumber(input: string) {
-  invariant(input.includes('step'), "Can't extract a valid step number since");
+  InvalidStepError.invariant(input.includes('step'), {
+    reason: `Can't extract a valid step number from "${input}"`,
+    targetStep: input,
+  });
 
   const extracted = input.replace('step', '');
 
-  invariant(/^\d+$/.test(extracted), `Invalid step format: "${input}"`);
+  InvalidStepError.invariant(/^\d+$/.test(extracted), {
+    reason: `Invalid step format: "${input}"`,
+    targetStep: input,
+  });
 
   return Number.parseInt(extracted, 10);
 }
@@ -82,7 +89,6 @@ function createCtxHelper<
   stepNumbers extends StepNumbers<value>,
   chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
 >(values: value, data: string[]) {
-  const invariant: Invariant = createInvariant('[createCtxHelper]');
   const getTargetStep = getStep(values);
 
   return data.reduce((acc, curr) => {
@@ -90,7 +96,10 @@ function createCtxHelper<
       step: curr as stepNumbers,
     });
 
-    invariant(data, `No data was found for ${curr}`, TypeError);
+    InvalidContextError.invariant(data, {
+      reason: `No data was found for ${curr}`,
+      stepData: curr,
+    });
 
     for (const [key, value] of Object.entries(data)) {
       // console.log({ [key]: value });
@@ -113,67 +122,53 @@ export function createCtx<
   stepNumbers extends StepNumbers<value>,
   chosenSteps extends HelperFnChosenSteps.main<value, stepNumbers>
 >(values: value, stepData: chosenSteps) {
-  const formatter = new Intl.ListFormat('en', {
-    style: 'long',
-    type: 'disjunction',
-  });
   const validStepKeys = Object.keys(values);
-
-  const baseErrorMessage = () => {
-    return `"stepData" must be set to an array of available steps (${formatter.format(
-      validStepKeys
-    )})`;
-  };
   const match = HelperFnChosenSteps.match({
     validValues: () => validStepKeys,
     all: () => {
-      return createCtxHelper(values, validStepKeys);
+      return createCtxHelper(values, validStepKeys) as HelperFn.buildCtx<
+        value,
+        chosenSteps
+      >;
     },
     tuple: ({ chosenSteps }) => {
-      invariant(
-        chosenSteps.every((step) => validStepKeys.includes(step)),
-        () => {
-          const comparedResults = comparePartialArray(
-            chosenSteps,
-            validStepKeys.map((key) => extractNumber(key)),
-            formatter
-          );
-
-          if (comparedResults.status === 'error') {
-            return `${baseErrorMessage()}. See errors:\n ${printErrors(
-              comparedResults.errors
-            )}`;
-          }
-
-          return baseErrorMessage();
-        }
+      const hasOnlyValidSteps: boolean = chosenSteps.every((step) =>
+        validStepKeys.includes(step),
       );
 
-      return createCtxHelper(values, chosenSteps);
+      InvalidKeyError.invariant(
+        hasOnlyValidSteps,
+        () => ({
+          invalidKeys: chosenSteps.filter(
+            (step) => !validStepKeys.includes(step),
+          ),
+          validKeys: validStepKeys,
+        }),
+      );
+
+      return createCtxHelper(values, chosenSteps) as HelperFn.buildCtx<
+        value,
+        chosenSteps
+      >;
     },
     object: ({ chosenSteps }) => {
       const keys = Object.keys(chosenSteps);
-
-      invariant(
-        keys.every((key) => validStepKeys.includes(key)),
-        () => {
-          const comparedResults = comparePartialArray(
-            keys,
-            validStepKeys,
-            formatter
-          );
-
-          if (comparedResults.status === 'error') {
-            return `${baseErrorMessage()}. See errors:\n ${printErrors(
-              comparedResults.errors
-            )}`;
-          }
-
-          return baseErrorMessage();
-        }
+      const hasOnlyValidKeys: boolean = keys.every((key) =>
+        validStepKeys.includes(key),
       );
 
-      return createCtxHelper(values, keys);
+      InvalidKeyError.invariant(
+        hasOnlyValidKeys,
+        () => ({
+          invalidKeys: keys.filter((key) => !validStepKeys.includes(key)),
+          validKeys: validStepKeys,
+        }),
+      );
+
+      return createCtxHelper(values, keys) as HelperFn.buildCtx<
+        value,
+        chosenSteps
+      >;
     },
     default: ({ errorMessage }) => {
       throw new Error(`[createCtx]: ${errorMessage}`);

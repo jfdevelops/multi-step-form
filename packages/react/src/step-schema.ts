@@ -1,13 +1,16 @@
 import {
   buildValuePath,
   createCtx,
-  createInvariant,
   instantiateSteps as instantiateStepsCore,
   type Expand,
   getDefaultValues,
   type HelperFn,
   type HelperFnChosenSteps,
-  type Invariant,
+  InvalidComponentError,
+  InvalidFieldError,
+  InvalidFormConfigError,
+  InvalidInternalStateError,
+  InvalidStepError,
   MultiStepFormLogger,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
   type StepNumbers,
@@ -237,7 +240,6 @@ export class MultiStepFormStepSchema<
     } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
   ) {
     const [step] = stepData;
-    const invariant: Invariant = createInvariant(`[${step}:createComponent]`);
     return <props>(fn: Function) =>
       ((props: props) => {
         const ctxData = extraConfig?.ctxData;
@@ -253,33 +255,53 @@ export class MultiStepFormStepSchema<
         const hookResults = getValidatedCustomInputHooks(extraInput);
         const { defaultId, form } = config;
 
-        invariant(
+        InvalidStepError.invariant(
           this.steps.isValidStep(step),
-          `The target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
+          {
+            reason: `The target step ${step} is invalid`,
+            targetStep: step,
+            validSteps: [...this.steps.value],
+          },
         );
 
         const stepNumber = Number.parseInt(step.replace('step', ''));
 
-        invariant(
+        InvalidInternalStateError.invariant(
           !Number.isNaN(stepNumber),
-          `An error occurred while extracting the number`
+          {
+            reason: `Unable to extract a number from ${step}`,
+            operation: 'createComponent',
+            value: step,
+          },
         );
         const current = this.value[step];
 
-        invariant(
+        InvalidInternalStateError.invariant(
           typeof current === 'object' && current !== null,
-          `The current step must be an object, was ${typeof current}`
+          {
+            reason: `The current step must be an object, was ${typeof current}`,
+            operation: 'createComponent',
+            value: current,
+          },
         );
         // These checks are mostly for type safety. `current` should _always_ be in the proper format.
         // On the off chance that it's not, we have the checks here to help, but these checks are basically
         // just for type safety.
-        invariant(
+        InvalidInternalStateError.invariant(
           'fields' in current,
-          `Unable to find the "fields" for the current step`
+          {
+            reason: 'Unable to find the "fields" for the current step',
+            operation: 'createComponent',
+            value: current,
+          },
         );
-        invariant(
+        InvalidInternalStateError.invariant(
           typeof current.fields === 'object',
-          `The "fields" property must be an object, was ${typeof current.fields}`
+          {
+            reason: `The "fields" property must be an object, was ${typeof current.fields}`,
+            operation: 'createComponent',
+            value: current.fields,
+          },
         );
 
         // Memoize Field component to prevent remounting on every render
@@ -291,14 +313,14 @@ export class MultiStepFormStepSchema<
             const currentFields = Object.keys(
               currentStep.fields as Record<string, unknown>
             );
-            const invariant: Invariant = createInvariant(`[${step}:Field]`);
-
-            invariant(
+            InvalidFieldError.invariant(
               typeof name === 'string',
-              (formatter) =>
-                `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include: "${formatter.format(
-                  currentFields
-                )}"`
+              {
+                reason: `The "name" prop must be a string and a valid field for ${step}`,
+                targetStep: step,
+                field: name,
+                validFields: currentFields,
+              },
             );
             // TODO add support for deep keys (`name`)
 
@@ -306,17 +328,23 @@ export class MultiStepFormStepSchema<
               .createDeep(currentStep.fields)
               .map((value) => (value as string).replace('.defaultValue.', '.'));
 
-            invariant(
+            InvalidFieldError.invariant(
               allAvailableFields.includes(name),
-              (formatter) =>
-                `[${step}:Field]: the field "${name}" doesn't exist for the current step. Available fields include: "${formatter.format(
-                  allAvailableFields
-                )}".`
+              {
+                reason: `The field "${name}" doesn't exist for ${step}`,
+                targetStep: step,
+                field: name,
+                validFields: allAvailableFields,
+              },
             );
 
-            invariant(
+            InvalidInternalStateError.invariant(
               'update' in currentStep,
-              `[${step}:Field]: No "update" function was found`
+              {
+                reason: `No "update" function was found for ${step}`,
+                operation: 'Field',
+                value: currentStep,
+              },
             );
 
             const defaultValue = this.getValue(step as never, name);
@@ -438,7 +466,12 @@ export class MultiStepFormStepSchema<
               | MultiStepFormSchemaConfig.formEnabledFor<value>
               | undefined) ?? 'all';
 
-          invariant(typeof alias === 'string', 'The alias must be a string');
+          InvalidFormConfigError.invariant(typeof alias === 'string', {
+            reason: 'The alias must be a string',
+            property: 'alias',
+            value: alias,
+            expected: 'string',
+          });
 
           if (
             MultiStepFormSchemaConfig.isFormAvailable(
@@ -478,14 +511,15 @@ export class MultiStepFormStepSchema<
         | StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>,
       fn?: StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>
     ) => {
-      const invariant: Invariant = createInvariant(
-        '[createStepSpecificComponent]'
-      );
-
       const createStepSpecificComponent = () => {
-        invariant(
+        InvalidComponentError.invariant(
           typeof optionsOrFn === 'function',
-          'The first argument must be a function'
+          {
+            reason: 'The first argument must be a function',
+            component: 'createStepSpecificComponent',
+            argument: 'optionsOrFn',
+            value: optionsOrFn,
+          },
         );
 
         return this.createStepSpecificComponentImpl(
@@ -505,9 +539,14 @@ export class MultiStepFormStepSchema<
 
         logger.info('First argument is an object');
 
-        invariant(
+        InvalidComponentError.invariant(
           typeof fn === 'function',
-          'The second argument must be a function'
+          {
+            reason: 'The second argument must be a function',
+            component: 'createStepSpecificComponent',
+            argument: 'fn',
+            value: fn,
+          },
         );
 
         if (ctxData) {

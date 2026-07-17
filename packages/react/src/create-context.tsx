@@ -1,8 +1,7 @@
 import {
-  createInvariant,
+  InvalidStepError,
   MultiStepFormStepSchema,
   type getCurrentStep,
-  type Invariant,
   type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
@@ -310,11 +309,13 @@ export function createMultiStepFormContext<
       totalSteps = steps,
       progressTextTransformer,
     } = options;
-    const invariant: Invariant = createInvariant('[useProgress]');
-
-    invariant(
+    InvalidStepError.invariant(
       schema.getSnapshot().stepSchema.steps.isValidStep(targetStep),
-      'Invalid step number'
+      {
+        reason: 'Invalid step number',
+        targetStep,
+        validSteps: schema.getSnapshot().stepSchema.steps.as('array.string.untyped').value,
+      },
     );
 
     const currentStep = targetStep.replace('step', '');
@@ -376,14 +377,13 @@ export function createMultiStepFormContext<
     cb: (ctx: BaseOptions<targetStep>, props: props) => ReactNode
   ) {
     const { as, isValidStep } = schema.getSnapshot().stepSchema.steps;
-    const invariant: Invariant = createInvariant('[withNoStepDataFound]');
-
-    invariant(
+    InvalidStepError.invariant(
       isValidStep(options.targetStep),
-      (formatter) =>
-        `Invalid step number "${
-          options.targetStep
-        }". Valid steps are: ${formatter.format(as('array.string.untyped').value)}`
+      {
+        reason: `Invalid step number "${options.targetStep}"`,
+        targetStep: options.targetStep,
+        validSteps: as('array.string.untyped').value,
+      },
     );
 
     return createComponent({ targetStep: options.targetStep })(cb);

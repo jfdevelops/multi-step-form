@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { instantiateSteps } from '@/steps/steps';
+import { InvalidStepConfigError } from '@/errors/invalid-step-config';
 import { type } from 'arktype';
 
 describe('instantiateSteps', () => {
@@ -243,7 +244,7 @@ describe('instantiateSteps', () => {
         instantiateSteps({
           steps: {},
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if step key is not in the correct format', () => {
@@ -260,7 +261,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError();
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if title is missing', () => {
@@ -276,7 +277,7 @@ describe('instantiateSteps', () => {
             } as any,
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if title is not a string', () => {
@@ -293,7 +294,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if description is not a string', () => {
@@ -311,7 +312,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if nameTransformCasing is invalid', () => {
@@ -329,7 +330,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
   });
 });

@@ -1,7 +1,8 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   createMultiStepFormError,
   InvalidKeyError,
+  InvalidStepError,
   MultiStepFormError,
   UpdateMismatchError,
   type UpdateMismatchContext,
@@ -94,5 +95,44 @@ describe('custom errors', () => {
       null,
     );
     expect(JSON.parse(JSON.stringify(error))).toStrictEqual(error.toJSON());
+  });
+
+  it('throws the concrete class through its static invariant method', () => {
+    const context = {
+      reason: 'The target step is invalid',
+      targetStep: 'step3',
+      validSteps: ['step1', 'step2'],
+    };
+
+    expect(() => InvalidStepError.invariant(false, context)).toThrow(
+      InvalidStepError,
+    );
+
+    try {
+      InvalidStepError.invariant(false, context);
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidStepError);
+
+      if (error instanceof InvalidStepError) {
+        expect(error.code).toBe('invalidStep');
+        expect(error.scope).toBe('step');
+        expect(error.context).toStrictEqual({ ...context, scope: 'step' });
+      }
+    }
+  });
+
+  it('resolves lazy invariant context only when the condition fails', () => {
+    const createContext = vi.fn(() => ({
+      reason: 'The target step is invalid',
+      targetStep: 'step3',
+    }));
+
+    InvalidStepError.invariant(true, createContext);
+    expect(createContext).not.toHaveBeenCalled();
+
+    expect(() => InvalidStepError.invariant(false, createContext)).toThrow(
+      InvalidStepError,
+    );
+    expect(createContext).toHaveBeenCalledOnce();
   });
 });

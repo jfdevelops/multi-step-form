@@ -1,8 +1,7 @@
 import {
-  createInvariant,
   Expand,
   HelperFnChosenSteps,
-  type Invariant,
+  InvalidFormConfigError,
   type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
@@ -293,30 +292,48 @@ export namespace MultiStepFormSchemaConfig {
         render,
         id,
       } = config;
-      const invariant: Invariant = createInvariant('[instantiateFormConfig]');
-
       if (id) {
-        invariant(typeof id === 'string', 'The id must be a string');
+        InvalidFormConfigError.invariant(typeof id === 'string', {
+          reason: 'The id must be a string',
+          property: 'id',
+          value: id,
+          expected: 'string',
+        });
       }
 
       if (alias) {
-        invariant(typeof alias === 'string', 'The alias must be a string');
+        InvalidFormConfigError.invariant(typeof alias === 'string', {
+          reason: 'The alias must be a string',
+          property: 'alias',
+          value: alias,
+          expected: 'string',
+        });
       }
 
       // TODO validate enabledForSteps
       if (enabledForSteps) {
         const availableStepsArray = Array.from(availableSteps);
 
-        invariant(
+        InvalidFormConfigError.invariant(
           HelperFnChosenSteps.isValid(enabledForSteps, availableStepsArray),
-          HelperFnChosenSteps.createCatchAllMessage(
-            availableStepsArray,
-            'enabledFor'
-          )
+          {
+            reason: HelperFnChosenSteps.createCatchAllMessage(
+              availableStepsArray,
+              'enabledFor',
+            ),
+            property: 'enabledForSteps',
+            value: enabledForSteps,
+            expected: availableStepsArray,
+          },
         );
       }
 
-      invariant(typeof render === 'function', 'The render must be a function');
+      InvalidFormConfigError.invariant(typeof render === 'function', {
+        reason: 'The render must be a function',
+        property: 'render',
+        value: render,
+        expected: 'function',
+      });
 
       return {
         alias,

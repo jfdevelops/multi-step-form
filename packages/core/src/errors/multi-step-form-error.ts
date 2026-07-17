@@ -22,9 +22,15 @@ export interface CreatedMultiStepFormError<
   scope extends string,
   baseContext extends MultiStepFormErrorContext<scope>,
 > {
-  new (
-    context: Omit<baseContext, 'scope'>,
-  ): MultiStepFormError<code, scope, baseContext> & {
+  invariant: <condition>(
+    condition: condition,
+    context: Omit<baseContext, 'scope'> | (() => Omit<baseContext, 'scope'>),
+  ) => asserts condition;
+  new (context: Omit<baseContext, 'scope'>): MultiStepFormError<
+    code,
+    scope,
+    baseContext
+  > & {
     readonly code: code;
     readonly scope: scope;
     renderMessage(renderer?: ErrorMessageRenderer<scope, baseContext>): string;
@@ -72,6 +78,16 @@ export abstract class MultiStepFormError<
   readonly scope: scope;
   readonly context: context;
 
+  static invariant<condition, errorContext extends Record<string, unknown>>(
+    this: new (context: errorContext) => Error,
+    condition: condition,
+    context: errorContext | (() => errorContext),
+  ): asserts condition {
+    if (!condition) {
+      throw new this(typeof context === 'function' ? context() : context);
+    }
+  }
+
   constructor(context: context) {
     super();
     this.name = new.target.name;
@@ -104,9 +120,7 @@ export function createMultiStepFormError<
 ): MultiStepFormErrorRendererFactory<options['code'], options['scope']> {
   return function createErrorWithRenderer<
     context extends MultiStepFormErrorContext<options['scope']>,
-  >(
-    defaultRenderer: ErrorMessageRenderer<options['scope'], context>,
-  ) {
+  >(defaultRenderer: ErrorMessageRenderer<options['scope'], context>) {
     return class MultiStepFormErrorWithCode extends MultiStepFormError<
       options['code'],
       options['scope'],
