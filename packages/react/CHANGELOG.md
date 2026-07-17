@@ -1,5 +1,12 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.55
+
+### Patch Changes
+
+- 15beff8: Add optional selector options to `useStep` for granular subscriptions while preserving complete-result subscriptions when no selector is provided.
+- 86cf157: Prevent suspended fields from remounting their children during reactive updates, preserving DOM identity and focus.
+
 ## 1.0.0-alpha.54
 
 ### Patch Changes
