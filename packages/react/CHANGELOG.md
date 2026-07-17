@@ -1,5 +1,18 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-alpha.54
+
+### Patch Changes
+
+- 25e6275: Stabilize React package test worker startup on Windows.
+- 2d71e9f: Add static custom-error invariants and migrate package invariant failures to structured error classes.
+- Updated dependencies [cb22d7e]
+- Updated dependencies [daecb01]
+- Updated dependencies [53e536d]
+- Updated dependencies [2d71e9f]
+- Updated dependencies [6ef9644]
+  - @jfdevelops/multi-step-form-core@1.0.0-alpha.37
+
 ## 1.0.0-alpha.53
 
 ### Patch Changes

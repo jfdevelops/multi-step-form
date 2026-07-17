@@ -1,5 +1,15 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-alpha.37
+
+### Patch Changes
+
+- cb22d7e: Add a typed custom error foundation with scoped context and customizable message rendering.
+- daecb01: Expose custom error classes and their supporting types from the public API.
+- 53e536d: Migrate invalid key failures to the scoped custom error pattern.
+- 2d71e9f: Add static custom-error invariants and migrate package invariant failures to structured error classes.
+- 6ef9644: Fix whole-step updates to validate only the target step and report structured mismatch details.
+
 ## 1.0.0-alpha.36
 
 ### Patch Changes
