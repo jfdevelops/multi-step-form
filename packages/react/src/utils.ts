@@ -1,6 +1,6 @@
 import {
   createCtx,
-  invariant,
+  InvalidContextError,
   type HelperFn,
   type HelperFnChosenSteps,
   type HelperFnInput,
@@ -29,9 +29,13 @@ export function resolvedCtxCreator<
     const { ctx, ctxData } = options;
 
     logger.info('Option "ctxData" is defined');
-    invariant(
+    InvalidContextError.invariant(
       typeof ctxData === 'function',
-      'Option "ctxData" must be a function'
+      {
+        reason: 'Option "ctxData" must be a function',
+        value: ctxData,
+        expected: 'function',
+      },
     );
 
     const additionalCtx = ctxData({ ctx: values } as never);

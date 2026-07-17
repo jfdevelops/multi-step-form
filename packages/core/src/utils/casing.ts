@@ -317,20 +317,7 @@ export function isCasingValid(value: unknown): value is CasingType {
     return false;
   }
 
-  const isValid = CASING_TYPES.includes(value as CasingType);
-
-  // invariant(isValid, () => {
-  //   const formatter = new Intl.ListFormat('en', {
-  //     style: 'long',
-  //     type: 'conjunction',
-  //   });
-
-  //   return `${value} is not a valid casing type. Valid types include ${formatter.format(
-  //     CASING_TYPES.map((word) => quote(word))
-  //   )}`;
-  // });
-
-  return isValid;
+  return CASING_TYPES.includes(value as CasingType);
 }
 
 /**

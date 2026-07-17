@@ -1,4 +1,5 @@
 import { StepSchema } from '@/internals';
+import { InvalidStepConfigError } from '@/errors/invalid-step-config';
 import {
   CASING_TYPES,
   CasingType,
@@ -9,7 +10,6 @@ import {
   type Expand,
   type Show,
 } from '@/utils';
-import { createInvariant, type Invariant } from '@/utils/invariant';
 import type { AnyValidator, DefaultValidator } from '@/utils/validator';
 import {
   inferDefaultValue,
@@ -205,31 +205,44 @@ export function instantiateSteps<
   inst = instantiateSteps<def>,
 >(def: def) {
   const { steps } = def;
-  const invariant: Invariant = createInvariant('[instantiateSteps]');
-
-  invariant(steps, 'No steps were provided to the "steps" option.', TypeError);
-  invariant(typeof steps === 'object', '"steps" must be an object.', TypeError);
-  invariant(
+  InvalidStepConfigError.invariant(steps, {
+    reason: 'No steps were provided to the "steps" option.',
+    expected: 'non-empty object',
+  });
+  InvalidStepConfigError.invariant(typeof steps === 'object', {
+    reason: '"steps" must be an object.',
+    value: steps,
+    expected: 'object',
+  });
+  InvalidStepConfigError.invariant(
     Object.keys(steps).length > 0,
-    '"steps" must contain at least one step.',
-    TypeError,
+    {
+      reason: '"steps" must contain at least one step.',
+      value: steps,
+      expected: 'non-empty object',
+    },
   );
 
   let resolvedSteps: Record<string, unknown> = {};
 
   for (const [stepKey, stepValue] of Object.entries(steps)) {
-    const invariant: Invariant = createInvariant(
-      `[instantiateSteps - ${stepKey}]`,
-    );
-
-    invariant(
+    InvalidStepConfigError.invariant(
       typeof stepKey === 'string',
-      `Each key for the step config must be a string. Key "${stepKey}" was ${typeof stepKey} `,
-      TypeError,
+      {
+        reason: `Each key for the step config must be a string. Key "${stepKey}" was ${typeof stepKey}`,
+        key: stepKey,
+        value: stepKey,
+        expected: 'string',
+      },
     );
-    invariant(
+    InvalidStepConfigError.invariant(
       VALIDATED_STEP_REGEX.test(stepKey),
-      `The key "${stepKey}" isn't formatted properly. Each key in the step config must be the following format: "step{number}"`,
+      {
+        reason: `The key "${stepKey}" isn't formatted properly. Each key in the step config must use "step{number}"`,
+        key: stepKey,
+        value: stepKey,
+        expected: 'step{number}',
+      },
     );
 
     const {
@@ -241,34 +254,51 @@ export function instantiateSteps<
     } = stepValue;
 
     // title validation
-    invariant(title, 'A title must be provided for each step.', TypeError);
-    invariant(
+    InvalidStepConfigError.invariant(title, {
+      reason: 'A title must be provided for each step.',
+      key: stepKey,
+      expected: 'non-empty string',
+    });
+    InvalidStepConfigError.invariant(
       typeof title === 'string',
-      'The title must be a string.',
-      TypeError,
+      {
+        reason: 'The title must be a string.',
+        key: stepKey,
+        value: title,
+        expected: 'string',
+      },
     );
 
     if (description) {
-      invariant(
+      InvalidStepConfigError.invariant(
         typeof description === 'string',
-        'The description must be a string.',
-        TypeError,
+        {
+          reason: 'The description must be a string.',
+          key: stepKey,
+          value: description,
+          expected: 'string',
+        },
       );
     }
 
     if (nameTransformCasing) {
-      invariant(
+      InvalidStepConfigError.invariant(
         typeof nameTransformCasing === 'string',
-        `The nameTransformCasing must be a string. Was ${typeof nameTransformCasing}`,
-        TypeError,
+        {
+          reason: `The nameTransformCasing must be a string. Was ${typeof nameTransformCasing}`,
+          key: stepKey,
+          value: nameTransformCasing,
+          expected: 'string',
+        },
       );
-      invariant(
+      InvalidStepConfigError.invariant(
         isCasingValid(nameTransformCasing),
-        (formatter) =>
-          `The nameTransformCasing is not a valid casing. Was ${nameTransformCasing}, must be one of ${formatter.format(
-            CASING_TYPES,
-          )}`,
-        TypeError,
+        {
+          reason: `The nameTransformCasing is not valid. Was ${nameTransformCasing}`,
+          key: stepKey,
+          value: nameTransformCasing,
+          expected: CASING_TYPES,
+        },
       );
     }
 

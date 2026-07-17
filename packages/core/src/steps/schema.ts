@@ -2,6 +2,10 @@ import {
   MultiStepFormStepSchemaInternal,
   type StepSchema,
 } from '@/internals/step-schema';
+import { InvalidFieldError } from '@/errors/invalid-field';
+import { InvalidInternalStateError } from '@/errors/invalid-internal-state';
+import { InvalidStepError } from '@/errors/invalid-step';
+import { InvalidTransformationError } from '@/errors/invalid-transformation';
 import { DEFAULT_STORAGE_KEY, MultiStepFormStorage } from '@/storage';
 import {
   setCasingType,
@@ -10,7 +14,6 @@ import {
   type UnionToTuple,
 } from '@/utils';
 import { addToTuple, mapToTuple } from '@/utils/helpers';
-import { createInvariant, invariant, type Invariant } from '@/utils/invariant';
 import { Subscribable } from '../subscribable';
 import {
   getDefaultValues,
@@ -366,11 +369,13 @@ export function createIsValidStepFn<
     value: number,
   ): value is ExtractStepFromKey<StepNumbers<value>>;
   function isValidStep(value: string | number) {
-    const invariant: Invariant = createInvariant('[isValidStep]');
-
-    invariant(
+    InvalidStepError.invariant(
       typeof value === 'string' || typeof value === 'number',
-      `The value must be a string or a number, was ${typeof value}`,
+      {
+        reason: `The value must be a string or a number, was ${typeof value}`,
+        targetStep: value,
+        validSteps: stepNumbers,
+      },
     );
 
     if (typeof value === 'string') {
@@ -478,9 +483,13 @@ export class MultiStepFormStepSchema<
     this.steps = {
       value: this.#stepNumbers as unknown as ReadonlyArray<StepNumbers<value>>,
       as: (asType): any => {
-        invariant(
+        InvalidTransformationError.invariant(
           typeof asType === 'string',
-          `The type of the target transformation type must be a string, was ${typeof asType}`,
+          {
+            reason: `The target transformation type must be a string, was ${typeof asType}`,
+            transformation: asType,
+            validValues: [...AS_TYPES],
+          },
         );
 
         if (asType === 'string') {
@@ -619,9 +628,14 @@ export class MultiStepFormStepSchema<
     const nextFields = { ...fields };
 
     for (const [fieldName, fieldValue] of Object.entries(overrides)) {
-      invariant(
+      InvalidFieldError.invariant(
         fieldName in nextFields,
-        `[resolveStep]: "${fieldName}" is not a valid field for ${step}`,
+        {
+          reason: `"${fieldName}" is not a valid field for ${step}`,
+          targetStep: step,
+          field: fieldName,
+          validFields: Object.keys(nextFields),
+        },
       );
 
       nextFields[fieldName] = {
@@ -697,9 +711,13 @@ export class MultiStepFormStepSchema<
 
     const override = this.getStepOverride(step);
 
-    invariant(
+    InvalidInternalStateError.invariant(
       typeof override === 'function',
-      `[resolveStep]: "${step}" does not have a valid override resolver`,
+      {
+        reason: `"${step}" does not have a valid override resolver`,
+        operation: 'resolveStep',
+        value: override,
+      },
     );
 
     const promise = Promise.resolve(override(this.getResolvedStepData(step)))
@@ -930,7 +948,6 @@ export class MultiStepFormStepSchema<
     field extends getDeepFields<value, step>,
   >(step: step, field: field) {
     const stepData = this.value[step];
-    const invariant: Invariant = createInvariant('[getValue]');
     const baseErrorMessage = `Unable to get the value for "${String(
       step,
     )}.fields.${String(field)}"`;
@@ -938,17 +955,31 @@ export class MultiStepFormStepSchema<
     const createErrorMessage = (reason: string) =>
       `${baseErrorMessage} because ${reason}. ${errorSuffix}`;
 
-    invariant(
+    InvalidInternalStateError.invariant(
       typeof stepData === 'object' && stepData !== null,
-      createErrorMessage('the step data is not an object'),
+      {
+        reason: createErrorMessage('the step data is not an object'),
+        operation: 'getValue',
+        value: stepData,
+      },
     );
-    invariant(
+    InvalidInternalStateError.invariant(
       'fields' in stepData,
-      createErrorMessage('the step data does not have a "fields" property'),
+      {
+        reason: createErrorMessage(
+          'the step data does not have a "fields" property',
+        ),
+        operation: 'getValue',
+        value: stepData,
+      },
     );
-    invariant(
+    InvalidInternalStateError.invariant(
       typeof stepData.fields === 'object',
-      createErrorMessage('"fields" is not an object'),
+      {
+        reason: createErrorMessage('"fields" is not an object'),
+        operation: 'getValue',
+        value: stepData.fields,
+      },
     );
 
     const defaultValue = resolvedDeepPath<

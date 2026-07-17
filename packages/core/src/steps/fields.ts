@@ -1,4 +1,6 @@
 import { path } from '@/internals';
+import { InvalidFieldConfigError } from '@/errors/invalid-field-config';
+import { InvalidStepError } from '@/errors/invalid-step';
 import {
   CASING_TYPES,
   changeCasing,
@@ -14,7 +16,6 @@ import {
   type SetDefaultString,
   type Split,
 } from '@/utils';
-import { createInvariant, type Invariant } from '@/utils/invariant';
 import {
   runStandardValidation,
   type AnyValidator,
@@ -105,20 +106,28 @@ export function getDefaultValues<
   targetStep extends StepNumbers<values>,
   fields extends getFieldForStep<values, targetStep> = getFieldForStep<values, targetStep>,
   >(values: values, targetStep: targetStep) {
-  const invariant: Invariant = createInvariant('[createDefaultValues]');
-
-  invariant(
+  InvalidStepError.invariant(
     targetStep in values,
-    `The target step ${targetStep} is not a valid step key`
+    {
+      reason: `The target step ${targetStep} is not a valid step key`,
+      targetStep,
+      validSteps: Object.keys(values),
+    },
   );
 
   const current = values[targetStep];
 
-  invariant(
+  InvalidStepError.invariant(
     typeof current === 'object' && current !== null,
-    `The target step ${targetStep} is not an object`
+    {
+      reason: `The target step ${targetStep} is not an object`,
+      targetStep,
+    },
   );
-  invariant('fields' in current, `No "fields" were found for ${targetStep}`);
+  InvalidStepError.invariant('fields' in current, {
+    reason: `No "fields" were found for ${targetStep}`,
+    targetStep,
+  });
 
   let defaultValues = {};
 
@@ -381,46 +390,69 @@ export function instantiateFields<
   inst = instantiateFields<def>,
 >(def: def) {
   const { fields, defaultCasing, validateFields } = def;
-  const invariant: Invariant = createInvariant('[instantiateFields]');
-
   if (defaultCasing) {
-    invariant(
+    InvalidFieldConfigError.invariant(
       typeof defaultCasing === 'string',
-      `The default casing must be a string. Was ${typeof defaultCasing}`
+      {
+        reason: `The default casing must be a string. Was ${typeof defaultCasing}`,
+        value: defaultCasing,
+        expected: 'string',
+      },
     );
-    invariant(
+    InvalidFieldConfigError.invariant(
       isCasingValid(defaultCasing),
-      (formatter) =>
-        `The default casing is not a valid casing. Was ${defaultCasing}, must be one of ${formatter.format(
-          CASING_TYPES
-        )}`
+      {
+        reason: `The default casing is not valid. Was ${defaultCasing}`,
+        value: defaultCasing,
+        expected: CASING_TYPES,
+      },
     );
   }
 
-  invariant(
+  InvalidFieldConfigError.invariant(
     fields,
-    'No fields were provided to the "fields" option.',
-    TypeError
+    {
+      reason: 'No fields were provided to the "fields" option.',
+      expected: 'non-empty object',
+    },
   );
-  invariant(
+  InvalidFieldConfigError.invariant(
     typeof fields === 'object',
-    `The fields must be an object. Was ${typeof fields}`
+    {
+      reason: `The fields must be an object. Was ${typeof fields}`,
+      value: fields,
+      expected: 'object',
+    },
   );
-  invariant(
+  InvalidFieldConfigError.invariant(
     Object.keys(fields).length > 0,
-    `A field must be provided to the "fields" option.`
+    {
+      reason: 'A field must be provided to the "fields" option.',
+      value: fields,
+      expected: 'non-empty object',
+    },
   );
 
   let resolvedFields: Record<string, unknown> = {};
 
   for (const [name, values] of Object.entries(fields)) {
-    invariant(
+    InvalidFieldConfigError.invariant(
       typeof name === 'string',
-      `Each key for the "fields" option must be a string. Key ${name} was a ${typeof name}`
+      {
+        reason: `Each key for the "fields" option must be a string. Key ${name} was a ${typeof name}`,
+        field: name,
+        value: name,
+        expected: 'string',
+      },
     );
-    invariant(
+    InvalidFieldConfigError.invariant(
       typeof values === 'object',
-      `The value for key ${name} must be an object. Was ${typeof values}`
+      {
+        reason: `The value for key ${name} must be an object. Was ${typeof values}`,
+        field: name,
+        value: values,
+        expected: 'object',
+      },
     );
 
     const { defaultValue, label, nameTransformCasing } = values;
@@ -435,9 +467,14 @@ export function instantiateFields<
     if (defaultValue instanceof Date) {
       const type = 'type' in values ? values.type : 'date';
 
-      invariant(
+      InvalidFieldConfigError.invariant(
         type === 'date' || type === 'string',
-        `The type for key ${name} must be either 'date' or 'string'. Was ${type}`
+        {
+          reason: `The type for key ${name} must be either 'date' or 'string'. Was ${type}`,
+          field: name,
+          value: type,
+          expected: ['date', 'string'],
+        },
       );
       const resolvedValue =
         type === 'date' ? defaultValue : JSON.stringify(defaultValue);

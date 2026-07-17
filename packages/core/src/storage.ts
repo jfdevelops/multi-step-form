@@ -1,5 +1,5 @@
 import type { Updater } from '@/utils/types';
-import { invariant } from '@/utils/invariant';
+import { InvalidStorageError } from '@/errors/invalid-storage';
 import { MultiStepFormLogger } from '@/utils/logger';
 
 export type DefaultStorageKey = typeof DEFAULT_STORAGE_KEY;
@@ -132,12 +132,12 @@ key extends string = DefaultStorageKey
       return;
     }
 
-    invariant(this.store, () => {
-      if (this.shouldRunActions) {
-        return WINDOW_UNDEFINED_MESSAGE;
-      }
-
-      return 'No storage available';
+    InvalidStorageError.invariant(this.store, {
+      reason: this.shouldRunActions
+        ? WINDOW_UNDEFINED_MESSAGE
+        : 'No storage available',
+      key: this.key,
+      operation: 'access',
     });
   }
 
