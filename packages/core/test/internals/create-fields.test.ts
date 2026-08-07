@@ -18,6 +18,7 @@ describe('createFields', () => {
         label: 'First Name',
         nameTransformCasing: 'title',
         name: 'firstName',
+        isRequired: false,
       },
     });
   });
@@ -38,6 +39,7 @@ describe('createFields', () => {
         label: 'first-name',
         nameTransformCasing: 'kebab',
         name: 'firstName',
+        isRequired: false,
       },
     });
   });
@@ -58,6 +60,7 @@ describe('createFields', () => {
         label: 'FirstName',
         nameTransformCasing: 'pascal',
         name: 'firstName',
+        isRequired: false,
       },
     });
   });
@@ -78,6 +81,7 @@ describe('createFields', () => {
         label: 'Your first name',
         nameTransformCasing: 'title',
         name: 'firstName',
+        isRequired: false,
       },
     });
   });
@@ -100,6 +104,7 @@ describe('createFields', () => {
           nameTransformCasing: 'title',
           name: 'firstName',
           type: 'date',
+          isRequired: false,
         },
       });
     });
@@ -122,6 +127,7 @@ describe('createFields', () => {
           nameTransformCasing: 'title',
           name: 'firstName',
           type: 'string',
+          isRequired: false,
         },
       });
     });
@@ -144,6 +150,7 @@ describe('createFields', () => {
           label: 'First Name',
           nameTransformCasing: 'title',
           name: 'firstName',
+          isRequired: false,
         },
       });
     });

@@ -1,9 +1,9 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: overrides types', () => {
   it('infers override data as the resolved current step', () => {
-    createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -15,20 +15,23 @@ describe('multi step form step schema: overrides types', () => {
               defaultValue: 0,
             },
           },
-          overrides: ({ fields, title }) => {
-            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-            expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
-            expectTypeOf(title).toEqualTypeOf<string>();
-
-            return { age: 890 + fields.age.defaultValue };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      step1: ({ fields, title }) => {
+        expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+        expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
+        expectTypeOf(title).toEqualTypeOf<string>();
+
+        return { age: 890 + fields.age.defaultValue };
       },
     });
   });
 
   it('infers override data for destructured arrow functions', () => {
-    createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -40,21 +43,24 @@ describe('multi step form step schema: overrides types', () => {
               defaultValue: 0,
             },
           },
-          overrides: ({ fields }) => {
-            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-            expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
-
-            return {
-              age: 42,
-            };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      step1: ({ fields }) => {
+        expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+        expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
+
+        return {
+          age: 42,
+        };
       },
     });
   });
 
   it('rejects override keys that are not defined on the current step', () => {
-    createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -63,19 +69,22 @@ describe('multi step form step schema: overrides types', () => {
               defaultValue: '',
             },
           },
-          // @ts-expect-error invalid override key
-          overrides: () => {
-            return {
-              lastName: 'Finkel',
-            };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      // @ts-expect-error invalid override key
+      step1: () => {
+        return {
+          lastName: 'Finkel',
+        };
       },
     });
   });
 
   it('supports async overrides', () => {
-    createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -87,22 +96,25 @@ describe('multi step form step schema: overrides types', () => {
               defaultValue: 0,
             },
           },
-          overrides: async ({ fields, title }) => {
-            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-            expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
-            expectTypeOf(title).toEqualTypeOf<string>();
-
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            return { age: 42 };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      step1: async ({ fields, title }) => {
+        expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+        expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
+        expectTypeOf(title).toEqualTypeOf<string>();
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        return { age: 42 };
       },
     });
   });
 
   it('keeps the return type constrained to the current step defaults', () => {
-    createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -114,21 +126,24 @@ describe('multi step form step schema: overrides types', () => {
               defaultValue: 0,
             },
           },
-          overrides: ({ fields }) => {
-            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-            expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
-
-            return {
-              firstName: 'Taylor',
-            };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      step1: ({ fields }) => {
+        expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+        expectTypeOf(fields.age.defaultValue).toEqualTypeOf<number>();
+
+        return {
+          firstName: 'Taylor',
+        };
       },
     });
   });
 
   it('does not expose a string index on resolved override fields', () => {
-    createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -140,18 +155,21 @@ describe('multi step form step schema: overrides types', () => {
               defaultValue: false,
             },
           },
-          overrides: (data) => {
-            expectTypeOf(data.fields.firstName.defaultValue).toEqualTypeOf<string>();
-            expectTypeOf(data.fields.saveToAccount.defaultValue).toEqualTypeOf<boolean>();
-
-            // @ts-expect-error unknown field should not be available
-            data.fields.notARealField;
-
-            return {
-              firstName: 'Taylor',
-            };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      step1: (data) => {
+        expectTypeOf(data.fields.firstName.defaultValue).toEqualTypeOf<string>();
+        expectTypeOf(data.fields.saveToAccount.defaultValue).toEqualTypeOf<boolean>();
+
+        // @ts-expect-error unknown field should not be available
+        data.fields.notARealField;
+
+        return {
+          firstName: 'Taylor',
+        };
       },
     });
   });

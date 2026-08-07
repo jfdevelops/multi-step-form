@@ -1,0 +1,188 @@
+---
+title: Instances, storage & field metadata
+description: "defineMultiStepForm: named instances, per-instance storage, shared createHelperFn, withOverrides, field metadata, and step isComplete."
+package: '@jfdevelops/multi-step-form-core'
+category: guide
+status: beta
+order: 2
+---
+
+import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
+
+# Instances, storage & field metadata (beta)
+
+`defineMultiStepForm` is the recommended way to define a form starting with the `beta`
+pre-releases. It supersedes `createMultiStepFormSchema` for anything that needs more than a
+single, always-persisted form — e.g. a public/client form and an internal/admin form that share
+the same steps and helper functions, or a form that shouldn't touch storage at all.
+`createMultiStepFormSchema` still works for the single-instance case, but the new features
+described here (storage-per-instance, `withOverrides`, field `isRequired`/`placeholder`/
+`errorMessage`, step `isComplete`) apply the same way regardless of which factory you use.
+
+> Upgrading from alpha? See [`migration.mdx`](./migration.mdx) first.
+>
+> Using `@jfdevelops/react-multi-step-form`? See
+> [`packages/react/docs/instances-and-storage.mdx`](../../react/docs/instances-and-storage.mdx) for
+> the React-specific builder order (`withOverrides` → `withForm` → `withContext`) and provider
+> wiring — this doc covers the framework-agnostic core API.
+
+## Contents
+
+1. [Instances & storage](#1-instances--storage)
+2. [Shared `createHelperFn`](#2-shared-createhelperfn)
+3. [Per-instance overrides with `withOverrides`](#3-per-instance-overrides-with-withoverrides)
+4. [Field metadata: `label`, `placeholder`, `isRequired`, `errorMessage`](#4-field-metadata-label-placeholder-isrequired-errormessage)
+5. [Step `isComplete`](#5-step-iscomplete)
+6. [Type cookbook](#6-type-cookbook)
+
+## 1. Instances & storage
+
+`instances` declares the named, independent copies of the form the factory can create. Each
+instance has its own in-memory state, its own override-resolution state, and (optionally) its own
+storage backend — updates on one instance never leak into another.
+
+```ts
+const createBookingForm = defineMultiStepForm({
+  steps: { /* ... */ },
+  instances: ['admin', 'client'], // omit `instances` for a single default instance
+}).configure({
+  storage: {
+    // a single string shares one key across every configured instance;
+    // a record resolves a different key per instance
+    key: { client: 'booking:client', admin: 'booking:admin' },
+    // only instances listed here ever read/write storage — everyone else is memory-only
+    configure: { instances: ['client'] },
+  },
+  update: {
+    // optional extra gate on top of storage allocation. Accepts a boolean or a
+    // `(instance) => boolean` function. Defaults to `true` when omitted — so an
+    // instance persists whenever it has storage allocated. When provided, both this
+    // gate AND `storage.configure.instances` must agree for updates to persist.
+    updateStorage: (instance) => instance === 'client',
+  },
+});
+
+const clientForm = createBookingForm({ instance: 'client' }); // persists to "booking:client"
+const adminForm = createBookingForm({ instance: 'admin' }); // memory-only, never touches storage
+```
+
+`.configure()` also accepts `nameTransformCasing` — the default casing used to derive a field's
+`label` from its `name` when the field doesn't set its own `nameTransformCasing`/`label`. It's a
+`.configure()` option (not a `defineMultiStepForm({ steps, ... })` option) since it's a
+per-definition default applied when each instance is constructed:
+
+```ts
+defineMultiStepForm({ steps: { /* ... */ } }).configure({ nameTransformCasing: 'camel' });
+```
+
+Calling the factory again with the same `instance` name returns the *same* instance (it doesn't
+reset state); calling it also marks that instance "active" for shared helper dispatch (see below).
+Calling with an instance name that wasn't declared in `instances` throws `InvalidInstanceError`.
+
+## 2. Shared `createHelperFn`
+
+Attach helpers once, at the step level on the factory — they dispatch to whichever instance is
+currently active, so `client` and `admin` reuse the exact same update logic:
+
+```ts
+const addService = createBookingForm.step2.createHelperFn(
+  { validator: addServiceParams },
+  ({ data, update }) => update.step2({ fields: 'all', updater: { service: data.service } }),
+);
+
+createBookingForm({ instance: 'client' }); // marks "client" active
+addService({ data: { service: 'Haircut' } }); // updates the client instance
+
+createBookingForm({ instance: 'admin' }); // marks "admin" active
+addService({ data: { service: 'Color' } }); // updates the admin instance instead
+```
+
+Calling a shared helper before any instance has been created throws `NoActiveInstanceError` with a
+message telling you to create an instance first. You can also explicitly set the active instance
+with `createBookingForm.setActiveInstance('client')` and read it back with
+`createBookingForm.getActiveInstanceName()`.
+
+## 3. Per-instance overrides with `withOverrides`
+
+Overrides live on the instance, not the shared step config, so client and admin can seed different
+defaults from the exact same field definitions:
+
+```ts
+const publicForm = createBookingForm({ instance: 'client' }).withOverrides({
+  step1: async () => ({ firstName: await currentUser.firstName }),
+});
+
+const adminForm = createBookingForm({ instance: 'admin' }).withOverrides({
+  step3: async () => ({ date: searchParams.get('date') ?? '' }),
+});
+```
+
+`withOverrides` returns a **new** instance with the overrides applied (the previous one is
+superseded and this new one becomes active) — the same immutable-rebuild pattern the React
+package's `.withForm()`/`.withContext()` use.
+
+## 4. Field metadata: `label`, `placeholder`, `isRequired`, `errorMessage`
+
+```ts
+fields: {
+  email: {
+    defaultValue: '',
+    placeholder: 'jane@example.com',
+    isRequired: true, // default: false
+    errorMessage: 'A valid email is required',
+    // no explicit `label` + isRequired: true -> resolved label is "Email*"
+  },
+}
+```
+
+If `isRequired` is `true` and no explicit `label` is given, the auto-derived label gets a trailing
+`*` appended (e.g. `"Email*"`). An explicit `label` is always used as-is, star or no star.
+
+## 5. Step `isComplete`
+
+Replace hand-rolled `isStep1Complete`/`isStep2Complete` helpers with a step-level predicate that
+receives that step's current field values:
+
+```ts
+step1: {
+  title: 'Contact info',
+  fields: { firstName: { defaultValue: '' }, email: { defaultValue: '' } },
+  isComplete: (data) => data.firstName.length > 0 && data.email.includes('@'),
+},
+```
+
+Read it back via the bound per-step method or the schema-level helper (both reflect the *current*
+field values, live):
+
+```ts
+instance.stepSchema.value.step1.isComplete(); // bound, no args
+instance.stepSchema.isStepComplete('step1'); // equivalent
+```
+
+A step with no `isComplete` configured is always considered complete.
+
+## 6. Type cookbook
+
+```ts
+import type {
+  DefineMultiStepFormOptions, // the { steps, instances? } shape defineMultiStepForm accepts
+  InstanceName,               // InstanceName<['admin','client']> = 'admin' | 'client'
+  StorageKey,                 // string | Record<InstanceName, string>
+  WithOverridesMap,           // the object shape .withOverrides() accepts, keyed by step
+  MultiStepFormFactory,       // the callable + step-helper shape .configure() returns
+} from '@jfdevelops/multi-step-form-core';
+
+// A form with no `instances` declared has a single, always-available "default" instance:
+const createForm = defineMultiStepForm({ steps: { /* ... */ } }).configure();
+createForm(); // no args needed
+createForm().instanceName; // 'default'
+
+// A form with `instances` declared requires `{ instance }` on every call:
+const createBookingForm = defineMultiStepForm({
+  steps: { /* ... */ },
+  instances: ['admin', 'client'],
+}).configure();
+createBookingForm({ instance: 'client' }); // ok
+// @ts-expect-error "instance" is required once `instances` is declared
+createBookingForm();
+```

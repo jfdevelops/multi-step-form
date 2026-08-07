@@ -26,6 +26,7 @@ describe('multi step form step schema: field properties', () => {
       defaultValue: 'Taylor',
       label: 'Your first name',
       nameTransformCasing: 'kebab',
+      isRequired: false,
     });
 
     expect(schema.stepSchema.value.step1.fields.lastName).toStrictEqual({
@@ -33,6 +34,7 @@ describe('multi step form step schema: field properties', () => {
       defaultValue: 'Swift',
       label: 'last-name',
       nameTransformCasing: 'kebab',
+      isRequired: false,
     });
   });
 
@@ -55,6 +57,7 @@ describe('multi step form step schema: field properties', () => {
       name: 'firstName',
       defaultValue: 'Taylor',
       nameTransformCasing: 'title',
+      isRequired: false,
     });
     expect(schema.stepSchema.value.step1.fields.firstName).not.toHaveProperty(
       'label',
@@ -86,6 +89,7 @@ describe('multi step form step schema: field properties', () => {
       label: 'Created At',
       nameTransformCasing: 'title',
       type: 'date',
+      isRequired: false,
     });
 
     expect(schema.stepSchema.value.step1.fields.startDate).toStrictEqual({
@@ -94,6 +98,7 @@ describe('multi step form step schema: field properties', () => {
       label: 'Start Date',
       nameTransformCasing: 'title',
       type: 'string',
+      isRequired: false,
     });
   });
 });

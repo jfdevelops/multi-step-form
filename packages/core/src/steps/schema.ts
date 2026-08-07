@@ -455,9 +455,13 @@ export class MultiStepFormStepSchema<
 
     this.original = steps;
 
-    this.value = instantiateSteps({ steps });
+    this.value = instantiateSteps({
+      steps,
+      nameTransformCasing: this.defaultNameTransformationCasing,
+    } as never);
     this.#internal = new MultiStepFormStepSchemaInternal({
       originalValue: this.original,
+      defaultNameTransformationCasing: this.defaultNameTransformationCasing,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next),
     });
@@ -680,6 +684,18 @@ export class MultiStepFormStepSchema<
 
   hasOverrides<targetStep extends StepNumbers<value>>(step: targetStep) {
     return typeof this.getStepOverride(step) === 'function';
+  }
+
+  /**
+   * Checks whether the given step is complete, based on that step's `isComplete` config
+   * and its current field values.
+   *
+   * If the step has no `isComplete` configured, it is always considered complete.
+   */
+  isStepComplete<targetStep extends StepNumbers<value>>(step: targetStep) {
+    const stepValue = this.value[step] as { isComplete?: () => boolean };
+
+    return stepValue.isComplete ? stepValue.isComplete() : true;
   }
 
   getStepStatus<targetStep extends StepNumbers<value>>(step: targetStep) {

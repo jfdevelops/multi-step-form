@@ -1,4 +1,13 @@
 export * from './schema.js';
+export * from './define.js';
+export {
+  InvalidInstanceError,
+  type InvalidInstanceContext,
+} from './errors/invalid-instance.js';
+export {
+  NoActiveInstanceError,
+  type NoActiveInstanceContext,
+} from './errors/no-active-instance.js';
 export {
   InvalidKeyError,
   type InvalidKeyContext,
