@@ -1,7 +1,53 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { createMultiStepFormSchema } from '../../src';
 
 describe('multi step form step schema: name transform casing', () => {
+  it('uses the schema-wide casing for field labels', () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: { title: 'Step 1', fields: { firstName: { defaultValue: '' } } },
+      },
+      nameTransformCasing: 'camel',
+    });
+
+    type Label = typeof schema.stepSchema.value.step1.fields.firstName.label;
+    expectTypeOf<Label>().toEqualTypeOf<'firstName'>();
+    expect(schema.stepSchema.value.step1.fields.firstName.label).toBe(
+      'firstName',
+    );
+  });
+
+  it('defaults schema-wide field labels to title casing', () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: { title: 'Step 1', fields: { firstName: { defaultValue: '' } } },
+      },
+    });
+
+    type Label = typeof schema.stepSchema.value.step1.fields.firstName.label;
+    expectTypeOf<Label>().toEqualTypeOf<'First Name'>();
+    expect(schema.stepSchema.value.step1.fields.firstName.label).toBe(
+      'First Name',
+    );
+  });
+
+  it('prefers the step casing over the schema-wide casing', () => {
+    const schema = createMultiStepFormSchema({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          nameTransformCasing: 'snake',
+          fields: { firstName: { defaultValue: '' } },
+        },
+      },
+      nameTransformCasing: 'camel',
+    });
+
+    expect(schema.stepSchema.value.step1.fields.firstName.label).toBe(
+      'first_name',
+    );
+  });
+
   it('should assign a default name transform casing to the step', () => {
     const schema = createMultiStepFormSchema({
       steps: {
