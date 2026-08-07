@@ -1,6 +1,6 @@
 # @jfdevelops/multi-step-form-core
 
-## 1.0.0-beta.38
+## 1.0.0-beta.0
 
 ### Major Changes
 
