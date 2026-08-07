@@ -32,7 +32,10 @@ type StripStringIndex<T> = Expand<{
 
 interface BaseConfig<
   TFields extends FieldConfig<CasingType>,
-  TCasing extends CasingType = DefaultCasing,
+  // NOTE: defaults to the wide `CasingType`, not `DefaultCasing` — see the matching note on
+  // `StepSchema.Config` in internals/step-schema.ts for why (this default is what's used when
+  // this type appears bare as a generic constraint).
+  TCasing extends CasingType = CasingType,
   TValidator = unknown,
 > extends NameTransformCasingOptions<TCasing> {
   title: string;
@@ -67,14 +70,23 @@ export type StepOverrideResult<TConfig extends AnyConfig> =
 export type StepOverrides<TConfig extends AnyConfig> = (
   data: StepResolvedData<TConfig>,
 ) => StepOverrideResult<TConfig>;
+/**
+ * A predicate that determines whether a step is complete, based on that step's
+ * current field values.
+ */
+export type StepIsCompleteFn<TConfig extends AnyConfig> = (
+  data: StepDefaultValues<TConfig['fields']>,
+) => boolean;
 export interface Config<
   TFields extends FieldConfig<CasingType> = FieldConfig<CasingType>,
-  TCasing extends CasingType = DefaultCasing,
+  // NOTE: see the matching note on `BaseConfig` above for why this defaults to `CasingType`.
+  TCasing extends CasingType = CasingType,
   TValidator = unknown,
 > extends BaseConfig<TFields, TCasing, TValidator> {}
 
 export type StepConfig<
-  TCasing extends CasingType = DefaultCasing,
+  // NOTE: see the matching note on `BaseConfig` above for why this defaults to `CasingType`.
+  TCasing extends CasingType = CasingType,
   TFields extends FieldConfig<TCasing> = FieldConfig<TCasing>,
   TValidator = unknown,
 > = Record<ValidStepKey, Config<TFields, TCasing, TValidator>>;
@@ -122,7 +134,12 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
    */
   steps: {
     [key in keyof TMap]: JustStepConfig<TMap[key]> & {
-      overrides?: StepOverrides<OverrideStepConfig<TMap[key]>>;
+      /**
+       * Determines whether this step is complete, based on that step's current field values.
+       *
+       * If omitted, the step is always considered complete.
+       */
+      isComplete?: StepIsCompleteFn<OverrideStepConfig<TMap[key]>>;
     };
   };
 };
@@ -141,6 +158,18 @@ export interface StepExtension<
   _TKey extends keyof TValue,
 > {}
 
+/**
+ * The schema-wide default casing (`nameTransformCasing`) to fall back to for a step/field that
+ * doesn't set its own. Falls back to {@linkcode DefaultCasing} when `T` doesn't carry one.
+ */
+export type inferSchemaDefaultCasing<T> = T extends {
+  nameTransformCasing?: infer casing;
+}
+  ? casing extends CasingType
+    ? casing
+    : DefaultCasing
+  : DefaultCasing;
+
 export type _instantiateSteps<T = unknown> = [T] extends [object]
   ? T extends instantiateStepsConfig
     ? {
@@ -149,12 +178,12 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
             title: string;
             nameTransformCasing: inferNameTransformCasing<
               T['steps'][key],
-              DefaultCasing
+              inferSchemaDefaultCasing<T>
             >;
             fields: StripStringIndex<
               instantiateFields<
                 T['steps'][key],
-                inferNameTransformCasing<T['steps'][key], DefaultCasing>
+                inferNameTransformCasing<T['steps'][key], inferSchemaDefaultCasing<T>>
               >
             >;
           } & (T['steps'][key] extends {
@@ -181,6 +210,10 @@ export type BaseStepFunctions<
               update: UpdateFn.stepSpecific<value, key>;
               reset: ResetFn.stepSpecific<value, key>;
               createHelperFn: StepSpecificHelperFn<value, key>;
+              /**
+               * Checks whether this step is complete, based on that step's current field values.
+               */
+              isComplete: () => boolean;
             }
           : {}
         : {}
@@ -205,6 +238,9 @@ export function instantiateSteps<
   inst = instantiateSteps<def>,
 >(def: def) {
   const { steps } = def;
+  const schemaDefaultCasing =
+    (def as { nameTransformCasing?: CasingType }).nameTransformCasing ?? DEFAULT_CASING;
+
   InvalidStepConfigError.invariant(steps, {
     reason: 'No steps were provided to the "steps" option.',
     expected: 'non-empty object',
@@ -250,7 +286,7 @@ export function instantiateSteps<
       title,
       description,
       validateFields,
-      nameTransformCasing = DEFAULT_CASING,
+      nameTransformCasing = schemaDefaultCasing,
     } = stepValue;
 
     // title validation
@@ -303,7 +339,7 @@ export function instantiateSteps<
     }
 
     const instantiatedFields = instantiateFields({
-      fields: fieldsDef,
+      fields: fieldsDef as never,
       defaultCasing: nameTransformCasing,
       validateFields,
     });

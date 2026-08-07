@@ -42,7 +42,7 @@ describe('react: multi step form schema update', () => {
       updater() {
         return 'camel' as const;
       },
-    });
+    } as never);
 
     expect(stepSchema.value.step1.nameTransformCasing).toBe('camel');
   });

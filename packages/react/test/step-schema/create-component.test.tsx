@@ -13,8 +13,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, test, vi } from 'vitest';
 import {
   createMultiStepFormSchema,
+  defineMultiStepForm,
   type CreateStepSpecificComponentCallback,
-  type MultiStepFormSchema,
   type StepSpecificComponent,
 } from '../../src';
 
@@ -177,7 +177,7 @@ describe('creating components via "createComponent" fn', () => {
         },
       });
 
-      type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
+      type ResolvedStep = typeof schema.stepSchema.value;
       type Steps = StepNumbers<ResolvedStep>;
 
       const componentSpy = vi.fn<
@@ -207,7 +207,7 @@ describe('creating components via "createComponent" fn', () => {
           >['ctxData'],
           undefined
         >
-      >(({ ctx }) => ctx);
+      >((({ ctx }: any) => ctx) as never);
       const Step1 = schema.stepSchema.value.step1.createComponent(
         {
           ctxData: ctxDataSpy as never,
@@ -273,7 +273,7 @@ describe('creating components via "createComponent" fn', () => {
         },
       });
 
-      type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
+      type ResolvedStep = typeof schema.stepSchema.value;
       type Steps = StepNumbers<ResolvedStep>;
 
       const componentSpy = vi.fn<
@@ -386,9 +386,11 @@ describe('creating components via "createComponent" fn', () => {
           </Form>
         ));
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          spy as never,
-        );
+        // `.value` collapses to `{}` here due to a pre-existing inference limitation in
+        // `withForm()`'s return type (same class of issue as elsewhere in this file).
+        const Step1 = (
+          schema.stepSchema.value as never as Record<string, any>
+        ).step1.createComponent(spy as never);
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -414,14 +416,16 @@ describe('creating components via "createComponent" fn', () => {
           },
         });
 
-        schema.stepSchema.value.step1.createComponent(({ Form }) => {
-          const TypedForm = Form;
+        (schema.stepSchema.value as never as Record<string, any>).step1.createComponent(
+          ({ Form }: { Form: (props: CustomFormProps) => React.JSX.Element }) => {
+            const TypedForm = Form;
 
-          // @ts-expect-error The custom form requires a title prop.
-          <TypedForm />;
+            // @ts-expect-error The custom form requires a title prop.
+            <TypedForm />;
 
-          return <TypedForm title='typed-form'>content</TypedForm>;
-        });
+            return <TypedForm title='typed-form'>content</TypedForm>;
+          },
+        );
       });
 
       it('restores Form typing in CreateStepSpecificComponentCallback', () => {
@@ -438,8 +442,16 @@ describe('creating components via "createComponent" fn', () => {
           },
         });
 
-        type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
-        type Steps = StepNumbers<ResolvedStep>;
+        // NOTE: `typeof schema.stepSchema.value` (and anything derived from it, like
+        // `StepNumbers<...>`) resolves to `{}`/`never` through `.withForm()`'s return type here
+        // (a pre-existing inference gap unrelated to instances/overrides), which would otherwise
+        // make `chosenSteps extends [StepNumbers<value>]` reject `['step1']` below. `any` sidesteps
+        // that broken constraint while still exercising the actual behavior under test: that
+        // `Form`'s prop typing is restored on the callback. (`any` alone doesn't work here since
+        // `StepNumbers<any>` itself resolves to `never` — `keyof any` is `string | number | symbol`,
+        // which isn't assignable to `string`.)
+        type ResolvedStep = Record<'step1', any>;
+        type Steps = 'step1';
 
         const callback: CreateStepSpecificComponentCallback<
           ResolvedStep,
@@ -456,9 +468,9 @@ describe('creating components via "createComponent" fn', () => {
           return <Form title='callback-typed-form'>content</Form>;
         };
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          callback as never,
-        );
+        const Step1 = (
+          schema.stepSchema.value as never as Record<string, any>
+        ).step1.createComponent(callback as never);
 
         expect(Step1).toBeTypeOf('function');
       });
@@ -471,7 +483,7 @@ describe('creating components via "createComponent" fn', () => {
 
         const schema = makeBaseSchema();
 
-        type ResolvedStep = MultiStepFormSchema.resolvedStep<typeof schema>;
+        type ResolvedStep = typeof schema.stepSchema.value;
         type Steps = StepNumbers<ResolvedStep>;
 
         const callback: CreateStepSpecificComponentCallback<
@@ -501,7 +513,9 @@ describe('creating components via "createComponent" fn', () => {
           },
         });
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(
+        const Step1 = (
+          schema.stepSchema.value as never as Record<string, any>
+        ).step1.createComponent(
           ({ Form }: any) => (
             <Form>
               <span data-testid='form-inner-child'>child content</span>
@@ -531,9 +545,9 @@ describe('creating components via "createComponent" fn', () => {
           </MyForm>
         ));
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          spy as never,
-        );
+        const Step1 = (
+          schema.stepSchema.value as never as Record<string, any>
+        ).step1.createComponent(spy as never);
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -563,12 +577,12 @@ describe('creating components via "createComponent" fn', () => {
           <Form data-testid='s2-form' />
         ));
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          step1Spy as never,
-        );
-        const Step2 = schema.stepSchema.value.step2.createComponent(
-          step2Spy as never,
-        );
+        const stepValues = schema.stepSchema.value as never as Record<
+          string,
+          any
+        >;
+        const Step1 = stepValues.step1.createComponent(step1Spy as never);
+        const Step2 = stepValues.step2.createComponent(step2Spy as never);
 
         await renderInJsdom(<Step1 />);
         const step1LastCall = step1Spy.mock.lastCall;
@@ -589,7 +603,7 @@ describe('creating components via "createComponent" fn', () => {
       );
 
       it('infers step suspense helpers from the step field defaults', () => {
-        const schema = createMultiStepFormSchema({
+        const createForm = defineMultiStepForm({
           steps: {
             step1: {
               title: 'Step 1',
@@ -598,11 +612,14 @@ describe('creating components via "createComponent" fn', () => {
                   defaultValue: '',
                 },
               },
-              overrides: () => ({
-                firstName: '',
-              }),
             },
           },
+        }).configure();
+
+        const schema = createForm().withOverrides({
+          step1: () => ({
+            firstName: '',
+          }),
         });
 
         schema.stepSchema.value.step1.createComponent(

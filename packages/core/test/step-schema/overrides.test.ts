@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: overrides', () => {
   it('resolves async overrides for a single step', async () => {
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -12,9 +12,6 @@ describe('multi step form step schema: overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: async (data) => ({
-            firstName: String(data.fields.firstName.defaultValue ?? ''),
-          }),
         },
         step2: {
           title: 'Step 2',
@@ -25,6 +22,12 @@ describe('multi step form step schema: overrides', () => {
           },
         },
       },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async (data) => ({
+        firstName: String(data.fields.firstName.defaultValue ?? ''),
+      }),
     });
 
     expect(schema.stepSchema.getStepStatus('step1')).toBe('idle');
@@ -44,7 +47,7 @@ describe('multi step form step schema: overrides', () => {
   });
 
   it('stores override errors on the step status', async () => {
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -53,10 +56,13 @@ describe('multi step form step schema: overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: async () => {
-            throw new Error('Failed to load');
-          },
         },
+      },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => {
+        throw new Error('Failed to load');
       },
     });
 
@@ -68,7 +74,7 @@ describe('multi step form step schema: overrides', () => {
   });
 
   it('preserves untouched field defaults when overrides return a partial patch', async () => {
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -80,11 +86,14 @@ describe('multi step form step schema: overrides', () => {
               defaultValue: false,
             },
           },
-          overrides: async () => ({
-            firstName: 'Taylor',
-          }),
         },
       },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => ({
+        firstName: 'Taylor',
+      }),
     });
 
     await schema.stepSchema.resolveStep('step1');

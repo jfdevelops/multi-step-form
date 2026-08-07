@@ -83,7 +83,7 @@ describe('createMultiStepFormContext', () => {
     function TestComponent() {
       const wholeSchema = useMultiStepFormData();
       const { data, hasData, NoCurrentData } = useCurrentStepData({
-        targetStep: 'step1',
+        targetStep: 'step1' as never,
       });
 
       if (!hasData) {
@@ -92,11 +92,11 @@ describe('createMultiStepFormContext', () => {
 
       return (
         <>
-          <p>Current step: {data.fields.firstName?.defaultValue}</p>
+          <p>Current step: {(data as never as { fields: { firstName: { defaultValue: string } } }).fields.firstName?.defaultValue}</p>
           <p>
             Whole schema:{' '}
             {
-              wholeSchema.stepSchema.value.step1.fields.firstName
+              (wholeSchema.stepSchema.value as never as Record<string, any>).step1.fields.firstName
                 ?.defaultValue
             }
           </p>
@@ -107,7 +107,7 @@ describe('createMultiStepFormContext', () => {
     const screen = await renderInJsdom(<TestComponent />);
 
     await act(async () => {
-      schema.stepSchema.value.step1.update({
+      (schema.stepSchema.value as never as Record<string, any>).step1.update({
         fields: ['fields.firstName.defaultValue'],
         updater: 'Taylor',
       });

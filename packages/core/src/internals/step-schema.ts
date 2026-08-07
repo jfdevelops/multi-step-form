@@ -27,7 +27,6 @@ import {
   MultiStepFormLogger,
   type CasingType,
   type DeepKeys,
-  type DefaultCasing,
 } from '@/utils';
 import {
   comparePartialArray,
@@ -108,6 +107,12 @@ export namespace MultiStepFormStepSchemaInternal {
     additionalEnrichedProps extends Record<string, unknown> = {}
   > {
     originalValue: def['steps'];
+    /**
+     * The schema-wide default casing, used as the fallback when a step/field doesn't set its
+     * own `nameTransformCasing` — threaded through so resets back to the original values use the
+     * same default casing the schema was constructed with.
+     */
+    defaultNameTransformationCasing?: def['nameTransformCasing'];
     additionalEnrichedProps?: (step: number) => additionalEnrichedProps;
     /**
      * The resolved multi step form values.
@@ -126,7 +131,12 @@ export namespace MultiStepFormStepSchemaInternal {
 export namespace StepSchema {
   export type Config<
     TSteps extends StepConfig = StepConfig,
-    TCasing extends CasingType = DefaultCasing,
+    // NOTE: defaults to the wide `CasingType` (not `DefaultCasing`) since this default is what's
+    // used when `Config` appears bare as a generic constraint (e.g. `<const def extends
+    // StepSchema.Config>`) — it needs to accept any concrete casing, not just `'title'`. Callers
+    // that want the runtime default casing pass `DefaultCasing`/omit `nameTransformCasing`
+    // explicitly at the value level, which is unrelated to this type-level default.
+    TCasing extends CasingType = CasingType,
     TStorageKey extends string = string
   > = instantiateStepsConfig<TSteps> &
     NameTransformCasingOptions<TCasing> & {
@@ -151,6 +161,7 @@ export class MultiStepFormStepSchemaInternal<
   additionalEnrichedProps extends Record<string, unknown> = {}
 > {
   readonly #originalValue: def['steps'];
+  readonly #defaultNameTransformationCasing?: def['nameTransformCasing'];
   readonly #additionalEnrichedProps?: (step: number) => additionalEnrichedProps;
   readonly #getValue: () => value;
   readonly #setValue: (value: value) => void;
@@ -166,10 +177,16 @@ export class MultiStepFormStepSchemaInternal<
       additionalEnrichedProps
     >
   ) {
-    const { getValue, setValue, originalValue, additionalEnrichedProps } =
-      options;
+    const {
+      getValue,
+      setValue,
+      originalValue,
+      defaultNameTransformationCasing,
+      additionalEnrichedProps,
+    } = options;
 
     this.#originalValue = originalValue;
+    this.#defaultNameTransformationCasing = defaultNameTransformationCasing;
     this.#getValue = getValue;
     this.#setValue = setValue;
     this.#additionalEnrichedProps = additionalEnrichedProps;
@@ -560,7 +577,8 @@ export class MultiStepFormStepSchemaInternal<
     });
     const originalValues = instantiateSteps({
       steps: this.#originalValue,
-    });
+      nameTransformCasing: this.#defaultNameTransformationCasing,
+    } as never);
     const enrichedOriginalValues = this.enrichValues(
       originalValues,
       this.#additionalEnrichedProps
@@ -735,6 +753,32 @@ export class MultiStepFormStepSchemaInternal<
     });
 
     return match<value, chosenSteps>(chosenSteps);
+  }
+
+  private createStepIsCompleteFn<targetStep extends StepNumbers<value>>(
+    targetStep: targetStep
+  ) {
+    return () => {
+      const original = (this.#originalValue as Record<string, unknown>)[
+        targetStep as string
+      ] as { isComplete?: (data: Record<string, unknown>) => boolean } | undefined;
+
+      if (!original || typeof original.isComplete !== 'function') {
+        return true;
+      }
+
+      const stepValue = this.value[targetStep] as {
+        fields: Record<string, { defaultValue: unknown }>;
+      };
+      const data = Object.fromEntries(
+        Object.entries(stepValue.fields).map(([name, field]) => [
+          name,
+          field.defaultValue,
+        ])
+      );
+
+      return Boolean(original.isComplete(data));
+    };
   }
 
   createStepHelperFn<
@@ -960,6 +1004,7 @@ export class MultiStepFormStepSchemaInternal<
         update: this.createStepUpdaterFn(targetStep),
         reset: this.createStepResetterFn(targetStep),
         createHelperFn: this.createStepHelperFn([targetStep]),
+        isComplete: this.createStepIsCompleteFn(targetStep),
         ...additionalProps?.(step),
       } as never;
     }

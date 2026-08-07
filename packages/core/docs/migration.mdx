@@ -1,0 +1,74 @@
+---
+title: Migrating from alpha
+description: Move step-level "overrides" off the step config and onto ".withOverrides(...)" via the new "defineMultiStepForm" factory.
+package: '@jfdevelops/multi-step-form-core'
+category: migration
+order: 1
+---
+
+import { createMultiStepFormSchema, defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
+
+# Migrating from alpha
+
+The step-level `overrides` function has moved off the step config and onto an instance, via
+`.withOverrides(...)`, attached through the new `defineMultiStepForm` factory instead of
+`createMultiStepFormSchema`. Field/step definitions themselves are unchanged otherwise.
+
+```ts
+// Before (alpha)
+const schema = createMultiStepFormSchema({
+  steps: {
+    step1: {
+      title: 'Step 1',
+      fields: { firstName: { defaultValue: '' } },
+      overrides: async ({ fields }) => ({ firstName: await loadDefaultName() }),
+    },
+  },
+});
+
+// After (beta)
+const createForm = defineMultiStepForm({
+  steps: {
+    step1: {
+      title: 'Step 1',
+      fields: { firstName: { defaultValue: '' } },
+    },
+  },
+}).configure();
+
+const schema = createForm().withOverrides({
+  step1: async ({ fields }) => ({ firstName: await loadDefaultName() }),
+});
+```
+
+If you don't need multiple instances, `defineMultiStepForm({ steps }).configure()` still gives you
+a working single "default" instance — just call the factory with no arguments: `createForm()`.
+
+Nothing else about step/field config changes: `title`, `description`, `fields`, and
+`validateFields` all work exactly as before.
+
+`nameTransformCasing` also moves — from a top-level `defineMultiStepForm({ steps, ... })` option to
+`.configure({ nameTransformCasing })`, since it's now a per-definition default applied when each
+instance is constructed rather than something baked into the step definitions themselves:
+
+```ts
+// Before (alpha)
+const schema = createMultiStepFormSchema({
+  steps: { /* ... */ },
+  nameTransformCasing: 'camel',
+});
+
+// After (beta)
+const createForm = defineMultiStepForm({
+  steps: { /* ... */ },
+}).configure({
+  nameTransformCasing: 'camel',
+});
+```
+
+`createMultiStepFormSchema` itself is unchanged apart from the `overrides` removal above — it
+remains available for forms that don't need multiple instances.
+
+For everything `defineMultiStepForm` adds on top of this (instances, per-instance storage, shared
+`createHelperFn`, `withOverrides`, field metadata, step `isComplete`), see
+[`instances-and-storage.mdx`](./instances-and-storage.mdx).

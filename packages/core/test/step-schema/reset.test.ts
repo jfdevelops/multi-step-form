@@ -46,6 +46,7 @@ describe('multi step form step schema: reset', () => {
             nameTransformCasing: 'camel',
             label: 'firstName',
             name: 'firstName',
+            isRequired: false,
           },
         },
         title: 'Updated Title',
@@ -62,6 +63,7 @@ describe('multi step form step schema: reset', () => {
             nameTransformCasing: 'camel',
             label: 'firstName',
             name: 'firstName',
+            isRequired: false,
           },
         },
         title: title('Step 1'),
@@ -166,6 +168,7 @@ describe('multi step form step schema: reset', () => {
         nameTransformCasing: 'flat',
         name: 'firstName',
         label: 'firstName',
+        isRequired: false,
       });
 
       schema.stepSchema.value.step1.reset({
@@ -176,6 +179,7 @@ describe('multi step form step schema: reset', () => {
         nameTransformCasing: 'camel',
         name: 'firstName',
         label: 'firstName',
+        isRequired: false,
       });
     });
   });
@@ -277,6 +281,7 @@ describe('multi step form step schema: reset', () => {
         nameTransformCasing: 'camel',
         name: 'firstName',
         label: 'firstName',
+        isRequired: false,
       });
 
       schema.stepSchema.value.step1.reset({
@@ -291,6 +296,7 @@ describe('multi step form step schema: reset', () => {
         nameTransformCasing: 'camel',
         name: 'firstName',
         label: 'firstName',
+        isRequired: false,
       });
     });
   });
