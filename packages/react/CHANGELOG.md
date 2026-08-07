@@ -1,5 +1,21 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.56
+
+### Major Changes
+
+- 8f3b1b1: Add the React `defineMultiStepForm` factory (mirroring core instances/storage) and migrate to per-instance `.withOverrides(...)` instead of step-level `overrides`.
+
+  BREAKING CHANGE: step-level `overrides` on the step config is removed — use `createForm({ instance }).withOverrides(...)` (chainable with `.withForm()` / `.withContext()`).
+
+- 85e4f84: Exit alpha prerelease mode and enter beta.
+
+### Patch Changes
+
+- Updated dependencies [a44ace5]
+- Updated dependencies [85e4f84]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.38
+
 ## 1.0.0-alpha.55
 
 ### Patch Changes
