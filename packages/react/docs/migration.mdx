@@ -1,0 +1,55 @@
+---
+title: Migrating from alpha
+description: Where ".withOverrides(...)" sits in the existing withForm/withContext builder chain after the alpha "overrides" removal.
+package: '@jfdevelops/react-multi-step-form'
+category: migration
+order: 1
+---
+
+import { createMultiStepFormSchema, defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
+
+# Migrating from alpha
+
+`@jfdevelops/react-multi-step-form`'s `createMultiStepFormSchema` loses step-level `overrides`
+the same way the core package's does — see
+[`packages/core/docs/migration.mdx`](../../core/docs/migration.mdx) for the general shape of the
+change (`overrides` moves off the step config and onto `.withOverrides(...)`).
+
+The React-specific difference is where `.withOverrides()` sits in the existing builder chain:
+
+```tsx
+// Before (alpha)
+const schema = createMultiStepFormSchema({
+  steps: {
+    step1: {
+      title: 'Step 1',
+      fields: { firstName: { defaultValue: '' } },
+      overrides: async ({ fields }) => ({ firstName: await loadDefaultName() }),
+    },
+  },
+}).withForm({ /* ... */ });
+
+// After (beta)
+const createForm = defineMultiStepForm({
+  steps: {
+    step1: {
+      title: 'Step 1',
+      fields: { firstName: { defaultValue: '' } },
+    },
+  },
+}).configure();
+
+const schema = createForm()
+  .withOverrides({
+    step1: async ({ fields }) => ({ firstName: await loadDefaultName() }),
+  })
+  .withForm({ /* ... */ });
+```
+
+`withOverrides` runs *before* `withForm`/`withContext` — see
+[`instances-and-storage.mdx`](./instances-and-storage.mdx) for the full builder order and why, plus
+everything `defineMultiStepForm` adds on top of this (instances, per-instance storage, shared
+`createHelperFn`).
+
+`createMultiStepFormSchema` itself is otherwise unchanged and remains available for forms that
+don't need multiple instances.

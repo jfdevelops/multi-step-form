@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { OverrideStatus } from '@jfdevelops/multi-step-form-core';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { createMultiStepFormSchema, defineMultiStepForm } from '../../src';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -72,7 +72,7 @@ function createDeferred<T>() {
 describe('step overrides', () => {
   it('suspends the full step through Suspend', async () => {
     const deferred = createDeferred<{ firstName: string }>();
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -81,9 +81,12 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: ({}) => deferred.promise,
         },
       },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: ({}) => deferred.promise,
     });
 
     const Step1 = schema.stepSchema.value.step1.createComponent(
@@ -111,7 +114,7 @@ describe('step overrides', () => {
 
   it('supports field-level suspension', async () => {
     const deferred = createDeferred<{ firstName: string }>();
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -120,14 +123,17 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: async () => {
-            const values = await deferred.promise;
-
-            return {
-              firstName: values.firstName,
-            };
-          },
         },
+      },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => {
+        const values = await deferred.promise;
+
+        return {
+          firstName: values.firstName,
+        };
       },
     });
 
@@ -143,7 +149,7 @@ describe('step overrides', () => {
 
     const screen = await renderInJsdom(<Step1 />);
 
-    expect(schema.stepSchema.getStepStatus('step1')).toBe('loading');
+    expect(schema.stepSchema.getStepStatus('step1' as never)).toBe('loading');
 
     await act(async () => {
       deferred.resolve({
@@ -156,7 +162,7 @@ describe('step overrides', () => {
 
   it('exposes the current override status through useStep', async () => {
     const deferred = createDeferred<{ firstName: string }>();
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -165,14 +171,17 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: async () => {
-            const values = await deferred.promise;
-
-            return {
-              firstName: values.firstName,
-            };
-          },
         },
+      },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => {
+        const values = await deferred.promise;
+
+        return {
+          firstName: values.firstName,
+        };
       },
     });
 
@@ -308,16 +317,19 @@ describe('step overrides', () => {
 
   it('resolves overrides and isolates a status selector from field updates', async () => {
     const deferred = createDeferred<{ firstName: string }>();
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
           fields: {
             firstName: { defaultValue: '' },
           },
-          overrides: async () => deferred.promise,
         },
       },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => deferred.promise,
     });
     const statusRender = vi.fn();
 
@@ -346,7 +358,7 @@ describe('step overrides', () => {
 
     const screen = await renderInJsdom(<Status />);
 
-    expect(schema.stepSchema.getStepStatus('step1')).toBe('loading');
+    expect(schema.stepSchema.getStepStatus('step1' as never)).toBe('loading');
 
     await act(async () => deferred.resolve({ firstName: 'Jordan' }));
 
@@ -360,7 +372,7 @@ describe('step overrides', () => {
 
   it('keeps non-overridden fields available after async step resolution', async () => {
     const deferred = createDeferred<{ firstName: string }>();
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -372,14 +384,17 @@ describe('step overrides', () => {
               defaultValue: false,
             },
           },
-          overrides: async () => {
-            const values = await deferred.promise;
-
-            return {
-              firstName: values.firstName,
-            };
-          },
         },
+      },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => {
+        const values = await deferred.promise;
+
+        return {
+          firstName: values.firstName,
+        };
       },
     });
 
@@ -415,7 +430,7 @@ describe('step overrides', () => {
   });
 
   it('stores thrown override errors on the current step hook result', async () => {
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -424,10 +439,13 @@ describe('step overrides', () => {
               defaultValue: '',
             },
           },
-          overrides: async () => {
-            throw new Error('Failed to load step defaults');
-          },
         },
+      },
+    }).configure();
+
+    const schema = createForm().withOverrides({
+      step1: async () => {
+        throw new Error('Failed to load step defaults');
       },
     });
 
@@ -506,8 +524,8 @@ describe('step overrides', () => {
     });
   });
 
-  it('infers override fields at the react createMultiStepFormSchema entrypoint', () => {
-    createMultiStepFormSchema({
+  it('infers override fields at the react withOverrides entrypoint', () => {
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -522,27 +540,30 @@ describe('step overrides', () => {
               defaultValue: false,
             },
           },
-          overrides: ({ fields }) => {
-            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-            expectTypeOf(
-              fields.phoneNumber.defaultValue,
-            ).toEqualTypeOf<string>();
-            expectTypeOf(
-              fields.saveToAccount.defaultValue,
-            ).toEqualTypeOf<boolean>();
-
-            return {
-              firstName: fields.firstName.defaultValue,
-            };
-          },
         },
+      },
+    }).configure();
+
+    createForm().withOverrides({
+      step1: ({ fields }) => {
+        expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+        expectTypeOf(
+          fields.phoneNumber.defaultValue,
+        ).toEqualTypeOf<string>();
+        expectTypeOf(
+          fields.saveToAccount.defaultValue,
+        ).toEqualTypeOf<boolean>();
+
+        return {
+          firstName: fields.firstName.defaultValue,
+        };
       },
     });
   });
 
   it('preserves non-overridden fields through withForm and withContext', async () => {
     const deferred = createDeferred<{ firstName: string }>();
-    const schema = createMultiStepFormSchema({
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -554,21 +575,25 @@ describe('step overrides', () => {
               defaultValue: false,
             },
           },
-          overrides: async ({ fields }) => {
-            expectTypeOf(
-              fields.saveToAccount.defaultValue,
-            ).toEqualTypeOf<boolean>();
-            expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-
-            const values = await deferred.promise;
-
-            return {
-              firstName: values.firstName,
-            };
-          },
         },
       },
-    })
+    }).configure();
+
+    const schema = createForm()
+      .withOverrides({
+        step1: async ({ fields }) => {
+          expectTypeOf(
+            fields.saveToAccount.defaultValue,
+          ).toEqualTypeOf<boolean>();
+          expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+
+          const values = await deferred.promise;
+
+          return {
+            firstName: values.firstName,
+          };
+        },
+      })
       .withForm({
         render() {
           return function Form(props: ComponentPropsWithRef<'form'>) {
@@ -578,23 +603,26 @@ describe('step overrides', () => {
       })
       .withContext();
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(
-      ({ Field, Form, Suspend }) => (
+    // `.value` is not inferred here due to a pre-existing `const steps` inference limitation
+    // (see the same class of issue on `main` in packages/core/test/step-schema/update.test.ts).
+    const step1 = (schema.stepSchema.value as never as Record<string, any>).step1;
+    const Step1 = step1.createComponent(
+      (({ Field, Form, Suspend }: any) => (
         <Suspend fallback={<p data-testid='loading'>Loading</p>}>
           <Form>
             <Field name='firstName'>
-              {({ defaultValue }) => (
+              {({ defaultValue }: any) => (
                 <p data-testid='firstName'>{String(defaultValue)}</p>
               )}
             </Field>
             <Field name='saveToAccount'>
-              {({ defaultValue }) => (
+              {({ defaultValue }: any) => (
                 <p data-testid='saveToAccount'>{String(defaultValue)}</p>
               )}
             </Field>
           </Form>
         </Suspend>
-      ),
+      )) as never,
     );
 
     const screen = await renderInJsdom(<Step1 />);

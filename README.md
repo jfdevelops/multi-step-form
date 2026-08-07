@@ -29,12 +29,9 @@ npm install @jfdevelops/multi-step-form @jfdevelops/react-multi-step-form
 ### 1. Create a Form Schema
 
 ```tsx
-import {
-  createMultiStepFormSchema,
-  createMultiStepFormContext,
-} from '@jfdevelops/react-multi-step-form';
+import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
 
-export const schema = createMultiStepFormSchema({
+const createForm = defineMultiStepForm({
   steps: {
     step1: {
       title: 'Personal Information',
@@ -76,10 +73,14 @@ export const schema = createMultiStepFormSchema({
       },
     },
   },
+}).configure({
   storage: {
     key: 'MultiStepFormBasicExample',
   },
-  form: {
+});
+
+export const schema = createForm()
+  .withForm({
     alias: 'MyCoolCustomForm',
     enabledForSteps: ['step1', 'step2'],
     render(
@@ -103,18 +104,24 @@ export const schema = createMultiStepFormSchema({
         </div>
       );
     },
-  },
-});
+  })
+  .withContext();
 
 export const {
   useMultiStepFormData,
   useCurrentStepData,
   useProgress,
   useCanRestartForm,
-} = createMultiStepFormContext(schema);
+} = schema.context;
 
 export type StepNumber = keyof MultiStepFormSchema.resolvedStep<typeof schema>;
 ```
+
+`defineMultiStepForm({ steps }).configure({ storage })` is a single-instance form by default — see
+the [beta docs](#beta-instances--storage) below for named instances (e.g. a persisted public form
+alongside a memory-only admin form) sharing this same definition. `createMultiStepFormSchema` (the
+pre-beta factory) still works the same way it always has, minus step-level `overrides` (moved to
+`.withOverrides(...)` — see the migration guides linked below).
 
 ### 2. Create step specific components
 
@@ -206,6 +213,34 @@ export function StepLayout({
 }
 ```
 
+## Beta: instances & storage
+
+Starting with the `beta` pre-releases, `defineMultiStepForm` lets one form definition power
+several independent, named instances — e.g. a persisted public/client form and a memory-only
+internal/admin form that share the same steps and helper functions:
+
+```ts
+const createBookingForm = defineMultiStepForm({
+  steps: { /* ... */ },
+  instances: ['admin', 'client'],
+}).configure({
+  storage: { key: { client: 'booking:client', admin: 'booking:admin' }, configure: { instances: ['client'] } },
+});
+
+const clientForm = createBookingForm({ instance: 'client' }); // persists to storage
+const adminForm = createBookingForm({ instance: 'admin' }); // memory-only
+```
+
+See the per-package docs for the full guide — instances, per-instance storage, shared
+`createHelperFn`, `withOverrides`, field metadata (`isRequired`/`placeholder`/`errorMessage`),
+step `isComplete`, and a type cookbook. Migrating from alpha has its own doc, separate from the
+feature guide:
+
+- [`packages/core/docs`](./packages/core/docs) — the framework-agnostic API
+  ([migration](./packages/core/docs/migration.mdx), [instances & storage](./packages/core/docs/instances-and-storage.mdx))
+- [`packages/react/docs`](./packages/react/docs) — the React builder order & provider wiring
+  ([migration](./packages/react/docs/migration.mdx), [instances & storage](./packages/react/docs/instances-and-storage.mdx))
+
 ## Packages
 
 ### `@jfdevelops/multi-step-form` (Core)
@@ -260,7 +295,10 @@ multi-step-form/
 
 ## Storage
 
-Form data is automatically persisted to localStorage using the key specified in the schema. The storage is reactive and updates automatically when form data changes.
+Form data is persisted to localStorage using the key specified in `.configure({ storage })`. The
+storage is reactive and updates automatically when form data changes. With `defineMultiStepForm`,
+storage is opt-in per instance (see the [beta docs](#beta-instances--storage)) — a form with no
+`storage` configured is memory-only.
 
 ## TypeScript Support
 

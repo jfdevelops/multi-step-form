@@ -101,6 +101,7 @@ export class MultiStepFormSchema<
     // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
     this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
       originalValue: this.stepSchema.original,
+      defaultNameTransformationCasing: this.stepSchema.defaultNameTransformationCasing,
       getValue: () => this.stepSchema.value,
       setValue: (value) => {
         this.stepSchema.value = { ...value };
