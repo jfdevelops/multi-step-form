@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.3
+
+### Patch Changes
+
+- a382686: Restore the complete schema surface, including the exact type-only step union and `stepSchema`, on the callable factory returned by `defineMultiStepForm().configure()` while keeping factory and instance state isolated.
+- e7365ed: Only expose and inject a `Form` component in `createComponent` render input after the schema has been configured with `.withForm()`.
+- 6fea1ed: Preserve step-specific helpers for partial object selectors and isolate configured factory schemas from shared browser storage.
+- a26edfb: Restore the full strongly typed `stepData` selector on schema-level `createComponent`, including `'all'`, exact step tuples, and object notation.
+- Updated dependencies [6fea1ed]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.3
+
 ## 1.0.0-beta.2
 
 ### Major Changes

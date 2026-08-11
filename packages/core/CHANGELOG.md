@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-beta.3
+
+### Patch Changes
+
+- 6fea1ed: Preserve step-specific helpers for partial object selectors and isolate configured factory schemas from shared browser storage.
+
 ## 1.0.0-beta.2
 
 ### Major Changes
