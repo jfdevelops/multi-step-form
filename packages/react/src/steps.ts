@@ -17,13 +17,17 @@ import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { UseSelector } from './hooks/use-selector';
 import { selector } from './selector';
-import { CreateComponent, CreatedMultiStepFormComponent } from './utils';
+import {
+  CreateComponent,
+  type CreateComponentConfig,
+  CreatedMultiStepFormComponent,
+} from './utils';
 
 export namespace StepSpecificComponent {
   type defaultFormComponent = {
-    [key in MultiStepFormSchemaConfig.defaultFormAlias]: CreatedMultiStepFormComponent<
-      Omit<ComponentPropsWithRef<'form'>, 'id'>
-    >;
+    [
+      key in MultiStepFormSchemaConfig.defaultFormAlias
+    ]: CreatedMultiStepFormComponent<Omit<ComponentPropsWithRef<'form'>, 'id'>>;
   };
   type instantiateFormComponentForAllSteps<
     def extends StepSchema.Config,
@@ -72,12 +76,8 @@ export namespace StepSpecificComponent {
     tuple: instantiateFormComponentForTuple<def, steps, chosenSteps>;
     object: instantiateFormComponentForObject<def, steps, chosenSteps>;
   };
-  // The logic for getting the formCtx only works for step specific `createComponent`
-  // (i.e: step1.createComponent(...)) as of now. Reason is because I can't think of a good API for integrating the form
-  // ctx into the main `createComponent` since multiple steps can be chosen. In that case
-  // how would the logic work for when the form component should be defined in the callback?
-  // Ideas:
-  //  - Make the main `createComponent` return a function that accepts the current step
+  // A form component can only be selected unambiguously when one concrete step is targeted.
+  // Instance-level `createComponent` delegates that case to the same step-specific factory.
   export type formComponent<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps<def>,
@@ -132,7 +132,10 @@ export namespace StepSpecificComponent {
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
-  > = <error extends Error = Error, selected = useStepResult<value, targetStep, error>>(
+  > = <
+    error extends Error = Error,
+    selected = useStepResult<value, targetStep, error>,
+  >(
     options?: useStepOptions<def, value, targetStep, error, selected>,
   ) => selected;
 
@@ -240,6 +243,33 @@ export namespace StepSpecificComponent {
      */
     debug?: boolean;
   };
+
+  export type config<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    props,
+    additionalCtx extends Record<string, unknown> = {},
+  > = options<value, targetStep, additionalCtx> &
+    CreateComponentConfig<
+      Expand<
+        input<def, value, targetStep, additionalCtx> &
+          formComponent<def, value, [targetStep]> &
+          additionalCtx
+      >,
+      props
+    >;
+
+  export type instanceInput<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  > = chosenSteps extends [infer targetStep extends StepNumbers<value>]
+    ? Expand<
+        input<def, value, targetStep, {}> &
+          formComponent<def, value, [targetStep]>
+      >
+    : HelperFnInput.BaseInput<value, chosenSteps, never, {}>;
 }
 
 type IsLegacyFormAvailable<
@@ -277,20 +307,11 @@ export interface StepSpecificCreateComponentFn<
 > {
   /**
    * A utility function to easily create a component for the current step.
-   * @param fn The callback function where the component is defined.
-   */
-  <props = undefined>(
-    fn: StepSpecificComponent.callback<def, value, targetStep, props>,
-  ): CreatedMultiStepFormComponent<props>;
-  /**
-   * A utility function to easily create a component for the current step.
-   * @param options Specific config options for creating a component for the current step.
-   * @param fn The callback function where the component is defined.
+   * @param config Specific options and the render callback for the component.
    * @returns The created component.
    */
   <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
-    options: StepSpecificComponent.options<value, targetStep, additionalCtx>,
-    fn: StepSpecificComponent.callback<
+    config: StepSpecificComponent.config<
       def,
       value,
       targetStep,

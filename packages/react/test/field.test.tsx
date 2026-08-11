@@ -61,17 +61,19 @@ describe('Field', () => {
       },
     }).configure()();
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
-      <Field name='firstName' suspend fallback={<div>Loading</div>}>
-        {({ defaultValue, onInputChange }) => (
-          <input
-            data-testid='firstName'
-            value={defaultValue}
-            onChange={(event) => onInputChange(event.target.value)}
-          />
-        )}
-      </Field>
-    ));
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }) => (
+        <Field name='firstName' suspend fallback={<div>Loading</div>}>
+          {({ defaultValue, onInputChange }) => (
+            <input
+              data-testid='firstName'
+              value={defaultValue}
+              onChange={(event) => onInputChange(event.target.value)}
+            />
+          )}
+        </Field>
+      ),
+    });
 
     const screen = await renderInJsdom(<Step1 />);
     const originalInput = screen.getByTestId('firstName') as HTMLInputElement;
@@ -121,68 +123,85 @@ describe('Field', () => {
       },
     }).configure()();
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }: any) => (
-      <>
-        <Field name='firstName'>
-          {({
-            defaultValue,
-            label,
-            name,
-            nameTransformCasing,
-            onInputChange,
-            reset,
-          }: any) => (
-            <div>
-              <p data-testid='name'>{name}</p>
-              <p data-testid='defaultValue'>{defaultValue}</p>
-              <p data-testid='label'>{label}</p>
-              <p data-testid='nameTransformCasing'>
-                {String(nameTransformCasing)}
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }: any) => (
+        <>
+          <Field name='firstName'>
+            {({
+              defaultValue,
+              label,
+              name,
+              nameTransformCasing,
+              onInputChange,
+              reset,
+            }: any) => (
+              <div>
+                <p data-testid='name'>{name}</p>
+                <p data-testid='defaultValue'>{defaultValue}</p>
+                <p data-testid='label'>{label}</p>
+                <p data-testid='nameTransformCasing'>
+                  {String(nameTransformCasing)}
+                </p>
+                <button
+                  data-testid='update'
+                  onClick={() => onInputChange('Jo')}
+                >
+                  update
+                </button>
+                <button data-testid='reset' onClick={() => reset()}>
+                  reset
+                </button>
+              </div>
+            )}
+          </Field>
+
+          <Field
+            name='firstName'
+            selectorFn={(ctx: any) =>
+              ctx.step1.fields.firstName.defaultValue.length
+            }
+          >
+            {({ selected }: any) => (
+              <p data-testid='selectedValue'>{selected.value}</p>
+            )}
+          </Field>
+
+          <Field name='birthday'>
+            {({
+              defaultValue,
+              label,
+              name,
+              nameTransformCasing,
+              type,
+            }: any) => (
+              <div>
+                <p data-testid='dateName'>{name}</p>
+                <p data-testid='dateDefaultValue'>
+                  {defaultValue.toISOString()}
+                </p>
+                <p data-testid='dateLabel'>{label}</p>
+                <p data-testid='dateNameTransformCasing'>
+                  {nameTransformCasing}
+                </p>
+                <p data-testid='dateType'>{type}</p>
+              </div>
+            )}
+          </Field>
+
+          <Field name='middleName'>
+            {(props: any) => (
+              <p data-testid='disabledLabelHasProp'>
+                {String('label' in props)}
               </p>
-              <button data-testid='update' onClick={() => onInputChange('Jo')}>
-                update
-              </button>
-              <button data-testid='reset' onClick={() => reset()}>
-                reset
-              </button>
-            </div>
-          )}
-        </Field>
-
-        <Field
-          name='firstName'
-          selectorFn={(ctx: any) => ctx.step1.fields.firstName.defaultValue.length}
-        >
-          {({ selected }: any) => (
-            <p data-testid='selectedValue'>{selected.value}</p>
-          )}
-        </Field>
-
-        <Field name='birthday'>
-          {({ defaultValue, label, name, nameTransformCasing, type }: any) => (
-            <div>
-              <p data-testid='dateName'>{name}</p>
-              <p data-testid='dateDefaultValue'>{defaultValue.toISOString()}</p>
-              <p data-testid='dateLabel'>{label}</p>
-              <p data-testid='dateNameTransformCasing'>{nameTransformCasing}</p>
-              <p data-testid='dateType'>{type}</p>
-            </div>
-          )}
-        </Field>
-
-        <Field name='middleName'>
-          {(props: any) => (
-            <p data-testid='disabledLabelHasProp'>{String('label' in props)}</p>
-          )}
-        </Field>
-      </>
-    ));
-
-    schema.stepSchema.value.step1.createComponent(
-      ({ Field }) => (
-        <Field name='middleName'>{() => null}</Field>
+            )}
+          </Field>
+        </>
       ),
-    );
+    });
+
+    schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }) => <Field name='middleName'>{() => null}</Field>,
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -197,7 +216,9 @@ describe('Field', () => {
       'kebab',
     );
     expect(screen.getByTestId('dateType').textContent).toBe('date');
-    expect(screen.getByTestId('dateDefaultValue').textContent).toBe(date.toISOString());
+    expect(screen.getByTestId('dateDefaultValue').textContent).toBe(
+      date.toISOString(),
+    );
     expect(screen.getByTestId('disabledLabelHasProp').textContent).toBe(
       'false',
     );

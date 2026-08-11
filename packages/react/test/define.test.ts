@@ -1,5 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { InvalidInstanceError, NoActiveInstanceError } from '@jfdevelops/multi-step-form-core';
+import {
+  InvalidInstanceError,
+  NoActiveInstanceError,
+} from '@jfdevelops/multi-step-form-core';
 import { defineMultiStepForm, type MultiStepFormSchema } from '../src';
 
 function createMockStorage(): Storage {
@@ -37,6 +40,41 @@ function createBookingDefinition() {
   });
 }
 
+describe('react defineMultiStepForm: definition schema surface', () => {
+  it('exposes the React schema and a type-only exact step union', () => {
+    const definition = createBookingDefinition();
+
+    type Step = typeof definition.stepNumbers;
+
+    expectTypeOf<Step>().toEqualTypeOf<'step1'>();
+    expect(definition.stepSchema.value.step1.title).toBe('Step 1');
+    expect(typeof definition.withForm).toBe('function');
+    expect(typeof definition.createComponent).toBe('function');
+    expect('stepNumbers' in definition).toBe(false);
+  });
+
+  it('keeps definition and configured instance state independent', () => {
+    const definition = createBookingDefinition();
+    const client = definition.configure()({ instance: 'client' });
+
+    definition.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Definition',
+    });
+    client.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Client',
+    });
+
+    expect(
+      definition.stepSchema.value.step1.fields.firstName.defaultValue,
+    ).toBe('Definition');
+    expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      'Client',
+    );
+  });
+});
+
 describe('react defineMultiStepForm: nameTransformCasing', () => {
   it('is not accepted at define time and threads through .configure() instead', () => {
     defineMultiStepForm({
@@ -55,7 +93,9 @@ describe('react defineMultiStepForm: nameTransformCasing', () => {
       nameTransformCasing: 'camel',
     });
 
-    expect(createForm().stepSchema.defaultNameTransformationCasing).toBe('camel');
+    expect(createForm().stepSchema.defaultNameTransformationCasing).toBe(
+      'camel',
+    );
   });
 });
 
@@ -82,7 +122,8 @@ describe('react defineMultiStepForm: public types', () => {
           },
         },
       },
-    }).configure()()
+    })
+      .configure()()
       .withForm({ render: () => null })
       .withContext();
 
@@ -110,7 +151,9 @@ describe('react defineMultiStepForm: instances', () => {
       updater: 'Taylor',
     });
 
-    expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe('Taylor');
+    expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      'Taylor',
+    );
     expect(admin.stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
   });
 
@@ -118,7 +161,9 @@ describe('react defineMultiStepForm: instances', () => {
     const createForm = createBookingDefinition().configure();
 
     // @ts-expect-error "sales" isn't a declared instance
-    expect(() => createForm({ instance: 'sales' })).toThrow(InvalidInstanceError);
+    expect(() => createForm({ instance: 'sales' })).toThrow(
+      InvalidInstanceError,
+    );
   });
 
   it('returns instances that still support withForm/withContext', () => {
@@ -177,7 +222,9 @@ describe('react defineMultiStepForm: storage', () => {
     });
 
     createForm({ instance: 'client' });
-    expect(() => createForm({ instance: 'admin' })).toThrow(InvalidInstanceError);
+    expect(() => createForm({ instance: 'admin' })).toThrow(
+      InvalidInstanceError,
+    );
   });
 });
 
@@ -189,7 +236,9 @@ describe('react defineMultiStepForm: withOverrides', () => {
       step1: async () => ({ firstName: 'ClientDefault' }),
     });
 
-    await Reflect.apply(client.stepSchema.resolveStep, client.stepSchema, ['step1']);
+    await Reflect.apply(client.stepSchema.resolveStep, client.stepSchema, [
+      'step1',
+    ]);
 
     expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
       'ClientDefault',

@@ -12,36 +12,30 @@ import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ReactNode } from 'react';
 export function resolvedCtxCreator<
   def extends StepSchema.Config,
-  value extends instantiateSteps<def>
->(
-  logger: MultiStepFormLogger,
-  values: object
-) {
+  value extends instantiateSteps<def>,
+>(logger: MultiStepFormLogger, values: object) {
   return function <
     chosenStep extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
-    additionalCtx extends Record<string, unknown> = {}
+    additionalCtx extends Record<string, unknown> = {},
   >(
     options: Required<
       HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
     > &
-      HelperFn.BaseInput<value, chosenStep>
+      HelperFn.BaseInput<value, chosenStep>,
   ) {
     const { ctx, ctxData } = options;
 
     logger.info('Option "ctxData" is defined');
-    InvalidContextError.invariant(
-      typeof ctxData === 'function',
-      {
-        reason: 'Option "ctxData" must be a function',
-        value: ctxData,
-        expected: 'function',
-      },
-    );
+    InvalidContextError.invariant(typeof ctxData === 'function', {
+      reason: 'Option "ctxData" must be a function',
+      value: ctxData,
+      expected: 'function',
+    });
 
     const additionalCtx = ctxData({ ctx: values } as never);
 
     logger.info(
-      `Addition context is: ${JSON.stringify(additionalCtx, null, 2)}`
+      `Addition context is: ${JSON.stringify(additionalCtx, null, 2)}`,
     );
 
     const resolvedCtx = {
@@ -86,7 +80,7 @@ export function getValidatedCustomInputHooks(input: Record<string, unknown>) {
             `2. The hook has invalid dependencies or configuration\n` +
             `3. There's an error in your hook implementation\n\n` +
             `Original error: ${errorMessage}`,
-          { cause: error }
+          { cause: error },
         );
       }
     } else {
@@ -104,10 +98,13 @@ export type CreateComponent<TInput, TProps> = CreateFunction<
   [input: TInput, props: TProps],
   ReactNode
 >;
+export type CreateComponentConfig<TInput, TProps> = {
+  render: CreateComponent<TInput, TProps>;
+};
 export type CreateComponentCallback<
   value extends instantiateSteps,
   chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-  TProps
+  TProps,
 > = CreateComponent<
   HelperFnInput.BaseInput<value, chosenSteps, never, {}>,
   TProps
@@ -118,33 +115,33 @@ export type CreatedMultiStepFormComponent<TProps> = TProps extends undefined
 export type CreateComponentImplOptions<
   value extends instantiateSteps,
   chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-  props
+  props,
 > = {
   value: value;
   options: HelperFn.BaseOptions<value, chosenSteps>;
-  fn: CreateComponentCallback<value, chosenSteps, props>;
+  render: CreateComponentCallback<value, chosenSteps, props>;
   input: (
     options: {
       ctx: HelperFn.buildCtx<value, chosenSteps>;
-    } & HelperFn.BaseOptions<value, chosenSteps>
+    } & HelperFn.BaseOptions<value, chosenSteps>,
   ) => Omit<HelperFnInput.BaseInput<value, chosenSteps, never, {}>, 'ctx'>;
 };
 export function createComponent<
   value extends instantiateSteps,
   chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-  props
+  props,
 >({
   value,
   options,
-  fn,
+  render,
   input,
 }: CreateComponentImplOptions<value, chosenSteps, props>) {
   const { stepData } = options;
   const ctx = createCtx(value, stepData) as never;
 
   return ((props?: props) =>
-    fn(
+    render(
       { ctx, ...input({ ctx, stepData }) },
-      props as any
+      props as any,
     )) as CreatedMultiStepFormComponent<props>;
 }

@@ -22,9 +22,10 @@ import type { instantiateReactSteps } from './steps';
  * The resolved instantiated value shape for a form definition's steps, independent of any
  * particular instance.
  */
-export type DefineReactValue<TSteps extends StepConfig> = instantiateReactSteps<{
-  steps: TSteps;
-}>;
+export type DefineReactValue<TSteps extends StepConfig> =
+  instantiateReactSteps<{
+    steps: TSteps;
+  }>;
 
 export interface MultiStepFormReactInstance<
   def extends DefineConfig,
@@ -76,25 +77,33 @@ function attachInstance<
     onRebuild: (next: MultiStepFormReactInstance<def>) => void;
   },
 ): MultiStepFormReactInstance<def> {
-  const { rawSteps, nameTransformCasing, storageConfig, instanceName, onRebuild } = options;
+  const {
+    rawSteps,
+    nameTransformCasing,
+    storageConfig,
+    instanceName,
+    onRebuild,
+  } = options;
 
   return Object.assign(instance, {
     instanceName,
     withOverrides(overrides: WithOverridesMap<def['steps']>) {
       const mergedSteps = Object.fromEntries(
-        Object.entries(rawSteps as Record<string, object>).map(([key, stepConfig]) => {
-          const override = (overrides as Record<string, unknown>)[key];
+        Object.entries(rawSteps as Record<string, object>).map(
+          ([key, stepConfig]) => {
+            const override = (overrides as Record<string, unknown>)[key];
 
-          return [
-            key,
-            override
-              ? {
-                  ...stepConfig,
-                  overrides: override,
-                }
-              : stepConfig,
-          ];
-        }),
+            return [
+              key,
+              override
+                ? {
+                    ...stepConfig,
+                    overrides: override,
+                  }
+                : stepConfig,
+            ];
+          },
+        ),
       ) as def['steps'];
 
       const next = attachInstance<def, TInstance>(
@@ -132,7 +141,8 @@ function resolveStorageConfig<
     storage?.configure?.instances ??
     (declaredInstances as readonly InstanceName<TInstances>[] | undefined) ??
     ([DEFAULT_INSTANCE_NAME] as unknown as readonly InstanceName<TInstances>[]);
-  const hasStorage = Boolean(storage) && configuredInstances.includes(instanceName);
+  const hasStorage =
+    Boolean(storage) && configuredInstances.includes(instanceName);
   const updateStorage = update?.updateStorage;
   const passesUpdateGate =
     updateStorage === undefined
@@ -152,7 +162,9 @@ function resolveStorageConfig<
   const key =
     typeof storage!.key === 'string'
       ? storage!.key
-      : (storage!.key as Record<InstanceName<TInstances>, string>)[instanceName];
+      : (storage!.key as Record<InstanceName<TInstances>, string>)[
+          instanceName
+        ];
 
   InvalidInstanceError.invariant(typeof key === 'string' && key.length > 0, {
     reason: `No storage key was found for instance "${instanceName}". Provide a "storage.key" string or a record containing a key for this instance.`,
@@ -191,12 +203,12 @@ export interface MultiStepFormReactFactoryStepFunctions<
   createHelperFn: StepSpecificHelperFn<DefineReactValue<TSteps>, key>;
 }
 
-export type MultiStepFormReactFactoryStepProperties<TSteps extends StepConfig> = {
-  [key in StepNumbers<DefineReactValue<TSteps>>]: MultiStepFormReactFactoryStepFunctions<
-    TSteps,
-    key
-  >;
-};
+export type MultiStepFormReactFactoryStepProperties<TSteps extends StepConfig> =
+  {
+    [
+      key in StepNumbers<DefineReactValue<TSteps>>
+    ]: MultiStepFormReactFactoryStepFunctions<TSteps, key>;
+  };
 
 export type MultiStepFormReactFactoryBase<
   TSteps extends StepConfig,
@@ -279,8 +291,7 @@ function createReactFactory<
 
   function factory(options?: { instance?: InstanceName<TInstances> }) {
     const instanceName =
-      options?.instance ??
-      (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
+      options?.instance ?? (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
 
     if (declaredInstances) {
       InvalidInstanceError.invariant(declaredInstances.includes(instanceName), {
@@ -322,9 +333,14 @@ function createReactFactory<
         createHelperFn: (optionsOrFn: unknown, fn?: unknown) => {
           return (input?: unknown) => {
             const active = getActiveInstance();
-            const stepValue = (active.stepSchema.value as Record<string, unknown>)[
-              stepKey
-            ] as { createHelperFn: (a: unknown, b?: unknown) => (i?: unknown) => unknown };
+            const stepValue = (
+              active.stepSchema.value as Record<string, unknown>
+            )[stepKey] as {
+              createHelperFn: (
+                a: unknown,
+                b?: unknown,
+              ) => (i?: unknown) => unknown;
+            };
 
             return stepValue.createHelperFn(optionsOrFn, fn)(input);
           };
@@ -350,10 +366,14 @@ function createReactFactory<
 export class MultiStepFormReactDefinition<
   const TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined = undefined,
-> {
+> extends MultiStepFormSchema<DefineConfig<TSteps, DefaultCasing>> {
   constructor(
     private readonly config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  ) {}
+  ) {
+    // The definition remains a fully usable React schema, while `configure()` creates
+    // independent instances that reuse only its declared shape.
+    super({ steps: config.steps } as DefineConfig<TSteps, DefaultCasing>);
+  }
 
   /**
    * Configures storage and update-persistence behavior for this definition's instances.
@@ -364,12 +384,15 @@ export class MultiStepFormReactDefinition<
    * @returns A callable factory used to create/retrieve named instances.
    */
   configure<const TCasing extends CasingType = DefaultCasing>(
-    configureOptions: ConfigureOptions<TInstances, TCasing> = {} as ConfigureOptions<
+    configureOptions: ConfigureOptions<
       TInstances,
       TCasing
-    >,
+    > = {} as ConfigureOptions<TInstances, TCasing>,
   ): MultiStepFormReactFactory<TSteps, TInstances, TCasing> {
-    return createReactFactory<TSteps, TInstances, TCasing>(this.config, configureOptions);
+    return createReactFactory<TSteps, TInstances, TCasing>(
+      this.config,
+      configureOptions,
+    );
   }
 }
 

@@ -29,75 +29,79 @@ npm install @jfdevelops/multi-step-form @jfdevelops/react-multi-step-form
 ### 1. Create a Form Schema
 
 ```tsx
-import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
+import { defineMultiStepForm } from "@jfdevelops/react-multi-step-form";
 
-const createForm = defineMultiStepForm({
+const definedForm = defineMultiStepForm({
   steps: {
     step1: {
-      title: 'Personal Information',
+      title: "Personal Information",
       fields: {
         firstName: {
-          defaultValue: '',
+          defaultValue: "",
         },
         lastName: {
-          defaultValue: '',
+          defaultValue: "",
         },
         email: {
-          defaultValue: '',
-          type: 'string.email',
+          defaultValue: "",
+          type: "string.email",
         },
       },
     },
     step2: {
-      title: 'Account/Preferences',
+      title: "Account/Preferences",
       fields: {
         username: {
-          defaultValue: '',
+          defaultValue: "",
         },
         password: {
-          defaultValue: '',
+          defaultValue: "",
         },
         language: {
-          defaultValue: 'en',
-          label: 'Preferred Language',
+          defaultValue: "en",
+          label: "Preferred Language",
         },
       },
     },
     step3: {
-      title: 'Confirmation',
+      title: "Confirmation",
       fields: {
         newsLetterOptIn: {
           defaultValue: false,
-          type: 'boolean.switch',
+          type: "boolean.switch",
         },
       },
     },
   },
-}).configure({
+});
+
+export type StepNumber = typeof definedForm.stepNumbers;
+
+const createForm = definedForm.configure({
   storage: {
-    key: 'MultiStepFormBasicExample',
+    key: "MultiStepFormBasicExample",
   },
 });
 
 export const schema = createForm()
   .withForm({
-    alias: 'MyCoolCustomForm',
-    enabledForSteps: ['step1', 'step2'],
+    alias: "MyCoolCustomForm",
+    enabledForSteps: ["step1", "step2"],
     render(
       { id },
       {
         title,
         description,
         ...props
-      }: ComponentPropsWithRef<'form'> & {
+      }: ComponentPropsWithRef<"form"> & {
         title: string;
         description?: string;
-      }
+      },
     ) {
       return (
-        <div className='flex flex-col gap-y-4'>
-          <div className='flex flex-col gap-y-2'>
-            <h1 className='font-bold text-xl'>{title}</h1>
+        <div className="flex flex-col gap-y-4">
+          <div className="flex flex-col gap-y-2">
+            <h1 className="font-bold text-xl">{title}</h1>
             {description && <p>{description}</p>}
           </div>
           <form id={id} {...props} />
@@ -113,11 +117,11 @@ export const {
   useProgress,
   useCanRestartForm,
 } = schema.context;
-
-export type StepNumber = keyof MultiStepFormSchema.resolvedStep<typeof schema>;
 ```
 
-`defineMultiStepForm({ steps }).configure({ storage })` is a single-instance form by default — see
+The value returned by `defineMultiStepForm({ steps })` is a complete schema, including
+`stepSchema`, `withForm`, and (in React) `createComponent`. Calling `.configure({ storage })`
+adds a factory for independent instances that share its shape but not its state. See
 the [beta docs](#beta-instances--storage) below for named instances (e.g. a persisted public form
 alongside a memory-only admin form) sharing this same definition. The pre-beta
 `createMultiStepFormSchema` factory has been removed; see the migration guides below for moving
@@ -126,50 +130,50 @@ its configuration into `defineMultiStepForm(...).configure(...)`.
 ### 2. Create step specific components
 
 ```tsx
-import { schema } from './schema';
+import { schema } from "./schema";
 
-export const Step1 = schema.stepSchema.value.step1.createComponent(
-  function Step1({ ctx, MyCoolCustomForm, Field: FieldComponent }) {
+export const Step1 = schema.stepSchema.value.step1.createComponent({
+  render: function Step1({ ctx, MyCoolCustomForm, Field: FieldComponent }) {
     const { title } = ctx.step1;
 
     return (
       <MyCoolCustomForm title={title}>
         <FieldSet>
-          <FieldComponent name='firstName'>
+          <FieldComponent name="firstName">
             {({ defaultValue, label, onInputChange }) => (
               <Field>
                 <FieldLabel htmlFor={label}>{label}</FieldLabel>
                 <Input
                   id={label}
                   defaultValue={defaultValue}
-                  placeholder='John'
+                  placeholder="John"
                   onChange={(e) => onInputChange(e.target.value)}
                 />
               </Field>
             )}
           </FieldComponent>
-          <FieldComponent name='lastName'>
+          <FieldComponent name="lastName">
             {({ defaultValue, label, onInputChange }) => (
               <Field>
                 <FieldLabel htmlFor={label}>{label}</FieldLabel>
                 <Input
                   id={label}
                   defaultValue={defaultValue}
-                  placeholder='Smith'
+                  placeholder="Smith"
                   onChange={(e) => onInputChange(e.target.value)}
                 />
               </Field>
             )}
           </FieldComponent>
-          <FieldComponent name='email'>
+          <FieldComponent name="email">
             {({ defaultValue, label, onInputChange }) => (
               <Field>
                 <FieldLabel htmlFor={label}>{label}</FieldLabel>
                 <Input
                   id={label}
                   defaultValue={defaultValue}
-                  placeholder='johnsmith@gmail.com'
-                  type='email'
+                  placeholder="johnsmith@gmail.com"
+                  type="email"
                   onChange={(e) => onInputChange(e.target.value)}
                 />
               </Field>
@@ -178,8 +182,8 @@ export const Step1 = schema.stepSchema.value.step1.createComponent(
         </FieldSet>
       </MyCoolCustomForm>
     );
-  }
-);
+  },
+});
 
 // more step components
 ```
@@ -187,8 +191,8 @@ export const Step1 = schema.stepSchema.value.step1.createComponent(
 ### 3. Create a "Step Layout"
 
 ```tsx
-import { useCurrentStepData, type StepNumber } from './schema';
-import { Step1, Step2 } from './steps';
+import { useCurrentStepData, type StepNumber } from "./schema";
+import { Step1, Step2 } from "./steps";
 
 export function StepLayout({
   currentStep: stepNumber,
@@ -221,14 +225,17 @@ internal/admin form that share the same steps and helper functions:
 
 ```ts
 const createBookingForm = defineMultiStepForm({
-  steps: { /* ... */ },
-  instances: ['admin', 'client'],
+  steps: {/* ... */},
+  instances: ["admin", "client"],
 }).configure({
-  storage: { key: { client: 'booking:client', admin: 'booking:admin' }, configure: { instances: ['client'] } },
+  storage: {
+    key: { client: "booking:client", admin: "booking:admin" },
+    configure: { instances: ["client"] },
+  },
 });
 
-const clientForm = createBookingForm({ instance: 'client' }); // persists to storage
-const adminForm = createBookingForm({ instance: 'admin' }); // memory-only
+const clientForm = createBookingForm({ instance: "client" }); // persists to storage
+const adminForm = createBookingForm({ instance: "admin" }); // memory-only
 ```
 
 See the per-package docs for the full guide — instances, per-instance storage, shared
@@ -306,7 +313,7 @@ The library provides full TypeScript support with type inference:
 
 ```tsx
 type StepNumber = keyof MultiStepFormSchema.resolvedStep<typeof schema>;
-type Step1Data = MultiStepFormSchema.getData<typeof schema, 'step1'>;
+type Step1Data = MultiStepFormSchema.getData<typeof schema, "step1">;
 ```
 
 ## License

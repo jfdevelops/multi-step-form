@@ -22,8 +22,6 @@ import type { CasingType, DefaultCasing, Updater } from '@/utils';
 export type DefaultInstanceName = typeof DEFAULT_INSTANCE_NAME;
 export const DEFAULT_INSTANCE_NAME = 'default';
 
-
-
 export type InstanceName<TInstances extends readonly string[] | undefined> =
   TInstances extends readonly string[]
     ? TInstances[number]
@@ -53,8 +51,7 @@ export type DefineMultiStepFormOptions<
  * resolved per instance (a `Record` of instance name to key).
  */
 export type StorageKey<TInstance extends string> =
-  | string
-  | Record<TInstance, string>;
+  string | Record<TInstance, string>;
 
 export interface ConfigureStorageConfig<TInstance extends string> {
   /**
@@ -105,9 +102,9 @@ export type ConfigureOptions<
 };
 
 export type WithOverridesMap<TSteps extends StepConfig> = Partial<{
-  [key in keyof TSteps as string extends key
-    ? never
-    : key]: TSteps[key] extends AnyConfig ? StepOverrides<TSteps[key]> : never;
+  [
+    key in keyof TSteps as string extends key ? never : key
+  ]: TSteps[key] extends AnyConfig ? StepOverrides<TSteps[key]> : never;
 }>;
 
 /**
@@ -331,7 +328,9 @@ function resolveStorageConfig<
   const key =
     typeof storage!.key === 'string'
       ? storage!.key
-      : (storage!.key as Record<InstanceName<TInstances>, string>)[instanceName];
+      : (storage!.key as Record<InstanceName<TInstances>, string>)[
+          instanceName
+        ];
 
   InvalidInstanceError.invariant(typeof key === 'string' && key.length > 0, {
     reason: `No storage key was found for instance "${instanceName}". Provide a "storage.key" string or a record containing a key for this instance.`,
@@ -375,7 +374,9 @@ function createFactory<
       declaredInstances as TInstances,
       configureOptions,
     );
-    const instance = new MultiStepFormInstanceImpl<DefineConfig<TSteps, TCasing>>({
+    const instance = new MultiStepFormInstanceImpl<
+      DefineConfig<TSteps, TCasing>
+    >({
       steps: steps as DefineConfig<TSteps, TCasing>['steps'],
       nameTransformCasing,
       storageConfig,
@@ -390,8 +391,7 @@ function createFactory<
 
   function factory(options?: { instance?: InstanceName<TInstances> }) {
     const instanceName =
-      options?.instance ??
-      (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
+      options?.instance ?? (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
 
     if (declaredInstances) {
       InvalidInstanceError.invariant(declaredInstances.includes(instanceName), {
@@ -466,10 +466,14 @@ function createFactory<
 export class MultiStepFormDefinition<
   const TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined = undefined,
-> {
+> extends MultiStepFormSchema<DefineConfig<TSteps, DefaultCasing>> {
   constructor(
     private readonly config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  ) {}
+  ) {
+    // The definition keeps the complete legacy schema surface for immediate use, while
+    // `configure()` creates separate stateful instances from the same immutable shape.
+    super({ steps: config.steps } as DefineConfig<TSteps, DefaultCasing>);
+  }
 
   /**
    * Configures storage and update-persistence behavior for this definition's instances.

@@ -1,5 +1,6 @@
 import type { MultiStepFormSchemaConfig } from '@/form-config';
 import {
+  InvalidComponentError,
   InvalidStepError,
   type StepNumbers,
   type StrippedResolvedStep,
@@ -83,6 +84,89 @@ async function renderInJsdom(ui: ReactElement) {
 }
 
 describe('creating components via "createComponent" fn', () => {
+  describe('using instance "createComponent" fn', () => {
+    it('provides the same single-step render input as the step factory', async () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Step 1',
+            fields: { firstName: { defaultValue: 'Taylor' } },
+          },
+        },
+      }).configure()();
+
+      const Step1 = schema.createComponent({
+        stepData: ['step1'],
+        render({
+          ctx,
+          Field,
+          Form,
+          Selector,
+          Suspend,
+          defaultValues,
+          onInputChange,
+          reset,
+          update,
+          useSelector,
+          useStep,
+        }) {
+          expectTypeOf(ctx.step1.title).toEqualTypeOf<string>();
+          expectTypeOf(defaultValues.firstName).toEqualTypeOf<string>();
+          expectTypeOf(Field).toBeFunction();
+          expectTypeOf(Form).toBeFunction();
+          expectTypeOf(Selector).toBeFunction();
+          expectTypeOf(Suspend).toBeFunction();
+          expectTypeOf(onInputChange).toBeFunction();
+          expectTypeOf(reset).toBeFunction();
+          expectTypeOf(update).toBeFunction();
+          expectTypeOf(useSelector).toBeFunction();
+          expectTypeOf(useStep).toBeFunction();
+
+          return (
+            <Field name='firstName'>
+              {({ defaultValue }) => (
+                <span data-testid='instance-field'>{defaultValue}</span>
+              )}
+            </Field>
+          );
+        },
+      });
+
+      const screen = await renderInJsdom(<Step1 />);
+
+      expect(screen.getByTestId('instance-field').textContent).toBe('Taylor');
+    });
+
+    it('only accepts an object with a render property', () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Step 1',
+            fields: { firstName: { defaultValue: '' } },
+          },
+        },
+      }).configure()();
+
+      if (false) {
+        // @ts-expect-error createComponent no longer accepts a callback argument.
+        schema.stepSchema.value.step1.createComponent(() => null);
+        // @ts-expect-error instance createComponent requires render in its config object.
+        schema.createComponent({ stepData: ['step1'] });
+      }
+
+      expect(() =>
+        Reflect.apply(
+          schema.stepSchema.value.step1.createComponent,
+          undefined,
+          [() => null],
+        ),
+      ).toThrow(InvalidComponentError);
+      expect(() =>
+        Reflect.apply(schema.createComponent, schema, [() => null]),
+      ).toThrow(InvalidComponentError);
+    });
+  });
+
   describe('using step specific "createComponent" fn', () => {
     it('should only use the default "ctx"', async () => {
       const schema = defineMultiStepForm({
@@ -142,7 +226,9 @@ describe('creating components via "createComponent" fn', () => {
         </div>
       ));
 
-      const Step1 = schema.stepSchema.value.step1.createComponent(componentSpy);
+      const Step1 = schema.stepSchema.value.step1.createComponent({
+        render: componentSpy,
+      });
 
       expect(Step1).toBeTypeOf('function');
 
@@ -214,12 +300,10 @@ describe('creating components via "createComponent" fn', () => {
           undefined
         >
       >(({ ctx }) => ({ step2: ctx.step2 }));
-      const Step1 = schema.stepSchema.value.step1.createComponent(
-        {
-          ctxData: ctxDataSpy,
-        },
-        componentSpy,
-      );
+      const Step1 = schema.stepSchema.value.step1.createComponent({
+        ctxData: ctxDataSpy,
+        render: componentSpy,
+      });
       console.log('-------------------after------------------');
       console.log(schema.stepSchema.value);
 
@@ -309,7 +393,9 @@ describe('creating components via "createComponent" fn', () => {
         </div>
       ));
 
-      const Step1 = schema.stepSchema.value.step1.createComponent(componentSpy);
+      const Step1 = schema.stepSchema.value.step1.createComponent({
+        render: componentSpy,
+      });
 
       expect(Step1).toBeTypeOf('function');
 
@@ -382,8 +468,8 @@ describe('creating components via "createComponent" fn', () => {
         });
 
         const spy = vi.fn();
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => {
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => {
             spy(Form);
 
             return (
@@ -392,7 +478,7 @@ describe('creating components via "createComponent" fn', () => {
               </Form>
             );
           },
-        );
+        });
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -411,7 +497,9 @@ describe('creating components via "createComponent" fn', () => {
           },
         });
 
-        schema.stepSchema.value.step1.createComponent(({ Form }) => <Form />);
+        schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => <Form />,
+        });
       });
 
       it('keeps render context steps up to date', async () => {
@@ -434,9 +522,9 @@ describe('creating components via "createComponent" fn', () => {
             );
           },
         });
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => <Form />,
-        );
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => <Form />,
+        });
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -494,9 +582,9 @@ describe('creating components via "createComponent" fn', () => {
             }
 
             if (!currentStep.hasData) {
-              return currentStep.renderNoCurrentData({
-                className: 'no-current-data',
-              });
+              const NoCurrentData = currentStep.NoCurrentData;
+
+              return <NoCurrentData className='no-current-data' />;
             }
 
             expectTypeOf(
@@ -513,14 +601,14 @@ describe('creating components via "createComponent" fn', () => {
                 <span data-testid='callback-is-complete'>
                   {String(isStepComplete('step1'))}
                 </span>
-                {progress.renderProgressText({ className: 'progress-text' })}
+                <progress.ProgressText className='progress-text' />
               </div>
             );
           },
         });
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => <Form />,
-        );
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => <Form />,
+        });
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -550,9 +638,8 @@ describe('creating components via "createComponent" fn', () => {
 
         const schema = makeBaseSchema().withForm({
           render(context, { title, children }: CustomFormProps) {
-            type HasWidenedStepIndex = `step${number}` extends keyof typeof context.steps
-              ? true
-              : false;
+            type HasWidenedStepIndex =
+              `step${number}` extends keyof typeof context.steps ? true : false;
 
             expectTypeOf<HasWidenedStepIndex>().toEqualTypeOf<false>();
             expectTypeOf(
@@ -564,12 +651,12 @@ describe('creating components via "createComponent" fn', () => {
             expectTypeOf(
               context.steps.step1.fields.firstName.label,
             ).toEqualTypeOf<'First Name'>();
-            expectTypeOf(
-              context.steps.step1.isComplete,
-            ).toEqualTypeOf<() => boolean>();
-            expectTypeOf(context.isStepComplete).parameter(0).toEqualTypeOf<
-              'step1' | 'step2'
+            expectTypeOf(context.steps.step1.isComplete).toEqualTypeOf<
+              () => boolean
             >();
+            expectTypeOf(context.isStepComplete)
+              .parameter(0)
+              .toEqualTypeOf<'step1' | 'step2'>();
 
             // @ts-expect-error Only concrete schema step keys are accepted.
             context.isStepComplete('step3');
@@ -578,8 +665,8 @@ describe('creating components via "createComponent" fn', () => {
           },
         });
 
-        schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => {
+        schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => {
             const TypedForm = Form;
             expectTypeOf(TypedForm).toEqualTypeOf<
               (props: CustomFormProps) => ReactNode
@@ -590,7 +677,7 @@ describe('creating components via "createComponent" fn', () => {
 
             return <TypedForm title='typed-form'>content</TypedForm>;
           },
-        );
+        });
       });
 
       it('restores Form typing in CreateStepSpecificComponentCallback', () => {
@@ -623,7 +710,9 @@ describe('creating components via "createComponent" fn', () => {
           return <Form title='callback-typed-form'>content</Form>;
         };
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(callback);
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: callback,
+        });
 
         expect(Step1).toBeTypeOf('function');
       });
@@ -664,13 +753,13 @@ describe('creating components via "createComponent" fn', () => {
           },
         });
 
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => (
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => (
             <Form>
               <span data-testid='form-inner-child'>child content</span>
             </Form>
           ),
-        );
+        });
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -687,8 +776,8 @@ describe('creating components via "createComponent" fn', () => {
         });
 
         const spy = vi.fn();
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ MyForm }) => {
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ MyForm }) => {
             spy({ MyForm });
 
             return (
@@ -697,7 +786,7 @@ describe('creating components via "createComponent" fn', () => {
               </MyForm>
             );
           },
-        );
+        });
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -720,20 +809,20 @@ describe('creating components via "createComponent" fn', () => {
 
         const step1Spy = vi.fn();
         const step2Spy = vi.fn();
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => {
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => {
             step1Spy(Form);
 
             return <Form data-testid='s1-form' />;
           },
-        );
-        const Step2 = schema.stepSchema.value.step2.createComponent(
-          ({ Form }) => {
+        });
+        const Step2 = schema.stepSchema.value.step2.createComponent({
+          render: ({ Form }) => {
             step2Spy(Form);
 
             return <Form data-testid='s2-form' />;
           },
-        );
+        });
 
         await renderInJsdom(<Step1 />);
         const step1LastCall = step1Spy.mock.lastCall;
@@ -755,17 +844,19 @@ describe('creating components via "createComponent" fn', () => {
         });
         const step1Spy = vi.fn();
         const step2Spy = vi.fn();
-        const Step1 = schema.stepSchema.value.step1.createComponent(
-          ({ Form }) => {
+        const Step1 = schema.stepSchema.value.step1.createComponent({
+          render: ({ Form }) => {
             step1Spy(Form);
 
             return <Form />;
           },
-        );
-        const Step2 = schema.stepSchema.value.step2.createComponent((input) => {
-          step2Spy(input);
+        });
+        const Step2 = schema.stepSchema.value.step2.createComponent({
+          render: (input) => {
+            step2Spy(input);
 
-          return null;
+            return null;
+          },
         });
 
         await renderInJsdom(<Step1 />);
@@ -795,8 +886,8 @@ describe('creating components via "createComponent" fn', () => {
           }),
         });
 
-        schema.stepSchema.value.step1.createComponent(
-          ({ useStep, Suspend, Field }) => {
+        schema.stepSchema.value.step1.createComponent({
+          render: ({ useStep, Suspend, Field }) => {
             const { status } = useStep();
 
             status satisfies 'idle' | 'loading' | 'resolved' | 'error';
@@ -809,7 +900,7 @@ describe('creating components via "createComponent" fn', () => {
               </Suspend>
             );
           },
-        );
+        });
       });
     });
   });
