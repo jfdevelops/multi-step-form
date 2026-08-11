@@ -1,5 +1,13 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-beta.2
+
+### Major Changes
+
+- 1c4e6d9: Restore the complete schema surface on form definitions, including a type-only exact step union, while keeping configured instances independent.
+
+  Return `NoCurrentData` and `ProgressText` components from render-context helpers, align single-step instance components with step-specific render inputs, and replace every `createComponent` overload with the object-only `{ render }` API.
+
 ## 1.0.0-beta.1
 
 ### Major Changes

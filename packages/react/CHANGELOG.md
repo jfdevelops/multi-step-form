@@ -1,5 +1,23 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.2
+
+### Major Changes
+
+- 1c4e6d9: Restore the complete schema surface on form definitions, including a type-only exact step union, while keeping configured instances independent.
+
+  Return `NoCurrentData` and `ProgressText` components from render-context helpers, align single-step instance components with step-specific render inputs, and replace every `createComponent` overload with the object-only `{ render }` API.
+
+### Minor Changes
+
+- 60064bc: Add strongly typed `createComponent.forField` factories at schema, step, definition, and configured-factory levels. Configured factories reuse the component definition across active instances while keeping each instance's state and subscriptions isolated.
+
+### Patch Changes
+
+- 86d5405: Correct `createComponent.forField` return props so generated components forward Field options other than the internally owned `name` and `children`, while continuing to infer and accept custom render props.
+- Updated dependencies [1c4e6d9]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.2
+
 ## 1.0.0-beta.1
 
 ### Major Changes
