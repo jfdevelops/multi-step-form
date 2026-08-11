@@ -8,8 +8,10 @@
   "changesets": [
     "beta-tooling-validation",
     "big-bags-hunt",
+    "bright-beta-api-fixes",
     "bright-forms-update",
     "bumpy-weeks-join",
+    "calm-fields-forward",
     "calm-forms-render",
     "cold-lions-talk",
     "cozy-insects-crash",
@@ -77,6 +79,7 @@
     "twelve-pears-rhyme",
     "update-mismatch-error",
     "wacky-pans-sniff",
+    "warm-fields-compose",
     "yummy-numbers-stare",
     "yummy-pans-crash"
   ]
