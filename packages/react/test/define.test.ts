@@ -43,24 +43,34 @@ function createBookingDefinition() {
 describe('react defineMultiStepForm: definition schema surface', () => {
   it('exposes the React schema and a type-only exact step union', () => {
     const definition = createBookingDefinition();
+    const createForm = definition.configure();
 
-    type Step = typeof definition.stepNumbers;
+    type DefinitionStep = typeof definition.stepNumbers;
+    type FactoryStep = typeof createForm.stepNumbers;
 
-    expectTypeOf<Step>().toEqualTypeOf<'step1'>();
+    expectTypeOf<DefinitionStep>().toEqualTypeOf<'step1'>();
+    expectTypeOf<FactoryStep>().toEqualTypeOf<'step1'>();
     expect(definition.stepSchema.value.step1.title).toBe('Step 1');
+    expect(createForm.stepSchema.value.step1.title).toBe('Step 1');
     expect(typeof definition.withForm).toBe('function');
     expect(typeof definition.createComponent).toBe('function');
 
     expect('stepNumbers' in definition).toBe(false);
+    expect('stepNumbers' in createForm).toBe(false);
   });
 
   it('keeps definition and configured instance state independent', () => {
     const definition = createBookingDefinition();
-    const client = definition.configure()({ instance: 'client' });
+    const createForm = definition.configure();
+    const client = createForm({ instance: 'client' });
 
     definition.stepSchema.value.step1.update({
       fields: ['fields.firstName.defaultValue'],
       updater: 'Definition',
+    });
+    createForm.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Factory',
     });
     client.stepSchema.value.step1.update({
       fields: ['fields.firstName.defaultValue'],
@@ -70,6 +80,9 @@ describe('react defineMultiStepForm: definition schema surface', () => {
     expect(
       definition.stepSchema.value.step1.fields.firstName.defaultValue,
     ).toBe('Definition');
+    expect(
+      createForm.stepSchema.value.step1.fields.firstName.defaultValue,
+    ).toBe('Factory');
     expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
       'Client',
     );
