@@ -242,4 +242,15 @@ describe('MultiStepFormStorage', () => {
       expect(retrieved).not.toEqual({ first: 'value' });
     });
   });
+
+  describe('hasKey', () => {
+    it('returns false when storage is unavailable', () => {
+      const storage = new MultiStepFormStorage({
+        key: 'test-key',
+        data: {},
+      });
+
+      expect(storage.hasKey()).toBe(false);
+    });
+  });
 });

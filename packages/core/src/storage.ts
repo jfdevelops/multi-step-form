@@ -150,6 +150,14 @@ key extends string = DefaultStorageKey
   }
 
   hasKey() {
+    this.throwOnEmptyStore();
+
+    // An unavailable browser store is treated like an empty store so callers can
+    // use the same storage API during SSR without branching on the environment.
+    if (!this.shouldRunActions) {
+      return false;
+    }
+
     return this.store.getItem(this.key) !== null;
   }
 
