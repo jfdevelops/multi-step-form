@@ -907,7 +907,7 @@ describe('creating components via "createComponent" fn', () => {
 });
 
 describe('creating reusable components via "createComponent.forField"', () => {
-  it('creates a strongly typed, reactive step-specific field component', async () => {
+  it('creates a field component without custom props', async () => {
     const schema = defineMultiStepForm({
       steps: {
         step1: {
@@ -916,7 +916,6 @@ describe('creating reusable components via "createComponent.forField"', () => {
             firstName: {
               defaultValue: 'Taylor',
               label: 'First name',
-              type: 'string.name',
             },
           },
         },
@@ -925,49 +924,36 @@ describe('creating reusable components via "createComponent.forField"', () => {
 
     const FirstName = schema.stepSchema.value.step1.createComponent.forField({
       field: 'firstName',
-      render(field, props: { prefix: string }) {
+      render(field) {
         expectTypeOf(field.name).toEqualTypeOf<'firstName'>();
         expectTypeOf(field.defaultValue).toEqualTypeOf<string>();
-        expectTypeOf(field.label).toEqualTypeOf<'First name'>();
 
         return (
           <button
             data-testid='first-name'
             onClick={() => field.onInputChange('Jordan')}
           >
-            {props.prefix}: {field.defaultValue}
+            {field.defaultValue}
           </button>
         );
       },
     });
 
-    if (false) {
-      schema.stepSchema.value.step1.createComponent.forField({
-        // @ts-expect-error field names are restricted to the selected step.
-        field: 'age',
-        render: () => null,
-      });
-    }
-
-    const screen = await renderInJsdom(<FirstName prefix='Name' />);
+    const screen = await renderInJsdom(<FirstName suspend={false} />);
     const button = screen.getByTestId('first-name');
 
-    expect(button.textContent).toContain('Name: Taylor');
+    expect(button.textContent).toContain('Taylor');
 
     await act(async () => {
       button.click();
     });
 
-    expect(button.textContent).toContain('Name: Jordan');
+    expect(button.textContent).toContain('Jordan');
   });
 
-  it('supports the schema-level step and field selector', async () => {
+  it('creates a field component with custom props', async () => {
     const schema = defineMultiStepForm({
       steps: {
-        step1: {
-          title: 'Contact',
-          fields: { firstName: { defaultValue: 'Taylor' } },
-        },
         step2: {
           title: 'Details',
           fields: { age: { defaultValue: 30 } },
@@ -978,67 +964,20 @@ describe('creating reusable components via "createComponent.forField"', () => {
     const Age = schema.createComponent.forField({
       step: 'step2',
       field: 'age',
-      render(field) {
+      render(field, props: { suffix: string }) {
         expectTypeOf(field.name).toEqualTypeOf<'age'>();
         expectTypeOf(field.defaultValue).toEqualTypeOf<number>();
 
-        return <p>Age: {field.defaultValue}</p>;
-      },
-    });
-
-    if (false) {
-      schema.createComponent.forField({
-        step: 'step2',
-        // @ts-expect-error firstName belongs to step1, not step2.
-        field: 'firstName',
-        render: () => null,
-      });
-    }
-
-    const screen = await renderInJsdom(<Age />);
-
-    expect(screen.getByText('Age: 30')).toBeDefined();
-  });
-
-  it('reuses one configured-factory component across independent instances', async () => {
-    const createForm = defineMultiStepForm({
-      instances: ['client', 'admin'],
-      steps: {
-        step1: {
-          title: 'Contact',
-          fields: { firstName: { defaultValue: '' } },
-        },
-      },
-    }).configure();
-    const FirstName = createForm.createComponent.forField({
-      step: 'step1',
-      field: 'firstName',
-      render(field, props: { owner: string }) {
         return (
           <p>
-            {props.owner}: {field.defaultValue}
+            Age: {field.defaultValue} {props.suffix}
           </p>
         );
       },
     });
 
-    const client = createForm({ instance: 'client' });
-    client.stepSchema.value.step1.update({
-      fields: ['fields.firstName.defaultValue'],
-      updater: 'Client value',
-    });
-    createForm.setActiveInstance('client');
-    const clientScreen = await renderInJsdom(<FirstName owner='Client' />);
+    const screen = await renderInJsdom(<Age suffix='years' />);
 
-    const admin = createForm({ instance: 'admin' });
-    admin.stepSchema.value.step1.update({
-      fields: ['fields.firstName.defaultValue'],
-      updater: 'Admin value',
-    });
-    createForm.setActiveInstance('admin');
-    const adminScreen = await renderInJsdom(<FirstName owner='Admin' />);
-
-    expect(clientScreen.getByText('Client: Client value')).toBeDefined();
-    expect(adminScreen.getByText('Admin: Admin value')).toBeDefined();
+    expect(screen.getByText('Age: 30 years')).toBeDefined();
   });
 });

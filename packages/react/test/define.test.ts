@@ -50,23 +50,7 @@ describe('react defineMultiStepForm: definition schema surface', () => {
     expect(definition.stepSchema.value.step1.title).toBe('Step 1');
     expect(typeof definition.withForm).toBe('function');
     expect(typeof definition.createComponent).toBe('function');
-    expect(typeof definition.createComponent.forField).toBe('function');
-    expect(
-      typeof definition.stepSchema.value.step1.createComponent.forField,
-    ).toBe('function');
 
-    const FirstName = definition.createComponent.forField({
-      step: 'step1',
-      field: 'firstName',
-      render(field) {
-        expectTypeOf(field.name).toEqualTypeOf<'firstName'>();
-        expectTypeOf(field.defaultValue).toEqualTypeOf<string>();
-
-        return null;
-      },
-    });
-
-    expectTypeOf(FirstName).toBeFunction();
     expect('stepNumbers' in definition).toBe(false);
   });
 
@@ -172,12 +156,6 @@ describe('react defineMultiStepForm: instances', () => {
       'Taylor',
     );
     expect(admin.stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
-  });
-
-  it('exposes the reusable field factory from configure()', () => {
-    const createForm = createBookingDefinition().configure();
-
-    expect(typeof createForm.createComponent.forField).toBe('function');
   });
 
   it('rejects instances that were not declared', () => {

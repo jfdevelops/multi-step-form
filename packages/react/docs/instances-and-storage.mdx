@@ -107,6 +107,9 @@ const InstanceFirstName =
     field: "firstName",
     render: (field) => <input value={field.defaultValue} readOnly />,
   });
+
+// `name` and `children` are fixed internally; Field props and custom props are forwarded.
+<SharedFirstName placeholder="Your name" suspend={false} />;
 ```
 
 The configured-factory version resolves against the active instance and caches a separate bound

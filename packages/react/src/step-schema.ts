@@ -58,16 +58,22 @@ export interface CreateComponentFn<
   forField<
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
-    props = undefined,
+    customProps extends object = {},
   >(
     config: StepSpecificComponent.fieldConfig<
       def,
       value,
       targetStep,
       targetField,
-      props
+      customProps
     > & { step: targetStep },
-  ): CreatedMultiStepFormComponent<props>;
+  ): StepSpecificComponent.fieldComponent<
+    def,
+    value,
+    targetStep,
+    targetField,
+    customProps
+  >;
 }
 
 export interface HelperFunctions<
@@ -172,14 +178,14 @@ export class MultiStepFormStepSchema<
       forField: <
         targetStep extends StepNumbers<value>,
         targetField extends getDeepFields<value, targetStep>,
-        props = undefined,
+        customProps extends object = {},
       >(
         componentConfig: StepSpecificComponent.fieldConfig<
           def,
           value,
           targetStep,
           targetField,
-          props
+          customProps
         > & { step: targetStep },
       ) => {
         InvalidComponentError.invariant(
@@ -654,14 +660,14 @@ export class MultiStepFormStepSchema<
 
     const forField = <
       targetField extends getDeepFields<value, targetStep>,
-      props = undefined,
+      customProps extends object = {},
     >(
       fieldConfig: StepSpecificComponent.fieldConfig<
         def,
         value,
         targetStep,
         targetField,
-        props
+        customProps
       >,
     ) => {
       InvalidComponentError.invariant(
@@ -688,14 +694,24 @@ export class MultiStepFormStepSchema<
       return impl({
         render: (
           { Field }: StepSpecificComponent.input<def, value, targetStep, {}>,
-          props: props,
+          componentProps: StepSpecificComponent.fieldComponentProps<
+            def,
+            value,
+            targetStep,
+            targetField,
+            customProps
+          >,
         ) =>
           createElement(
             Field as never,
             {
+              ...componentProps,
               name: targetField,
               children: (fieldProps: unknown) =>
-                render(fieldProps as never, props),
+                render(
+                  fieldProps as never,
+                  componentProps as unknown as customProps,
+                ),
             } as never,
           ),
       } as never);

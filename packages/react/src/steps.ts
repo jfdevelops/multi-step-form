@@ -266,19 +266,53 @@ export namespace StepSpecificComponent {
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
-  > = field.childrenProps<value, targetField, targetStep>;
+  > = field.childrenProps<value, targetField, targetStep> & {
+    /** Present when the returned component receives a `selectorFn`. */
+    selected?: { value: unknown };
+  };
+
+  export type fieldComponentProps<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    customProps extends object,
+  > = Expand<
+    // `forField` owns these two props so callers cannot replace its field binding or renderer.
+    Omit<
+      field.boundProps<value, targetStep, targetField, unknown>,
+      'name' | 'children'
+    > &
+      Omit<customProps, 'name' | 'children'>
+  >;
+
+  export type fieldComponent<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    customProps extends object,
+  > = (
+    props: fieldComponentProps<
+      def,
+      value,
+      targetStep,
+      targetField,
+      customProps
+    >,
+  ) => ReactNode;
 
   export type fieldConfig<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
-    props,
+    customProps extends object,
   > = {
     field: targetField;
     render: CreateComponent<
       fieldInput<def, value, targetStep, targetField>,
-      props
+      customProps
     >;
   };
 
@@ -345,16 +379,22 @@ export interface StepSpecificCreateComponentFn<
   /** Creates a reusable component bound to one field in this step. */
   forField<
     targetField extends getDeepFields<value, targetStep>,
-    props = undefined,
+    customProps extends object = {},
   >(
     config: StepSpecificComponent.fieldConfig<
       def,
       value,
       targetStep,
       targetField,
-      props
+      customProps
     >,
-  ): CreatedMultiStepFormComponent<props>;
+  ): StepSpecificComponent.fieldComponent<
+    def,
+    value,
+    targetStep,
+    targetField,
+    customProps
+  >;
 }
 
 /**

@@ -212,6 +212,10 @@ export const StepFirstName =
     field: "firstName",
     render: (field) => <Input value={field.defaultValue} />,
   });
+
+// `name` and `children` are owned by forField. Remaining Field props and custom props
+// are accepted by the generated component.
+<FirstName placeholder="Your name" suspend={false} />;
 ```
 
 ### 3. Create a "Step Layout"
