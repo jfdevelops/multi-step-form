@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, expectTypeOf } from 'vitest';
 import { defineMultiStepForm } from '../../src';
 import { type } from 'arktype';
 
@@ -209,7 +209,10 @@ describe('multi step form step schema: reusable functions', () => {
               step1: true,
             },
           },
-          ({ ctx }) => {
+          ({ ctx, reset, update }) => {
+            expectTypeOf(update.step1).toBeFunction();
+            expectTypeOf(reset.step1).toBeFunction();
+
             return ctx.step1.title;
           }
         );

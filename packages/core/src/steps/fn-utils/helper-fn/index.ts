@@ -43,9 +43,9 @@ export namespace HelperFnChosenSteps {
     value extends instantiateSteps,
     chosenSteps extends main<value, StepNumbers<value>>
   > = chosenSteps extends objectNotation<StepNumbers<value>>
-    ? StepNumbers<value> extends keyof chosenSteps
-      ? StepNumbers<value>
-      : never
+    ? // Object notation can select only part of a schema, so resolve its actual keys
+      // instead of requiring the selector to contain every available step.
+      Extract<keyof chosenSteps, StepNumbers<value>>
     : never;
   export type resolve<
     value extends instantiateSteps,

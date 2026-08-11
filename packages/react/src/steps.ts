@@ -13,7 +13,7 @@ import type {
   UpdateFn,
 } from '@jfdevelops/multi-step-form-core';
 import { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
-import type { ComponentPropsWithRef, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { field } from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { UseSelector } from './hooks/use-selector';
@@ -25,19 +25,12 @@ import {
 } from './utils';
 
 export namespace StepSpecificComponent {
-  type defaultFormComponent = {
-    [
-      key in MultiStepFormSchemaConfig.defaultFormAlias
-    ]: CreatedMultiStepFormComponent<Omit<ComponentPropsWithRef<'form'>, 'id'>>;
-  };
   type instantiateFormComponentForAllSteps<
     def extends StepSchema.Config,
     value = MultiStepFormSchemaConfig.instantiateFormConfig<def>,
   > =
     MultiStepFormSchemaConfig.EnabledForSteps.get<value> extends MultiStepFormSchemaConfig.defaultEnabledFor
-      ? keyof MultiStepFormSchemaConfig.instantiateFormConfig<def> extends never
-        ? defaultFormComponent
-        : MultiStepFormSchemaConfig.instantiateFormConfig<def>
+      ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
       : {};
   type instantiateFormComponentForTuple<
     def extends StepSchema.Config,
