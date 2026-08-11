@@ -216,15 +216,8 @@ export type MultiStepFormReactFactoryBase<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
-> = MultiStepFormReactFactoryStepProperties<TSteps> & {
-  /** Creates reusable field components that resolve against the active instance. */
-  createComponent: Pick<
-    CreateComponentFn<
-      DefineConfig<TSteps, TCasing>,
-      instantiateReactSteps<DefineConfig<TSteps, TCasing>>
-    >,
-    'forField'
-  >;
+> = MultiStepFormSchema<DefineConfig<TSteps, TCasing>> &
+  MultiStepFormReactFactoryStepProperties<TSteps> & {
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
    *
@@ -237,6 +230,49 @@ export type MultiStepFormReactFactoryBase<
    */
   getActiveInstanceName(): InstanceName<TInstances> | undefined;
 };
+
+function attachFactorySchemaSurface<const def extends DefineConfig>(
+  factory: Function,
+  schema: MultiStepFormSchema<def>,
+) {
+  // The callable factory needs the same public schema API as the old schema constructor, but
+  // its schema must stay outside the instance registry so factory and instance state cannot leak.
+  Object.defineProperties(factory, {
+    defaultNameTransformationCasing: {
+      enumerable: true,
+      get: () => schema.defaultNameTransformationCasing,
+    },
+    stepSchema: {
+      enumerable: true,
+      get: () => schema.stepSchema,
+    },
+    storage: {
+      enumerable: true,
+      get: () => schema.storage,
+    },
+    storageConfig: {
+      enumerable: true,
+      get: () => schema.storageConfig,
+    },
+    context: {
+      enumerable: true,
+      get: () => schema.context,
+      set: (context) => {
+        schema.context = context;
+      },
+    },
+    subscribe: { value: schema.subscribe },
+    hasListeners: { value: schema.hasListeners.bind(schema) },
+    getSnapshot: { value: schema.getSnapshot.bind(schema) },
+    mount: { value: schema.mount.bind(schema) },
+    unmount: { value: schema.unmount.bind(schema) },
+    isMounted: { value: schema.isMounted.bind(schema) },
+    withForm: { value: schema.withForm.bind(schema) },
+    withContext: { value: schema.withContext.bind(schema) },
+  });
+
+  return factory;
+}
 
 export type MultiStepFormReactFactory<
   TSteps extends StepConfig,
@@ -261,6 +297,12 @@ function createReactFactory<
     InstanceName<TInstances>,
     MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>
   >();
+  const factorySchema = new MultiStepFormSchema<
+    DefineConfig<TSteps, TCasing>
+  >({
+    steps: steps as DefineConfig<TSteps, TCasing>['steps'],
+    nameTransformCasing,
+  } as never);
   let activeInstance: InstanceName<TInstances> | undefined;
 
   function setActive(
@@ -360,7 +402,7 @@ function createReactFactory<
     ]),
   );
 
-  const sharedCreateComponent = {
+  const sharedFieldComponent = {
     forField(componentConfig: {
       step: string;
       field: string;
@@ -397,20 +439,33 @@ function createReactFactory<
       };
     },
   };
+  const sharedCreateComponent = Object.assign(
+    function createFactoryComponent(componentConfig: unknown) {
+      return factorySchema.createComponent(componentConfig as never);
+    },
+    sharedFieldComponent,
+  ) as unknown as CreateComponentFn<
+    DefineConfig<TSteps, TCasing>,
+    instantiateReactSteps<DefineConfig<TSteps, TCasing>>
+  >;
 
-  return Object.assign(factory, stepHelpers, {
-    createComponent: sharedCreateComponent,
-    setActiveInstance(instanceName: InstanceName<TInstances>) {
-      InvalidInstanceError.invariant(registry.has(instanceName), {
-        reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,
-        instance: instanceName,
-      });
-      activeInstance = instanceName;
+  return Object.assign(
+    attachFactorySchemaSurface(factory, factorySchema),
+    stepHelpers,
+    {
+      createComponent: sharedCreateComponent,
+      setActiveInstance(instanceName: InstanceName<TInstances>) {
+        InvalidInstanceError.invariant(registry.has(instanceName), {
+          reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,
+          instance: instanceName,
+        });
+        activeInstance = instanceName;
+      },
+      getActiveInstanceName() {
+        return activeInstance;
+      },
     },
-    getActiveInstanceName() {
-      return activeInstance;
-    },
-  }) as unknown as MultiStepFormReactFactory<TSteps, TInstances, TCasing>;
+  ) as unknown as MultiStepFormReactFactory<TSteps, TInstances, TCasing>;
 }
 
 export class MultiStepFormReactDefinition<
