@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { InvalidInstanceError, NoActiveInstanceError } from '@jfdevelops/multi-step-form-core';
-import { defineMultiStepForm } from '../src';
+import { defineMultiStepForm, type MultiStepFormSchema } from '../src';
 
 function createMockStorage(): Storage {
   const store: Record<string, string> = {};
@@ -59,6 +59,45 @@ describe('react defineMultiStepForm: nameTransformCasing', () => {
   });
 });
 
+describe('react defineMultiStepForm: public types', () => {
+  it('preserves custom field metadata and exact step keys through form context', () => {
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            email: {
+              defaultValue: '',
+              type: 'string.email',
+            },
+          },
+        },
+        step2: {
+          title: 'Step 2',
+          fields: {
+            accepted: {
+              defaultValue: false,
+              type: 'boolean.switch',
+            },
+          },
+        },
+      },
+    }).configure()()
+      .withForm({ render: () => null })
+      .withContext();
+
+    type ResolvedSteps = MultiStepFormSchema.resolvedStep<typeof schema>;
+
+    expectTypeOf<keyof ResolvedSteps>().toEqualTypeOf<'step1' | 'step2'>();
+    expectTypeOf(
+      schema.stepSchema.original.step1.fields.email.type,
+    ).toEqualTypeOf<'string.email'>();
+    expectTypeOf(
+      schema.stepSchema.original.step2.fields.accepted.type,
+    ).toEqualTypeOf<'boolean.switch'>();
+  });
+});
+
 describe('react defineMultiStepForm: instances', () => {
   it('creates independent state per named instance', () => {
     const createForm = createBookingDefinition().configure();
@@ -66,17 +105,13 @@ describe('react defineMultiStepForm: instances', () => {
     const client = createForm({ instance: 'client' });
     const admin = createForm({ instance: 'admin' });
 
-    // NOTE: react's step-schema generics resolve to `{}`/`never` when instantiated through this
-    // factory chain (the same pre-existing inference gap documented elsewhere in this package's
-    // tests, unrelated to instances/overrides) — `as never` sidesteps it; runtime is unaffected.
-    client.stepSchema.update({
-      targetStep: 'step1',
+    client.stepSchema.value.step1.update({
       fields: ['fields.firstName.defaultValue'],
       updater: 'Taylor',
-    } as never);
+    });
 
-    expect(client.stepSchema.getValue('step1' as never, 'firstName' as never)).toBe('Taylor');
-    expect(admin.stepSchema.getValue('step1' as never, 'firstName' as never)).toBe('');
+    expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe('Taylor');
+    expect(admin.stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
   });
 
   it('rejects instances that were not declared', () => {
@@ -110,16 +145,14 @@ describe('react defineMultiStepForm: storage', () => {
     const client = createForm({ instance: 'client' });
     const admin = createForm({ instance: 'admin' });
 
-    client.stepSchema.update({
-      targetStep: 'step1',
+    client.stepSchema.value.step1.update({
       fields: ['fields.firstName.defaultValue'],
       updater: 'Taylor',
-    } as never);
-    admin.stepSchema.update({
-      targetStep: 'step1',
+    });
+    admin.stepSchema.value.step1.update({
       fields: ['fields.firstName.defaultValue'],
       updater: 'Jordan',
-    } as never);
+    });
 
     expect(client.storage.key).toBe('booking:client');
     expect(admin.storage.key).toBe('booking:admin');
@@ -156,9 +189,9 @@ describe('react defineMultiStepForm: withOverrides', () => {
       step1: async () => ({ firstName: 'ClientDefault' }),
     });
 
-    await client.stepSchema.resolveStep('step1' as never);
+    await Reflect.apply(client.stepSchema.resolveStep, client.stepSchema, ['step1']);
 
-    expect(client.stepSchema.getValue('step1' as never, 'firstName' as never)).toBe(
+    expect(client.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
       'ClientDefault',
     );
   });
@@ -171,17 +204,15 @@ describe('react defineMultiStepForm: shared createHelperFn', () => {
       update.step1({
         fields: ['fields.firstName.defaultValue'],
         updater: 'Riley',
-      } as never);
+      });
     });
 
     createForm({ instance: 'client' });
     setFirstName();
 
     expect(
-      createForm({ instance: 'client' }).stepSchema.getValue(
-        'step1' as never,
-        'firstName' as never,
-      ),
+      createForm({ instance: 'client' }).stepSchema.value.step1.fields.firstName
+        .defaultValue,
     ).toBe('Riley');
   });
 
@@ -191,7 +222,7 @@ describe('react defineMultiStepForm: shared createHelperFn', () => {
       update.step1({
         fields: ['fields.firstName.defaultValue'],
         updater: 'Riley',
-      } as never);
+      });
     });
 
     expect(() => setFirstName()).toThrow(NoActiveInstanceError);

@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: as type transformations', () => {
-  const schema = createMultiStepFormSchema({
+  const schema = defineMultiStepForm({
     steps: {
       step1: {
         title: 'Step 1',
@@ -21,7 +21,7 @@ describe('multi step form step schema: as type transformations', () => {
         },
       },
     },
-  });
+  }).configure()();
   const { as } = schema.stepSchema.steps;
 
   it('should transform the step numbers into a string union', () => {
@@ -65,9 +65,9 @@ describe('multi step form step schema: as type transformations', () => {
   it('should transform the step numbers into a array of numbers', () => {
     const asArrayNumber = as('array.number');
 
-    expectTypeOf(asArrayNumber.parse([1, 2])).toEqualTypeOf<[1, 2]>();
+    expectTypeOf(asArrayNumber.parse([1, 2])).toEqualTypeOf<Array<1 | 2>>();
     expectTypeOf(asArrayNumber.parse.in(1)).toEqualTypeOf<1 | 2>();
-    expectTypeOf(asArrayNumber.value).toEqualTypeOf<[1, 2]>();
+    expectTypeOf(asArrayNumber.value).toEqualTypeOf<Array<1 | 2>>();
     expect(asArrayNumber.value).toStrictEqual([1, 2]);
     expect(asArrayNumber.parse([2, 1])).toStrictEqual([1, 2]);
     expect(asArrayNumber.parse.in(1)).toBe(1);
@@ -81,9 +81,11 @@ describe('multi step form step schema: as type transformations', () => {
   it('should transform the step numbers into a array of strings', () => {
     const asArrayString = as('array.string');
 
-    expectTypeOf(asArrayString.parse(['1', '2'])).toEqualTypeOf<['1', '2']>();
+    expectTypeOf(asArrayString.parse(['1', '2'])).toEqualTypeOf<
+      Array<'1' | '2'>
+    >();
     expectTypeOf(asArrayString.parse.in('1')).toEqualTypeOf<'1' | '2'>();
-    expectTypeOf(asArrayString.value).toEqualTypeOf<['1', '2']>();
+    expectTypeOf(asArrayString.value).toEqualTypeOf<Array<'1' | '2'>>();
     expect(asArrayString.value).toStrictEqual(['1', '2']);
     expect(asArrayString.parse(['2', '1'])).toStrictEqual(['1', '2']);
     expect(asArrayString.parse.in('1')).toBe('1');
@@ -98,13 +100,13 @@ describe('multi step form step schema: as type transformations', () => {
     const asArrayStringKeys = as('array.string.keys');
 
     expectTypeOf(asArrayStringKeys.parse(['step1', 'step2'])).toEqualTypeOf<
-      ['step1', 'step2']
+      Array<'step1' | 'step2'>
     >();
     expectTypeOf(asArrayStringKeys.parse.in('step1')).toEqualTypeOf<
       'step1' | 'step2'
     >();
     expectTypeOf(asArrayStringKeys.value).toEqualTypeOf<
-      ['step1', 'step2']
+      Array<'step1' | 'step2'>
     >();
     expect(asArrayStringKeys.value).toStrictEqual(['step1', 'step2']);
     expect(asArrayStringKeys.parse(['step2', 'step1'])).toStrictEqual([

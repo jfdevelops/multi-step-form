@@ -397,15 +397,19 @@ export class MultiStepFormReactDefinition<
  *
  * const publicForm = createBookingForm({ instance: 'client' })
  *   .withOverrides({ step1: async ({ fields }) => ({ firstName: '' }) })
- *   .withForm({ render: (data) => (props) => <form {...props} /> })
+ *   .withForm({ render: ({ id }, props) => <form id={id} {...props} /> })
  *   .withContext();
  * ```
  */
 export function defineMultiStepForm<
   const steps extends StepConfig,
+  const contextualSteps extends StepConfig,
   const instances extends readonly string[] | undefined = undefined,
 >(
-  options: DefineMultiStepFormOptions<steps, instances>,
+  options: {
+    steps: steps;
+    instances?: instances;
+  } & DefineMultiStepFormOptions<contextualSteps, instances>,
 ): MultiStepFormReactDefinition<steps, instances> {
-  return new MultiStepFormReactDefinition<steps, instances>(options);
+  return new MultiStepFormReactDefinition<steps, instances>(options as never);
 }

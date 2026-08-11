@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: field properties', () => {
   it('resolves the standard field properties for string fields', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -19,7 +19,7 @@ describe('multi step form step schema: field properties', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value.step1.fields.firstName).toStrictEqual({
       name: 'firstName',
@@ -39,7 +39,7 @@ describe('multi step form step schema: field properties', () => {
   });
 
   it('omits a disabled label', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -51,7 +51,7 @@ describe('multi step form step schema: field properties', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value.step1.fields.firstName).toStrictEqual({
       name: 'firstName',
@@ -66,7 +66,7 @@ describe('multi step form step schema: field properties', () => {
 
   it('resolves the type property for date fields', () => {
     const date = new Date('2024-01-01T00:00:00.000Z');
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -81,7 +81,7 @@ describe('multi step form step schema: field properties', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value.step1.fields.createdAt).toStrictEqual({
       name: 'createdAt',

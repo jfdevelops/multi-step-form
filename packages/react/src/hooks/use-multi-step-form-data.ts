@@ -1,11 +1,8 @@
 import type { MultiStepFormSchema } from '@/schema';
-import {
-  type getCurrentStep,
-  type StepNumbers,
-} from '@jfdevelops/multi-step-form-core';
+import type { getCurrentStep } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import { createUseSelector } from './use-selector';
-import type { instantiateReactSteps } from '../steps';
+import type { instantiateReactSteps, schemaStepNumbers } from '../steps';
 
 export type UseMultiStepFormDataOptions<targetStep extends string> = {
   targetStep: targetStep;
@@ -23,7 +20,7 @@ export type UseMultiStepFormData<
    * @param stepNumber The step number to return.
    * @throws {TypeError} If `options.stepNumber` is invalid.
    */
-  <targetStep extends StepNumbers<value>>(
+  <targetStep extends schemaStepNumbers<def, value>>(
     options: UseMultiStepFormDataOptions<targetStep>
   ): getCurrentStep<value, targetStep>;
   /**
@@ -38,7 +35,7 @@ export function createMultiStepFormDataHook<
 >(schema: MultiStepFormSchema<def, value>): UseMultiStepFormData<def, value> {
   function useMultiStepFormData(
     optionsOrSelector?:
-      | UseMultiStepFormDataOptions<StepNumbers<value>>
+      | UseMultiStepFormDataOptions<schemaStepNumbers<def, value>>
       | ((data: MultiStepFormSchema<def, value>) => unknown)
   ) {
     const shouldReturnWholeSchema = optionsOrSelector === undefined;
@@ -70,8 +67,8 @@ function useMultiStepFormData<
   value extends instantiateReactSteps<def>
 >(
   schema: MultiStepFormSchema<def, value>,
-  options: UseMultiStepFormDataOptions<StepNumbers<value>>
-): getCurrentStep<value, StepNumbers<value>>;
+  options: UseMultiStepFormDataOptions<schemaStepNumbers<def, value>>
+): getCurrentStep<value, schemaStepNumbers<def, value>>;
 function useMultiStepFormData<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
@@ -86,7 +83,7 @@ function useMultiStepFormData<
 >(
   schema: MultiStepFormSchema<def, value>,
   optionsOrSelector?:
-    | UseMultiStepFormDataOptions<StepNumbers<value>>
+    | UseMultiStepFormDataOptions<schemaStepNumbers<def, value>>
     | ((data: MultiStepFormSchema<def, value>) => unknown)
 ) {
   const hook = createMultiStepFormDataHook(schema);

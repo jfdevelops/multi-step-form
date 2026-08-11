@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('react: multi step form schema update', () => {
   it("should updated the target step using the class's update method", () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -31,18 +31,17 @@ describe('react: multi step form schema update', () => {
           },
         },
       },
-    });
+    }).configure()();
     const { stepSchema } = schema;
 
     expect(stepSchema.value.step1.nameTransformCasing).toBe('title');
 
-    stepSchema.update({
-      targetStep: 'step1',
+    stepSchema.value.step1.update({
       fields: ['nameTransformCasing'],
       updater() {
         return 'camel' as const;
       },
-    } as never);
+    });
 
     expect(stepSchema.value.step1.nameTransformCasing).toBe('camel');
   });

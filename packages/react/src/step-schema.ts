@@ -129,14 +129,15 @@ export class MultiStepFormStepSchema<
     this.sync();
 
     const createFormConfig = MultiStepFormSchemaConfig.instantiateFormConfig(
-      this.value as never,
-      this.steps.value
+      () => this.value as never,
+      this.subscribe,
+      Object.keys(this.value) as StepNumbers<value>[],
     );
-    const instantiatedForm = createFormConfig(form as never);
     this.value = this.#internal.enrichValues(this.value, (step) => {
       const targetStep = `step${step}` as StepNumbers<value>;
 
       const id = form?.id ?? targetStep;
+      const instantiatedForm = createFormConfig(form as never, id);
 
       return {
         createComponent: this.createStepSpecificComponentFactory(targetStep, {
@@ -166,7 +167,7 @@ export class MultiStepFormStepSchema<
     if (ctxData) {
       const [targetStep] = stepData;
       const { [targetStep]: _, ...values } = this.value;
-      const createResolvedCtx = resolvedCtxCreator(logger, values as value);
+      const createResolvedCtx = resolvedCtxCreator(logger, values);
 
       return createResolvedCtx({ ctx, ctxData } as never);
     }

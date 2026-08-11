@@ -331,12 +331,18 @@ export type CreateStepSpecificComponentCallback<
 // Because of this, there are a lot of `@ts-expect-error`s in the code.
 export type instantiateReactSteps<
   def = unknown,
-  value extends _instantiateSteps<def> = _instantiateSteps<def>,
+  value extends Record<PropertyKey, unknown> = _instantiateSteps<def>,
 > = Expand<{
   [key in keyof value]: Expand<
-    BaseStepFunctions<def, value, key> & {
+    BaseStepFunctions<def, value & _instantiateSteps<def>, key> & {
       // @ts-expect-error -
       createComponent: StepSpecificCreateComponentFn<def, value, key>;
     }
   >;
 }>;
+
+/** Concrete step keys declared by the schema, excluding any widened step index. */
+export type schemaStepNumbers<
+  def extends StepSchema.Config,
+  value extends instantiateReactSteps<def>,
+> = Extract<keyof def['steps'], StepNumbers<value>>;

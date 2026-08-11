@@ -544,14 +544,13 @@ export class MultiStepFormStepSchemaInternal<
         ...(resolvedFields as any)
       );
 
-      config.updatedValues = {
-        ...config.updatedValues,
-        ...path.updateAt({
-          obj: values,
-          paths: resolvedFields as DeepKeys<value>[],
-          value: picked,
-        }),
-      };
+      // Apply original field values onto the live schema so unrelated fields and steps
+      // keep the values the user has already entered.
+      config.updatedValues = path.updateAt({
+        obj: config.updatedValues,
+        paths: resolvedFields as DeepKeys<value>[],
+        value: picked,
+      });
 
       const formatter = new Intl.ListFormat('en', {
         style: 'long',
@@ -586,11 +585,18 @@ export class MultiStepFormStepSchemaInternal<
 
     if (fields === 'all') {
       logger.info(`Resetting all fields for ${targetStep}`);
-      this.handlePostUpdate(enrichedOriginalValues);
+      // A step-scoped reset must replace only its target; writing every original step
+      // here would silently discard progress made elsewhere in the form.
+      this.handlePostUpdate({
+        ...this.value,
+        [targetStep]: enrichedOriginalValues[targetStep],
+      });
       logger.info(`Reset all fields for ${targetStep}`);
+
+      return;
     }
 
-    let updatedValues = { ...enrichedOriginalValues };
+    let updatedValues = { ...this.value };
     const reset = this.resetFields<targetStep, currentStep>({
       logger,
       targetStep,

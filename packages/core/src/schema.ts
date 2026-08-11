@@ -1,5 +1,5 @@
 import { MultiStepFormStepSchema } from '@/steps';
-import { setCasingType, type CasingType, type DefaultCasing } from '@/utils';
+import { setCasingType } from '@/utils';
 import type { StepSchema } from './internals/index.js';
 import {
   DEFAULT_STORAGE_KEY,
@@ -7,7 +7,7 @@ import {
   type BaseStorageConfig,
 } from './storage.js';
 import { Subscribable } from './subscribable.js';
-import type { instantiateSteps, StepConfig } from './steps/steps.js';
+import type { instantiateSteps } from './steps/steps.js';
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
@@ -91,11 +91,4 @@ export class MultiStepFormSchema<
       });
     }
   }
-}
-
-export function createMultiStepFormSchema<
-  const steps extends StepConfig,
-  const casing extends CasingType = DefaultCasing,
->(options: StepSchema.Config<steps, casing>) {
-  return new MultiStepFormSchema<StepSchema.Config<steps, casing>>(options);
 }

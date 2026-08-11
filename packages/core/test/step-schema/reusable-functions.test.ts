@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 import { type } from 'arktype';
 
 describe('multi step form step schema: reusable functions', () => {
   describe('step specific', () => {
     it('should create a step specific reusable function with input', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -33,7 +33,7 @@ describe('multi step form step schema: reusable functions', () => {
             },
           },
         },
-      });
+      }).configure()();
       const addToStep1Title = schema.stepSchema.value.step1.createHelperFn(
         {
           validator: type('string'),
@@ -45,7 +45,7 @@ describe('multi step form step schema: reusable functions', () => {
     });
 
     it('should create a step specific reusable function without input', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -73,7 +73,7 @@ describe('multi step form step schema: reusable functions', () => {
             },
           },
         },
-      });
+      }).configure()();
       const addToStep1Title = schema.stepSchema.value.step1.createHelperFn(
         ({ ctx }) => ctx.step1.title
       );
@@ -85,7 +85,7 @@ describe('multi step form step schema: reusable functions', () => {
   describe('general', () => {
     describe('stepData array version', () => {
       it('should create a reusable function without any input', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -113,7 +113,7 @@ describe('multi step form step schema: reusable functions', () => {
               },
             },
           },
-        });
+        }).configure()();
         const getStep1Title = schema.stepSchema.createHelperFn(
           { stepData: ['step1'] },
           ({ ctx }) => {
@@ -125,7 +125,7 @@ describe('multi step form step schema: reusable functions', () => {
       });
 
       it('should create a reusable function with input', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -153,7 +153,7 @@ describe('multi step form step schema: reusable functions', () => {
               },
             },
           },
-        });
+        }).configure()();
         const addToTitle = schema.stepSchema.createHelperFn(
           {
             stepData: ['step1'],
@@ -174,7 +174,7 @@ describe('multi step form step schema: reusable functions', () => {
 
     describe('stepData object version', () => {
       it('should create a reusable function without any input', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -202,7 +202,7 @@ describe('multi step form step schema: reusable functions', () => {
               },
             },
           },
-        });
+        }).configure()();
         const getStep1Title = schema.stepSchema.createHelperFn(
           {
             stepData: {
@@ -218,7 +218,7 @@ describe('multi step form step schema: reusable functions', () => {
       });
 
       it('should create a reusable function with input', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -246,7 +246,7 @@ describe('multi step form step schema: reusable functions', () => {
               },
             },
           },
-        });
+        }).configure()();
         const addToTitle = schema.stepSchema.createHelperFn(
           {
             stepData: {

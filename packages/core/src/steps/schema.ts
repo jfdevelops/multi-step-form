@@ -163,15 +163,15 @@ export type AsTypeMap<
     ExtractStepFromKey<stepNumbers>
   >;
   'array.number': AsArrayValue<
-    UnionToTuple<ExtractStepFromKey<stepNumbers>>,
+    Array<ExtractStepFromKey<stepNumbers>>,
     ExtractStepFromKey<stepNumbers>
   >;
   'array.string': AsArrayValue<
-    UnionToTuple<`${ExtractStepFromKey<stepNumbers>}`>,
+    Array<`${ExtractStepFromKey<stepNumbers>}`>,
     `${ExtractStepFromKey<stepNumbers>}`
   >;
   'array.string.keys': AsArrayValue<
-    UnionToTuple<`${stepNumbers}`>,
+    Array<`${stepNumbers}`>,
     stepNumbers
   >;
   'array.string.untyped': AsArrayValue<string[], string>;
@@ -736,7 +736,10 @@ export class MultiStepFormStepSchema<
       },
     );
 
-    const promise = Promise.resolve(override(this.getResolvedStepData(step)))
+    // Invoke the user resolver inside the chain so synchronous throws and rejected
+    // promises both pass through the same persisted error-state handler.
+    const promise = Promise.resolve()
+      .then(() => override(this.getResolvedStepData(step)))
       .then((overrides) => {
         this.#overrideState.set(step, {
           status: 'resolved',

@@ -520,9 +520,13 @@ export class MultiStepFormDefinition<
  */
 export function defineMultiStepForm<
   const steps extends StepConfig,
+  const contextualSteps extends StepConfig,
   const instances extends readonly string[] | undefined = undefined,
 >(
-  options: DefineMultiStepFormOptions<steps, instances>,
+  options: {
+    steps: steps;
+    instances?: instances;
+  } & DefineMultiStepFormOptions<contextualSteps, instances>,
 ): MultiStepFormDefinition<steps, instances> {
-  return new MultiStepFormDefinition<steps, instances>(options);
+  return new MultiStepFormDefinition<steps, instances>(options as never);
 }

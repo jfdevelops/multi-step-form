@@ -1,23 +1,10 @@
 import { type } from 'arktype';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createMockStorage } from '../utils/create-mock-storage';
-import { createMultiStepFormSchema } from '@/schema';
+import { describe, expect, it } from 'vitest';
+import { defineMultiStepForm } from '@/define';
 
 describe('multi step form step schema: ctx update', () => {
-  // Generate unique storage keys for each test to prevent data persistence
-  let testCounter = 0;
-
-  beforeEach(() => {
-    testCounter++;
-  });
-
   it('should have up-to-date ctx when helper function is called after updates', () => {
-    const mockStorage = createMockStorage();
-    const schema = createMultiStepFormSchema({
-      storage: {
-        key: `ctx-update-test-${testCounter}-1-${Date.now()}`,
-        store: mockStorage,
-      },
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -36,7 +23,7 @@ describe('multi step form step schema: ctx update', () => {
           title: 'Step 2',
         },
       },
-    });
+    }).configure()();
 
     // Create a helper function that reads from ctx
     const getStep1Title = schema.stepSchema.value.step1.createHelperFn(
@@ -66,12 +53,7 @@ describe('multi step form step schema: ctx update', () => {
   });
 
   it('should have up-to-date ctx when helper function accesses multiple steps', () => {
-    const mockStorage = createMockStorage();
-    const schema = createMultiStepFormSchema({
-      storage: {
-        key: `ctx-update-test-${testCounter}-2-${Date.now()}`,
-        store: mockStorage,
-      },
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -90,7 +72,7 @@ describe('multi step form step schema: ctx update', () => {
           title: 'Step 2',
         },
       },
-    });
+    }).configure()();
 
     // Create a helper function that reads from multiple steps in ctx
     const getCombinedTitle = schema.stepSchema.createHelperFn(
@@ -121,12 +103,7 @@ describe('multi step form step schema: ctx update', () => {
   });
 
   it('should have up-to-date ctx when helper function accesses field values', () => {
-    const mockStorage = createMockStorage();
-    const schema = createMultiStepFormSchema({
-      storage: {
-        key: `ctx-update-test-${testCounter}-3-${Date.now()}`,
-        store: mockStorage,
-      },
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -145,7 +122,7 @@ describe('multi step form step schema: ctx update', () => {
           title: 'Step 2',
         },
       },
-    });
+    }).configure()();
 
     // Create a helper function that reads field values from ctx
     const getFullName = schema.stepSchema.createHelperFn(
@@ -180,12 +157,7 @@ describe('multi step form step schema: ctx update', () => {
   });
 
   it('should have up-to-date ctx when helper function is created at schema level', () => {
-    const mockStorage = createMockStorage();
-    const schema = createMultiStepFormSchema({
-      storage: {
-        key: `ctx-update-test-${testCounter}-4-${Date.now()}`,
-        store: mockStorage,
-      },
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -204,7 +176,7 @@ describe('multi step form step schema: ctx update', () => {
           title: 'Step 2',
         },
       },
-    });
+    }).configure()();
 
     // Create a helper function at the schema level
     const getStep1Title = schema.stepSchema.createHelperFn(
@@ -227,12 +199,7 @@ describe('multi step form step schema: ctx update', () => {
   });
 
   it('should have up-to-date ctx when helper function has validator and input', () => {
-    const mockStorage = createMockStorage();
-    const schema = createMultiStepFormSchema({
-      storage: {
-        key: `ctx-update-test-${testCounter}-5-${Date.now()}`,
-        store: mockStorage,
-      },
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -251,7 +218,7 @@ describe('multi step form step schema: ctx update', () => {
           title: 'Step 2',
         },
       },
-    });
+    }).configure()();
 
     // Create a helper function with validator
     const combineTitleWithInput = schema.stepSchema.value.step1.createHelperFn(

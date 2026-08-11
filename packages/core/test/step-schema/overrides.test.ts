@@ -73,6 +73,33 @@ describe('multi step form step schema: overrides', () => {
     expect(schema.stepSchema.getStepError('step1')).toBeInstanceOf(Error);
   });
 
+  it('stores synchronous override errors on the step status', async () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+          },
+        },
+      },
+    }).configure();
+    const overrideError = new Error('Failed before returning a promise');
+    const schema = createForm().withOverrides({
+      step1: () => {
+        throw overrideError;
+      },
+    });
+
+    await expect(schema.stepSchema.resolveStep('step1')).rejects.toBe(
+      overrideError,
+    );
+    expect(schema.stepSchema.getStepStatus('step1')).toBe('error');
+    expect(schema.stepSchema.getStepError('step1')).toBe(overrideError);
+  });
+
   it('preserves untouched field defaults when overrides return a partial patch', async () => {
     const createForm = defineMultiStepForm({
       steps: {

@@ -6,7 +6,7 @@ category: migration
 order: 1
 ---
 
-import { createMultiStepFormSchema, defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
+import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
 
 # Migrating from alpha
 
@@ -66,8 +66,8 @@ const createForm = defineMultiStepForm({
 });
 ```
 
-`createMultiStepFormSchema` itself is unchanged apart from the `overrides` removal above — it
-remains available for forms that don't need multiple instances.
+`createMultiStepFormSchema` has been removed in beta. Use a default instance when you do not need
+named instances: `defineMultiStepForm({ steps }).configure()()`.
 
 For everything `defineMultiStepForm` adds on top of this (instances, per-instance storage, shared
 `createHelperFn`, `withOverrides`, field metadata, step `isComplete`), see

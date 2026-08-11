@@ -16,6 +16,8 @@
     "test:packages": "pnpm -r --filter \"@jfdevelops/*\" test",
     "test:core": "pnpm -r --filter=@jfdevelops/multi-step-form-core test",
     "test:react": "pnpm -r --filter=@jfdevelops/react-multi-step-form test",
+    "typecheck:packages": "pnpm -r --filter \"@jfdevelops/*\" typecheck",
+    "precommit": "node scripts/pre-commit.mjs",
     "prepare": "husky",
     "release": "changeset publish"
   },
@@ -40,5 +42,11 @@
   "volta": {
     "node": "24.13.0",
     "pnpm": "10.28.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "solid-js": "1.9.14",
+      "rollup": "4.62.4"
+    }
   }
 }
