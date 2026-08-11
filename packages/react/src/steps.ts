@@ -14,7 +14,7 @@ import type {
 } from '@jfdevelops/multi-step-form-core';
 import { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ReactNode } from 'react';
-import { field } from './field';
+import type * as FieldTypes from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { UseSelector } from './hooks/use-selector';
 import { selector } from './selector';
@@ -142,8 +142,8 @@ export namespace StepSpecificComponent {
   > = Expand<
     Omit<
       [selected] extends [never]
-        ? field.childrenProps<value, targetField, step>
-        : field.childrenPropsWithSelected<
+        ? FieldTypes.field.childrenProps<value, targetField, step>
+        : FieldTypes.field.childrenPropsWithSelected<
             value,
             step,
             targetField,
@@ -174,7 +174,7 @@ export namespace StepSpecificComponent {
     >,
   > = Expand<
     Omit<
-      field.boundProps<
+      FieldTypes.field.boundProps<
         selectedFieldStep<value, step>,
         selectedFieldStepKey<value, step>,
         Extract<
@@ -293,7 +293,9 @@ export namespace StepSpecificComponent {
     additionalCtx extends Record<string, unknown>,
   > = HelperFnInput.BaseInput<value, [targetStep], never, additionalCtx> &
     updateWrappers<value, targetStep> & {
-      Field: field.component<buildCurrentStep<def, value, targetStep>>;
+      Field: FieldTypes.field.component<
+        buildCurrentStep<def, value, targetStep>
+      >;
       /**
        * A hook for reactively selecting a value from the form context.
        * The selector function receives the contextual data for the currently rendered step, and returns any derived value.
@@ -403,7 +405,7 @@ export namespace StepSpecificComponent {
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
   > = targetField extends getDeepFields<value, targetStep>
-    ? field.childrenProps<value, targetField, targetStep> & {
+    ? FieldTypes.field.childrenProps<value, targetField, targetStep> & {
         /** Present when the returned component receives a `selectorFn`. */
         selected?: { value: unknown };
       }
@@ -418,7 +420,7 @@ export namespace StepSpecificComponent {
   > = Expand<
     // `forField` owns these two props so callers cannot replace its field binding or renderer.
     Omit<
-      field.boundProps<value, targetStep, targetField, unknown>,
+      FieldTypes.field.boundProps<value, targetStep, targetField, unknown>,
       'name' | 'children'
     > &
       Omit<customProps, 'name' | 'children'>
