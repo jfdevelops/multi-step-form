@@ -6,6 +6,7 @@
     "@jfdevelops/react-multi-step-form": "1.0.0-alpha.55"
   },
   "changesets": [
+    "beta-tooling-validation",
     "big-bags-hunt",
     "bright-forms-update",
     "bumpy-weeks-join",
@@ -28,6 +29,7 @@
     "flat-sheep-tan",
     "free-hounds-invent",
     "fresh-forms-render",
+    "fresh-with-form-render",
     "funny-rivers-move",
     "gentle-errors-shine",
     "giant-turtles-trade",
@@ -51,6 +53,7 @@
     "orange-fields-exact",
     "quick-forms-update",
     "quiet-forms-build",
+    "quiet-storage-ssr",
     "react-overrides-suspend",
     "real-poets-film",
     "remove-use-form-instance",
