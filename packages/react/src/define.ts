@@ -16,15 +16,18 @@ import {
   type WithOverridesMap,
 } from '@jfdevelops/multi-step-form-core';
 import { MultiStepFormSchema } from './schema';
+import type { CreateComponentFn } from './step-schema';
 import type { instantiateReactSteps } from './steps';
+import { createElement, type ReactNode } from 'react';
 
 /**
  * The resolved instantiated value shape for a form definition's steps, independent of any
  * particular instance.
  */
-export type DefineReactValue<TSteps extends StepConfig> = instantiateReactSteps<{
-  steps: TSteps;
-}>;
+export type DefineReactValue<TSteps extends StepConfig> =
+  instantiateReactSteps<{
+    steps: TSteps;
+  }>;
 
 export interface MultiStepFormReactInstance<
   def extends DefineConfig,
@@ -76,25 +79,33 @@ function attachInstance<
     onRebuild: (next: MultiStepFormReactInstance<def>) => void;
   },
 ): MultiStepFormReactInstance<def> {
-  const { rawSteps, nameTransformCasing, storageConfig, instanceName, onRebuild } = options;
+  const {
+    rawSteps,
+    nameTransformCasing,
+    storageConfig,
+    instanceName,
+    onRebuild,
+  } = options;
 
   return Object.assign(instance, {
     instanceName,
     withOverrides(overrides: WithOverridesMap<def['steps']>) {
       const mergedSteps = Object.fromEntries(
-        Object.entries(rawSteps as Record<string, object>).map(([key, stepConfig]) => {
-          const override = (overrides as Record<string, unknown>)[key];
+        Object.entries(rawSteps as Record<string, object>).map(
+          ([key, stepConfig]) => {
+            const override = (overrides as Record<string, unknown>)[key];
 
-          return [
-            key,
-            override
-              ? {
-                  ...stepConfig,
-                  overrides: override,
-                }
-              : stepConfig,
-          ];
-        }),
+            return [
+              key,
+              override
+                ? {
+                    ...stepConfig,
+                    overrides: override,
+                  }
+                : stepConfig,
+            ];
+          },
+        ),
       ) as def['steps'];
 
       const next = attachInstance<def, TInstance>(
@@ -132,7 +143,8 @@ function resolveStorageConfig<
     storage?.configure?.instances ??
     (declaredInstances as readonly InstanceName<TInstances>[] | undefined) ??
     ([DEFAULT_INSTANCE_NAME] as unknown as readonly InstanceName<TInstances>[]);
-  const hasStorage = Boolean(storage) && configuredInstances.includes(instanceName);
+  const hasStorage =
+    Boolean(storage) && configuredInstances.includes(instanceName);
   const updateStorage = update?.updateStorage;
   const passesUpdateGate =
     updateStorage === undefined
@@ -152,7 +164,9 @@ function resolveStorageConfig<
   const key =
     typeof storage!.key === 'string'
       ? storage!.key
-      : (storage!.key as Record<InstanceName<TInstances>, string>)[instanceName];
+      : (storage!.key as Record<InstanceName<TInstances>, string>)[
+          instanceName
+        ];
 
   InvalidInstanceError.invariant(typeof key === 'string' && key.length > 0, {
     reason: `No storage key was found for instance "${instanceName}". Provide a "storage.key" string or a record containing a key for this instance.`,
@@ -191,17 +205,26 @@ export interface MultiStepFormReactFactoryStepFunctions<
   createHelperFn: StepSpecificHelperFn<DefineReactValue<TSteps>, key>;
 }
 
-export type MultiStepFormReactFactoryStepProperties<TSteps extends StepConfig> = {
-  [key in StepNumbers<DefineReactValue<TSteps>>]: MultiStepFormReactFactoryStepFunctions<
-    TSteps,
-    key
-  >;
-};
+export type MultiStepFormReactFactoryStepProperties<TSteps extends StepConfig> =
+  {
+    [
+      key in StepNumbers<DefineReactValue<TSteps>>
+    ]: MultiStepFormReactFactoryStepFunctions<TSteps, key>;
+  };
 
 export type MultiStepFormReactFactoryBase<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
+  TCasing extends CasingType,
 > = MultiStepFormReactFactoryStepProperties<TSteps> & {
+  /** Creates reusable field components that resolve against the active instance. */
+  createComponent: Pick<
+    CreateComponentFn<
+      DefineConfig<TSteps, TCasing>,
+      instantiateReactSteps<DefineConfig<TSteps, TCasing>>
+    >,
+    'forField'
+  >;
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
    *
@@ -219,7 +242,7 @@ export type MultiStepFormReactFactory<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType = CasingType,
-> = MultiStepFormReactFactoryBase<TSteps, TInstances> &
+> = MultiStepFormReactFactoryBase<TSteps, TInstances, TCasing> &
   (<TInstance extends InstanceName<TInstances>>(
     ...args: MultiStepFormReactFactoryCallOptions<TInstances, TInstance>
   ) => MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>);
@@ -279,8 +302,7 @@ function createReactFactory<
 
   function factory(options?: { instance?: InstanceName<TInstances> }) {
     const instanceName =
-      options?.instance ??
-      (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
+      options?.instance ?? (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
 
     if (declaredInstances) {
       InvalidInstanceError.invariant(declaredInstances.includes(instanceName), {
@@ -322,9 +344,14 @@ function createReactFactory<
         createHelperFn: (optionsOrFn: unknown, fn?: unknown) => {
           return (input?: unknown) => {
             const active = getActiveInstance();
-            const stepValue = (active.stepSchema.value as Record<string, unknown>)[
-              stepKey
-            ] as { createHelperFn: (a: unknown, b?: unknown) => (i?: unknown) => unknown };
+            const stepValue = (
+              active.stepSchema.value as Record<string, unknown>
+            )[stepKey] as {
+              createHelperFn: (
+                a: unknown,
+                b?: unknown,
+              ) => (i?: unknown) => unknown;
+            };
 
             return stepValue.createHelperFn(optionsOrFn, fn)(input);
           };
@@ -333,7 +360,46 @@ function createReactFactory<
     ]),
   );
 
+  const sharedCreateComponent = {
+    forField(componentConfig: {
+      step: string;
+      field: string;
+      render: (field: unknown, props: unknown) => ReactNode;
+    }) {
+      // Each active instance gets its own bound component. Caching preserves component identity
+      // and subscriptions when the shared component is reused across independently stored forms.
+      const components = new WeakMap<object, (props?: unknown) => ReactNode>();
+
+      return (props?: unknown) => {
+        const active = getActiveInstance();
+        let Component = components.get(active);
+
+        if (!Component) {
+          const step = (active.stepSchema.value as Record<string, unknown>)[
+            componentConfig.step
+          ] as {
+            createComponent: {
+              forField: (config: {
+                field: string;
+                render: (field: unknown, props: unknown) => ReactNode;
+              }) => (props?: unknown) => ReactNode;
+            };
+          };
+
+          Component = step.createComponent.forField({
+            field: componentConfig.field,
+            render: componentConfig.render,
+          });
+          components.set(active, Component);
+        }
+
+        return createElement(Component as never, props as never);
+      };
+    },
+  };
+
   return Object.assign(factory, stepHelpers, {
+    createComponent: sharedCreateComponent,
     setActiveInstance(instanceName: InstanceName<TInstances>) {
       InvalidInstanceError.invariant(registry.has(instanceName), {
         reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,
@@ -350,10 +416,14 @@ function createReactFactory<
 export class MultiStepFormReactDefinition<
   const TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined = undefined,
-> {
+> extends MultiStepFormSchema<DefineConfig<TSteps, DefaultCasing>> {
   constructor(
     private readonly config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  ) {}
+  ) {
+    // The definition remains a fully usable React schema, while `configure()` creates
+    // independent instances that reuse only its declared shape.
+    super({ steps: config.steps } as DefineConfig<TSteps, DefaultCasing>);
+  }
 
   /**
    * Configures storage and update-persistence behavior for this definition's instances.
@@ -364,12 +434,15 @@ export class MultiStepFormReactDefinition<
    * @returns A callable factory used to create/retrieve named instances.
    */
   configure<const TCasing extends CasingType = DefaultCasing>(
-    configureOptions: ConfigureOptions<TInstances, TCasing> = {} as ConfigureOptions<
+    configureOptions: ConfigureOptions<
       TInstances,
       TCasing
-    >,
+    > = {} as ConfigureOptions<TInstances, TCasing>,
   ): MultiStepFormReactFactory<TSteps, TInstances, TCasing> {
-    return createReactFactory<TSteps, TInstances, TCasing>(this.config, configureOptions);
+    return createReactFactory<TSteps, TInstances, TCasing>(
+      this.config,
+      configureOptions,
+    );
   }
 }
 

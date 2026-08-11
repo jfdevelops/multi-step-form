@@ -9,8 +9,8 @@ import {
   SelectValue,
 } from '../select';
 
-export const Step1 = schema.stepSchema.value.step1.createComponent(
-  function Step1({ ctx, Form, Field: FieldComponent }) {
+export const Step1 = schema.stepSchema.value.step1.createComponent({
+  render: function Step1({ ctx, Form, Field: FieldComponent }) {
     const { title } = ctx.step1;
 
     return (
@@ -59,11 +59,11 @@ export const Step1 = schema.stepSchema.value.step1.createComponent(
         </FieldSet>
       </Form>
     );
-  }
-);
+  },
+});
 
-export const Step2 = schema.stepSchema.value.step2.createComponent(
-  function Step2({ Field: FieldComponent, Form, ctx }) {
+export const Step2 = schema.stepSchema.value.step2.createComponent({
+  render: function Step2({ Field: FieldComponent, Form, ctx }) {
     return (
       <Form targetStep='step2' title={ctx.step2.title}>
         <FieldSet>
@@ -117,11 +117,11 @@ export const Step2 = schema.stepSchema.value.step2.createComponent(
         </FieldSet>
       </Form>
     );
-  }
-);
+  },
+});
 
-export const Step3 = schema.stepSchema.value.step3.createComponent(
-  function Step3({ Field: FieldComponent, Form, ctx, Selector }) {
+export const Step3 = schema.stepSchema.value.step3.createComponent({
+  render: function Step3({ Field: FieldComponent, Form, ctx, Selector }) {
     return (
       <Form targetStep='step3' title={ctx.step3.title}>
         <FieldSet>
@@ -274,5 +274,5 @@ export const Step3 = schema.stepSchema.value.step3.createComponent(
         </FieldSet>
       </Form>
     );
-  }
-);
+  },
+});

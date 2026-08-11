@@ -7,12 +7,19 @@ import {
   type BaseStorageConfig,
 } from './storage.js';
 import { Subscribable } from './subscribable.js';
-import type { instantiateSteps } from './steps/steps.js';
+import type { instantiateSteps, StepNumbers } from './steps/steps.js';
 
 export class MultiStepFormSchema<
   const def extends StepSchema.Config,
   value extends instantiateSteps<def> = instantiateSteps<def>,
 > extends Subscribable<MultiStepFormStepSchema.Listener<def, value>> {
+  /**
+   * The concrete step-name union for this schema. This declaration is type-only and does not
+   * create a runtime property.
+   *
+   * @example `type Step = typeof schema.stepNumbers`
+   */
+  declare readonly stepNumbers: StepNumbers<def['steps']>;
   readonly defaultNameTransformationCasing: def['nameTransformCasing'];
   readonly stepSchema: MultiStepFormStepSchema<def, value>;
   storage: MultiStepFormStorage<value, StepSchema.inferStorageKey<def>>;

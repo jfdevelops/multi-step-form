@@ -89,15 +89,15 @@ describe('step overrides', () => {
       step1: ({}) => deferred.promise,
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(
-      ({ Field, Suspend }) => (
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field, Suspend }) => (
         <Suspend fallback={<p data-testid='loading'>Loading</p>}>
           <Field name='firstName'>
             {({ defaultValue }) => <p data-testid='value'>{defaultValue}</p>}
           </Field>
         </Suspend>
       ),
-    );
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -137,20 +137,24 @@ describe('step overrides', () => {
       },
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
-      <Field
-        name='firstName'
-        suspend
-        fallback={<p data-testid='field-loading'>Loading field</p>}
-      >
-        {({ defaultValue }) => <p data-testid='value'>{defaultValue}</p>}
-      </Field>
-    ));
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }) => (
+        <Field
+          name='firstName'
+          suspend
+          fallback={<p data-testid='field-loading'>Loading field</p>}
+        >
+          {({ defaultValue }) => <p data-testid='value'>{defaultValue}</p>}
+        </Field>
+      ),
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
     expect(
-      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, ['step1']),
+      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, [
+        'step1',
+      ]),
     ).toBe('loading');
 
     await act(async () => {
@@ -187,8 +191,8 @@ describe('step overrides', () => {
       },
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(
-      ({ useStep }) => {
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ useStep }) => {
         const { data, status } = useStep();
 
         return (
@@ -198,7 +202,7 @@ describe('step overrides', () => {
           </>
         );
       },
-    );
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -231,8 +235,8 @@ describe('step overrides', () => {
     const firstNameRender = vi.fn();
     const contactDetailsRender = vi.fn();
 
-    const FirstName = schema.stepSchema.value.step1.createComponent(
-      ({ useStep }) => {
+    const FirstName = schema.stepSchema.value.step1.createComponent({
+      render: ({ useStep }) => {
         const firstName = useStep({
           selector: ({ data }) => data.fields.firstName.defaultValue,
         });
@@ -240,9 +244,9 @@ describe('step overrides', () => {
 
         return <p data-testid='selected-first-name'>{firstName}</p>;
       },
-    );
-    const ContactDetails = schema.stepSchema.value.step1.createComponent(
-      ({ useStep }) => {
+    });
+    const ContactDetails = schema.stepSchema.value.step1.createComponent({
+      render: ({ useStep }) => {
         const contactDetails = useStep({
           selector: ({ data }) => ({
             email: data.fields.email.defaultValue,
@@ -253,9 +257,9 @@ describe('step overrides', () => {
 
         return <p data-testid='contact-details'>{contactDetails.email}</p>;
       },
-    );
-    const Controls = schema.stepSchema.value.step1.createComponent(
-      ({ Field }) => (
+    });
+    const Controls = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }) => (
         <>
           <Field name='lastName'>
             {({ onInputChange }) => (
@@ -283,7 +287,7 @@ describe('step overrides', () => {
           </Field>
         </>
       ),
-    );
+    });
 
     const screen = await renderInJsdom(
       <>
@@ -335,8 +339,8 @@ describe('step overrides', () => {
     });
     const statusRender = vi.fn();
 
-    const Status = schema.stepSchema.value.step1.createComponent(
-      ({ useStep, Field }) => {
+    const Status = schema.stepSchema.value.step1.createComponent({
+      render: ({ useStep, Field }) => {
         const status = useStep({
           selector: (result) => result.status,
         });
@@ -356,12 +360,14 @@ describe('step overrides', () => {
           </>
         );
       },
-    );
+    });
 
     const screen = await renderInJsdom(<Status />);
 
     expect(
-      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, ['step1']),
+      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, [
+        'step1',
+      ]),
     ).toBe('loading');
 
     await act(async () => deferred.resolve({ firstName: 'Jordan' }));
@@ -402,8 +408,8 @@ describe('step overrides', () => {
       },
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(
-      ({ Field, Suspend }) => (
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field, Suspend }) => (
         <Suspend fallback={<p data-testid='loading'>Loading</p>}>
           <Field name='firstName'>
             {({ defaultValue }) => (
@@ -417,7 +423,7 @@ describe('step overrides', () => {
           </Field>
         </Suspend>
       ),
-    );
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -453,8 +459,8 @@ describe('step overrides', () => {
       },
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(
-      ({ useStep }) => {
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ useStep }) => {
         const { error, status } = useStep();
 
         return (
@@ -466,7 +472,7 @@ describe('step overrides', () => {
           </>
         );
       },
-    );
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -494,37 +500,41 @@ describe('step overrides', () => {
       },
     }).configure()();
 
-    schema.stepSchema.value.step1.createComponent(({ useStep }) => {
-      const defaultResult = useStep();
-      const undefinedSelectorResult = useStep(undefined);
-      const error = new CustomError('Failed to load step defaults');
-      const customResult = useStep({
-        error,
-      });
-      const firstName = useStep({
-        selector: ({ data }) => data.fields.firstName.defaultValue,
-      });
-      const status = useStep({
-        selector: (result) => result.status,
-      });
-      const customError = useStep({
-        error,
-        selector: (result) => result.error,
-      });
+    schema.stepSchema.value.step1.createComponent({
+      render: ({ useStep }) => {
+        const defaultResult = useStep();
+        const undefinedSelectorResult = useStep(undefined);
+        const error = new CustomError('Failed to load step defaults');
+        const customResult = useStep({
+          error,
+        });
+        const firstName = useStep({
+          selector: ({ data }) => data.fields.firstName.defaultValue,
+        });
+        const status = useStep({
+          selector: (result) => result.status,
+        });
+        const customError = useStep({
+          error,
+          selector: (result) => result.error,
+        });
 
-      expectTypeOf(
-        defaultResult.data.fields.firstName.defaultValue,
-      ).toEqualTypeOf<string>();
-      expectTypeOf(defaultResult.error).toEqualTypeOf<Error | undefined>();
-      expectTypeOf(
-        undefinedSelectorResult.data.fields.firstName.defaultValue,
-      ).toEqualTypeOf<string>();
-      expectTypeOf(customResult.error).toEqualTypeOf<CustomError | undefined>();
-      expectTypeOf(firstName).toEqualTypeOf<string>();
-      expectTypeOf(status).toEqualTypeOf<OverrideStatus>();
-      expectTypeOf(customError).toEqualTypeOf<CustomError | undefined>();
+        expectTypeOf(
+          defaultResult.data.fields.firstName.defaultValue,
+        ).toEqualTypeOf<string>();
+        expectTypeOf(defaultResult.error).toEqualTypeOf<Error | undefined>();
+        expectTypeOf(
+          undefinedSelectorResult.data.fields.firstName.defaultValue,
+        ).toEqualTypeOf<string>();
+        expectTypeOf(customResult.error).toEqualTypeOf<
+          CustomError | undefined
+        >();
+        expectTypeOf(firstName).toEqualTypeOf<string>();
+        expectTypeOf(status).toEqualTypeOf<OverrideStatus>();
+        expectTypeOf(customError).toEqualTypeOf<CustomError | undefined>();
 
-      return null;
+        return null;
+      },
     });
   });
 
@@ -551,9 +561,7 @@ describe('step overrides', () => {
     createForm().withOverrides({
       step1: ({ fields }) => {
         expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
-        expectTypeOf(
-          fields.phoneNumber.defaultValue,
-        ).toEqualTypeOf<string>();
+        expectTypeOf(fields.phoneNumber.defaultValue).toEqualTypeOf<string>();
         expectTypeOf(
           fields.saveToAccount.defaultValue,
         ).toEqualTypeOf<boolean>();
@@ -599,7 +607,10 @@ describe('step overrides', () => {
         },
       })
       .withForm({
-        render({ steps, isStepComplete }, props: ComponentPropsWithRef<'form'>) {
+        render(
+          { steps, isStepComplete },
+          props: ComponentPropsWithRef<'form'>,
+        ) {
           expectTypeOf(
             steps.step1.fields.firstName.defaultValue,
           ).toEqualTypeOf<string>();
@@ -612,8 +623,8 @@ describe('step overrides', () => {
       .withContext();
 
     const step1 = schema.stepSchema.value.step1;
-    const Step1 = step1.createComponent(
-      ({ Field, Form, Suspend }) => (
+    const Step1 = step1.createComponent({
+      render: ({ Field, Form, Suspend }) => (
         <Suspend fallback={<p data-testid='loading'>Loading</p>}>
           <Form>
             <Field name='firstName'>
@@ -629,7 +640,7 @@ describe('step overrides', () => {
           </Form>
         </Suspend>
       ),
-    );
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 

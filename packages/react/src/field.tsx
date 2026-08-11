@@ -8,7 +8,7 @@ import type {
   resolveDeepFieldPath,
   StepNumbers,
   UpdateFn,
-  Updater
+  Updater,
 } from '@jfdevelops/multi-step-form-core';
 import type { ReactNode } from 'react';
 import { Suspense, memo, useSyncExternalStore } from 'react';
@@ -32,59 +32,64 @@ export namespace field {
   }> &
     UpdateFn.DebugOptions;
 
-  type normalizeChildrenConfig<TConfig, TValue> =
-    TConfig extends { defaultValue: unknown }
-      ? Override<TConfig, 'defaultValue', TValue> extends infer resolvedConfig
-        ? resolvedConfig extends { label: false }
-          ? Omit<resolvedConfig, 'label'>
-          : resolvedConfig
-        : never
-      : never;
+  type normalizeChildrenConfig<TConfig, TValue> = TConfig extends {
+    defaultValue: unknown;
+  }
+    ? Override<TConfig, 'defaultValue', TValue> extends infer resolvedConfig
+      ? resolvedConfig extends { label: false }
+        ? Omit<resolvedConfig, 'label'>
+        : resolvedConfig
+      : never
+    : never;
 
   export type childrenProps<
     steps extends instantiateSteps,
     field extends getDeepFields<steps, targetStep>,
     targetStep extends StepNumbers<steps> = StepNumbers<steps>,
     value extends resolveDeepFieldPath<steps, targetStep, field> =
-    resolveDeepFieldPath<steps, targetStep, field>,
-    TConfig extends getFieldConfig<steps, targetStep, field> =
-    getFieldConfig<steps, targetStep, field>,
+      resolveDeepFieldPath<steps, targetStep, field>,
+    TConfig extends getFieldConfig<steps, targetStep, field> = getFieldConfig<
+      steps,
+      targetStep,
+      field
+    >,
   > = sharedProps<field> &
     (TConfig extends { defaultValue: unknown }
       ? normalizeChildrenConfig<TConfig, value>
       : {
-        defaultValue: `An unknown error occurred while getting the "defaultValue" for ${field}`;
-      }) & {
-        /**
-         * A useful wrapper around `update` to update the specific field.
-         * @param value The new value for the field.
-         * @param options The options for the update operation.
-         */
-        onInputChange: <
-          strict extends boolean = true,
-          partial extends boolean = false,
-        >(
-          value: Updater<
-            UpdateFn.resolvedUpdaterReturnType<
-              value,
-              { strict: strict; partial: partial },
-              {}
-            >
-          >,
-          options?: onInputChangeOptions<strict, partial>
-        ) => void;
-        /**
-         * Resets the field's value to the original value that was
-         * defined in the config.
-         */
-        reset: (options?: UpdateFn.DebugOptions) => void;
-      };
+          defaultValue: `An unknown error occurred while getting the "defaultValue" for ${field}`;
+        }) & {
+      /**
+       * A useful wrapper around `update` to update the specific field.
+       * @param value The new value for the field.
+       * @param options The options for the update operation.
+       */
+      onInputChange: <
+        strict extends boolean = true,
+        partial extends boolean = false,
+      >(
+        value: Updater<
+          UpdateFn.resolvedUpdaterReturnType<
+            value,
+            { strict: strict; partial: partial },
+            {}
+          >
+        >,
+        options?: onInputChangeOptions<strict, partial>,
+      ) => void;
+      /**
+       * Resets the field's value to the original value that was
+       * defined in the config.
+       */
+      reset: (options?: UpdateFn.DebugOptions) => void;
+    };
 
   export type childrenPropsWithSelected<
     steps extends instantiateSteps,
-    field extends getDeepFields<steps, StepNumbers<steps>>,
+    targetStep extends StepNumbers<steps>,
+    field extends getDeepFields<steps, targetStep>,
     TSelected,
-  > = childrenProps<steps, field> & {
+  > = childrenProps<steps, field, targetStep> & {
     selected: {
       /**
        * The result of the `selectorFn`.
@@ -92,9 +97,14 @@ export namespace field {
       value: TSelected;
     };
   };
-  export type props<
-    step extends instantiateSteps,
-    field extends getDeepFields<step, StepNumbers<step>>,
+  /**
+   * Field props with an explicit step. Keeping the step separate prevents fields with the same
+   * name on different steps from widening each other's value and metadata types.
+   */
+  export type boundProps<
+    steps extends instantiateSteps,
+    targetStep extends StepNumbers<steps>,
+    field extends getDeepFields<steps, targetStep>,
     selected,
   > = sharedProps<field> &
     (
@@ -107,31 +117,33 @@ export namespace field {
           fallback: ReactNode;
         }
     ) & {
-      selectorFn?: SelectorFn<step, selected>;
+      selectorFn?: SelectorFn<steps, selected>;
       children: (
         props: [selected] extends [never]
-          ? childrenProps<step, field>
-          : childrenPropsWithSelected<step, field, selected>
+          ? childrenProps<steps, field, targetStep>
+          : childrenPropsWithSelected<steps, targetStep, field, selected>,
       ) => ReactNode;
     };
+
+  export type props<
+    step extends instantiateSteps,
+    field extends getDeepFields<step, StepNumbers<step>>,
+    selected,
+  > = boundProps<step, StepNumbers<step>, field, selected>;
   export type component<steps extends instantiateSteps> = <
     field extends getDeepFields<steps, StepNumbers<steps>>,
     selected = never,
   >(
-    props: props<steps, field, selected>
+    props: props<steps, field, selected>,
   ) => ReactNode;
 
   export type createOptions<step extends instantiateSteps> = {
-    propsCreator: <
-        field extends getDeepFields<step, StepNumbers<step>>,
-    >(
-      name: field
+    propsCreator: <field extends getDeepFields<step, StepNumbers<step>>>(
+      name: field,
     ) => field.childrenProps<step, field>;
     subscribe?: (listener: () => void) => () => void;
-    getValue?: <
-      field extends getDeepFields<step, StepNumbers<step>>,
-    >(
-      name: field
+    getValue?: <field extends getDeepFields<step, StepNumbers<step>>>(
+      name: field,
     ) => resolveDeepFieldPath<step, StepNumbers<step>, field>;
     selectorCtx: () => Expand<HelperFn.buildCtx<step, [StepNumbers<step>]>>;
     suspendStep?: () => void;
@@ -145,9 +157,10 @@ export namespace field {
    * @returns
    */
   export function create<step extends instantiateSteps>(
-    options: createOptions<step>
+    options: createOptions<step>,
   ) {
-    const { propsCreator, subscribe, getValue, selectorCtx, suspendStep } = options;
+    const { propsCreator, subscribe, getValue, selectorCtx, suspendStep } =
+      options;
 
     function FieldResolutionGate({ children }: { children: ReactNode }) {
       suspendStep?.();
@@ -159,14 +172,14 @@ export namespace field {
       const { name, children, selectorFn } = props;
 
       // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
-      const subscribeFn = subscribe || (() => () => { });
+      const subscribeFn = subscribe || (() => () => {});
       const getValueFn = getValue || (() => undefined);
 
       // Subscribe to changes to trigger rerenders
       const currentValue = useSyncExternalStore(
         subscribeFn,
         () => getValueFn(name),
-        () => getValueFn(name)
+        () => getValueFn(name),
       );
 
       let createdProps = propsCreator(name);

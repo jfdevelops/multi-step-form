@@ -22,11 +22,13 @@ export namespace MultiStepFormSchemaConfig {
   export type formEnabledFor<value extends instantiateReactSteps> =
     HelperFnChosenSteps.main<value, StepNumbers<value>>;
   type strippedResolvedSteps<value extends instantiateReactSteps> = {
-    [key in keyof value as key extends string
-      ? `step${number}` extends key
-        ? never
+    [
+      key in keyof value as key extends string
+        ? `step${number}` extends key
+          ? never
+          : key
         : key
-      : key]: Expand<
+    ]: Expand<
       Omit<
         value[key],
         'createComponent' | 'createHelperFn' | 'update' | 'reset'
@@ -53,23 +55,26 @@ export namespace MultiStepFormSchemaConfig {
     }
       ? enabledForSteps // Case: `enabledForSteps` isn't provided (default behavior)
       : def extends { form: infer form }
-      ? form extends { enabledForSteps: infer enabledForSteps }
-        ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
-        : never
-      : never;
+        ? form extends { enabledForSteps: infer enabledForSteps }
+          ? enabledForSteps // Case: `enabledForSteps` is provided in the form config
+          : never
+        : never;
     export type resolveType<
       def extends StepSchema.Config,
       steps extends instantiateReactSteps<def>,
-      value = instantiateFormConfig<def>
-    > = get<value> extends defaultEnabledFor
-      ? 'all'
-      : get<value> extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>
-      ? 'tuple'
-      : get<value> extends HelperFnChosenSteps.objectNotation<
-          StepNumbers<steps>
-        >
-      ? 'object'
-      : never;
+      value = instantiateFormConfig<def>,
+    > =
+      get<value> extends defaultEnabledFor
+        ? 'all'
+        : get<value> extends HelperFnChosenSteps.tupleNotation<
+              StepNumbers<steps>
+            >
+          ? 'tuple'
+          : get<value> extends HelperFnChosenSteps.objectNotation<
+                StepNumbers<steps>
+              >
+            ? 'object'
+            : never;
   }
 
   export type inferFormEnabledForSteps<def> = def extends {
@@ -92,49 +97,50 @@ export namespace MultiStepFormSchemaConfig {
       ? [form] extends [never]
         ? never
         : keyof FormConfig.withoutRender<form> extends never
-        ? Expand<
-            {
-              alias: inferFormAlias<form>;
-              enabledForSteps: inferFormEnabledForSteps<form>;
-            } & inferredFormComponent<form>
-          >
-        : {
-            -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+          ? Expand<
               {
-                alias: inferFormAlias<FormConfig.withoutRender<form>>;
-                enabledForSteps: inferFormEnabledForSteps<
-                  FormConfig.withoutRender<form>
-                >;
+                alias: inferFormAlias<form>;
+                enabledForSteps: inferFormEnabledForSteps<form>;
               } & inferredFormComponent<form>
-            >;
-          }[keyof FormConfig.withoutRender<form>]
+            >
+          : {
+              -readonly [key in keyof FormConfig.withoutRender<form>]: Expand<
+                {
+                  alias: inferFormAlias<FormConfig.withoutRender<form>>;
+                  enabledForSteps: inferFormEnabledForSteps<
+                    FormConfig.withoutRender<form>
+                  >;
+                } & inferredFormComponent<form>
+              >;
+            }[keyof FormConfig.withoutRender<form>]
       : {}
     : {};
-  export type getEnabledForSteps<def> = instantiateFormConfig<def> extends {
-    enabledForSteps: infer enabledForSteps;
-  }
-    ? enabledForSteps
-    : def;
+  export type getEnabledForSteps<def> =
+    instantiateFormConfig<def> extends {
+      enabledForSteps: infer enabledForSteps;
+    }
+      ? enabledForSteps
+      : def;
   export type AvailableStepForForm<
     value extends instantiateReactSteps,
-    enabledFor extends formEnabledFor<value>
+    enabledFor extends formEnabledFor<value>,
   > = enabledFor extends defaultEnabledFor
     ? strippedResolvedSteps<value>
     : enabledFor extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>
-    ? enabledFor[number] extends keyof value
-      ? Pick<
-          strippedResolvedSteps<value>,
-          Extract<enabledFor[number], keyof strippedResolvedSteps<value>>
-        >
-      : never
-    : keyof enabledFor extends keyof value
-    ? Expand<
-        Pick<
-          strippedResolvedSteps<value>,
-          Extract<keyof enabledFor, keyof strippedResolvedSteps<value>>
-        >
-      >
-    : never;
+      ? enabledFor[number] extends keyof value
+        ? Pick<
+            strippedResolvedSteps<value>,
+            Extract<enabledFor[number], keyof strippedResolvedSteps<value>>
+          >
+        : never
+      : keyof enabledFor extends keyof value
+        ? Expand<
+            Pick<
+              strippedResolvedSteps<value>,
+              Extract<keyof enabledFor, keyof strippedResolvedSteps<value>>
+            >
+          >
+        : never;
   export type formCtx<alias extends string, props> = {
     [_ in alias]: CreatedMultiStepFormComponent<props>;
   };
@@ -174,7 +180,7 @@ export namespace MultiStepFormSchemaConfig {
     steps extends Record<string, unknown>,
     targetStep extends renderContextStep<steps>,
     props,
-    isDataGuaranteed extends boolean = false
+    isDataGuaranteed extends boolean = false,
   > = {
     targetStep: targetStep;
     isDataGuaranteed?: isDataGuaranteed;
@@ -188,17 +194,17 @@ export namespace MultiStepFormSchemaConfig {
     steps extends Record<string, unknown>,
     targetStep extends renderContextStep<steps>,
     props,
-    hasData extends boolean
+    hasData extends boolean,
   > = {
     data: hasData extends true ? steps[targetStep] : undefined;
     hasData: hasData;
-    renderNoCurrentData: renderCallback<props>;
+    NoCurrentData: renderCallback<props>;
   };
 
   export type getCurrentStepData<steps extends Record<string, unknown>> = <
     targetStep extends renderContextStep<steps>,
     props = undefined,
-    isDataGuaranteed extends boolean = false
+    isDataGuaranteed extends boolean = false,
   >(
     options: getCurrentStepDataOptions<
       steps,
@@ -207,18 +213,14 @@ export namespace MultiStepFormSchemaConfig {
       isDataGuaranteed
     >,
   ) => isDataGuaranteed extends true
-    ? Omit<
-        currentStepDataResult<steps, targetStep, props, true>,
-        'hasData'
-      >
-    :
-        | currentStepDataResult<steps, targetStep, props, true>
-        | currentStepDataResult<steps, targetStep, props, false>;
+    ? Omit<currentStepDataResult<steps, targetStep, props, true>, 'hasData'>
+    : | currentStepDataResult<steps, targetStep, props, true>
+      | currentStepDataResult<steps, targetStep, props, false>;
 
   export type getProgressOptions<
     steps extends Record<string, unknown>,
     targetStep extends renderContextStep<steps>,
-    props
+    props,
   > = {
     targetStep: targetStep;
     totalSteps?: number;
@@ -235,13 +237,13 @@ export namespace MultiStepFormSchemaConfig {
 
   export type getProgress<steps extends Record<string, unknown>> = <
     targetStep extends renderContextStep<steps>,
-    props = undefined
+    props = undefined,
   >(
     options: getProgressOptions<steps, targetStep, props>,
   ) => {
     value: number;
     maxProgressValue: number;
-    renderProgressText: renderCallback<props>;
+    ProgressText: renderCallback<props>;
   };
 
   export type renderContext<steps extends Record<string, unknown>> = {
@@ -258,7 +260,8 @@ export namespace MultiStepFormSchemaConfig {
      */
     getCurrentStepData: getCurrentStepData<steps>;
     /**
-     * Calculates live progress without requiring a hook inside `render`.
+     * Calculates live progress and returns its `ProgressText` component without requiring a
+     * hook inside `render`.
      */
     getProgress: getProgress<steps>;
     /**
@@ -271,12 +274,13 @@ export namespace MultiStepFormSchemaConfig {
     export type withoutRender<def> = Omit<def, 'render'>;
   }
 
-  export type formDefinition<formConfig> = FormConfig.withoutRender<formConfig> & {
-    render: (
-      context: unknown,
-      customProps: inferFormProps<formConfig>,
-    ) => ReactNode;
-  };
+  export type formDefinition<formConfig> =
+    FormConfig.withoutRender<formConfig> & {
+      render: (
+        context: unknown,
+        customProps: inferFormProps<formConfig>,
+      ) => ReactNode;
+    };
 
   /**
    * The configuration options for the `form` option.
@@ -318,11 +322,12 @@ export namespace MultiStepFormSchemaConfig {
      *  }
      * })
      *
-     * const Step1 = schema.stepSchema.step1.createComponent(
-     *  ({ ctx, MyCustomForm }, props: { children: ReactNode }) =>
+     * const Step1 = schema.stepSchema.step1.createComponent({
+     *   render({ ctx, MyCustomForm }, props: { children: ReactNode }) {
      *     // Notice how the form is available with its alias
-     *     <MyCustomFormName>{children}</MyCustomFormName>
-     *  )
+     *     return <MyCustomFormName>{children}</MyCustomFormName>;
+     *   },
+     * })
      * ```
      */
     alias?: string;
@@ -359,12 +364,12 @@ export namespace MultiStepFormSchemaConfig {
      *   form: {
      *    alias: 'MyCustomForm',
      *    render(context, props: CustomProps) {
-     *      const progress = context.getProgress({ targetStep: 'step1' });
+     *      const { ProgressText } = context.getProgress({ targetStep: 'step1' });
      *      return (
      *         <div>
      *          <h1>{props.title}</h1>
      *          <p>{props.description}</p>
-     *          {progress.renderProgressText()}
+     *          <ProgressText />
      *          <form>{props.children}</form>
      *         </div>
      *       );
@@ -403,7 +408,7 @@ export namespace MultiStepFormSchemaConfig {
 
   export function instantiateFormConfig<
     const def extends StepSchema.Config,
-    value extends instantiateReactSteps<def>
+    value extends instantiateReactSteps<def>,
   >(
     getSteps: () => value,
     subscribe: (listener: () => void) => () => void,
@@ -411,7 +416,7 @@ export namespace MultiStepFormSchemaConfig {
   ) {
     return <
       const form extends FormConfig<def, value>,
-      inst = instantiateFormConfig<form>
+      inst = instantiateFormConfig<form>,
     >(
       config: form | undefined,
       defaultId: string,
@@ -475,8 +480,14 @@ export namespace MultiStepFormSchemaConfig {
       });
 
       function Form(customProps: inferFormProps<form>) {
-        const resolvedSteps = useSyncExternalStore(subscribe, getSteps, getSteps);
-        const steps = createRenderSteps(resolvedSteps) as renderContextSteps<value>;
+        const resolvedSteps = useSyncExternalStore(
+          subscribe,
+          getSteps,
+          getSteps,
+        );
+        const steps = createRenderSteps(
+          resolvedSteps,
+        ) as renderContextSteps<value>;
 
         function isStepComplete(targetStep: string) {
           const validSteps = Object.keys(steps);
@@ -515,7 +526,7 @@ export namespace MultiStepFormSchemaConfig {
 
           const data = steps[targetStep as keyof typeof steps];
 
-          function renderNoCurrentData(props?: defaultRenderProps) {
+          function NoCurrentData(props?: defaultRenderProps) {
             if (notFoundMessage) {
               return notFoundMessage({ targetStep }, props as never);
             }
@@ -528,7 +539,7 @@ export namespace MultiStepFormSchemaConfig {
           if (isDataGuaranteed) {
             return {
               data,
-              renderNoCurrentData,
+              NoCurrentData,
             };
           }
 
@@ -536,14 +547,14 @@ export namespace MultiStepFormSchemaConfig {
             return {
               data,
               hasData: true,
-              renderNoCurrentData,
+              NoCurrentData,
             };
           }
 
           return {
             data: undefined,
             hasData: false,
-            renderNoCurrentData,
+            NoCurrentData,
           };
         }
 
@@ -578,7 +589,7 @@ export namespace MultiStepFormSchemaConfig {
           const value =
             (Number.parseInt(currentStep, 10) / totalSteps) * maxProgressValue;
 
-          function renderProgressText(props?: defaultRenderProps) {
+          function ProgressText(props?: defaultRenderProps) {
             if (progressTextTransformer) {
               return progressTextTransformer(
                 { targetStep, maxProgressValue, totalSteps },
@@ -596,19 +607,20 @@ export namespace MultiStepFormSchemaConfig {
           return {
             value,
             maxProgressValue,
-            renderProgressText,
+            ProgressText,
           };
         }
 
         return render(
-          ({
+          {
             id: id ?? defaultId,
-            steps:
-              steps as unknown as renderContext<renderContextSteps<value>>['steps'],
+            steps: steps as unknown as renderContext<
+              renderContextSteps<value>
+            >['steps'],
             getCurrentStepData,
             getProgress,
             isStepComplete,
-          } as unknown as renderContext<renderContextSteps<value>>),
+          } as unknown as renderContext<renderContextSteps<value>>,
           customProps,
         );
       }
@@ -634,7 +646,7 @@ export namespace MultiStepFormSchemaConfig {
   export function isFormAvailable<
     value extends instantiateReactSteps,
     target extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    enabledFor extends formEnabledFor<value>
+    enabledFor extends formEnabledFor<value>,
   >(target: target, enabledFor: enabledFor) {
     if (Array.isArray(target)) {
       const match = HelperFnChosenSteps.match({
@@ -648,7 +660,7 @@ export namespace MultiStepFormSchemaConfig {
         },
         object: ({ chosenSteps, meta }) => {
           return Object.keys(chosenSteps).some((key) =>
-            meta.target.includes(key as StepNumbers<value>)
+            meta.target.includes(key as StepNumbers<value>),
           );
         },
       });

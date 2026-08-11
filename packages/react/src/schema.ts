@@ -3,24 +3,21 @@ import {
   DEFAULT_CASING,
   DEFAULT_STORAGE_KEY,
   type Expand,
-  type HelperFn,
-  type HelperFnChosenSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
-  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
-import {
-  MultiStepFormStepSchemaInternal,
-  type StepSchema,
-} from '@jfdevelops/multi-step-form-core/_internals';
+import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import {
   createMultiStepFormContext,
   type MultiStepFormContextResult,
 } from './create-context';
 import { MultiStepFormSchemaConfig } from './form-config';
-import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
-import { createComponent, type CreateComponentCallback } from './utils';
-import { type instantiateReactSteps } from './steps';
+import {
+  type CreateComponentFn,
+  type HelperFunctions,
+  MultiStepFormStepSchema,
+} from './step-schema';
+import type { instantiateReactSteps } from './steps';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
@@ -40,16 +37,14 @@ export namespace MultiStepFormSchema {
   };
 
   type resolvedStepFunctionKey =
-    | 'createComponent'
-    | 'createHelperFn'
-    | 'isComplete'
-    | 'reset'
-    | 'update';
+    'createComponent' | 'createHelperFn' | 'isComplete' | 'reset' | 'update';
   type withoutResolvedStepFunctions<value extends instantiateReactSteps> = {
     [key in keyof value]: Expand<{
-      [property in keyof value[key] as property extends resolvedStepFunctionKey
-        ? never
-        : property]: value[key][property];
+      [
+        property in keyof value[key] as property extends resolvedStepFunctionKey
+          ? never
+          : property
+      ]: value[key][property];
     }>;
   };
 
@@ -66,13 +61,14 @@ export namespace MultiStepFormSchema {
     def extends StepSchema.Config,
     formConfig extends object,
     value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
-  > = withFormValueCandidate<
-    def,
-    formConfig,
-    value
-  > extends instantiateReactSteps<withFormDef<def, formConfig>>
-    ? withFormValueCandidate<def, formConfig, value>
-    : instantiateReactSteps<withFormDef<def, formConfig>>;
+  > =
+    withFormValueCandidate<
+      def,
+      formConfig,
+      value
+    > extends instantiateReactSteps<withFormDef<def, formConfig>>
+      ? withFormValueCandidate<def, formConfig, value>
+      : instantiateReactSteps<withFormDef<def, formConfig>>;
 
   export type config<
     def extends StepSchema.Config,
@@ -98,8 +94,6 @@ export class MultiStepFormSchema<
 {
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   stepSchema: MultiStepFormStepSchema<def, value>;
-  // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   override readonly storage: MultiStepFormStorage<
     value,
@@ -133,17 +127,6 @@ export class MultiStepFormSchema<
     this.stepSchema = new MultiStepFormStepSchema(options);
     this.stepSchema.subscribe(() => {
       this.notify();
-    });
-    // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-    this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
-      originalValue: this.stepSchema.original,
-      defaultNameTransformationCasing: this.stepSchema.defaultNameTransformationCasing,
-      getValue: () => this.stepSchema.value,
-      setValue: (value) => {
-        this.stepSchema.value = { ...value };
-        this.storage.add(value);
-        this.notify();
-      },
     });
     this.storageConfig = {
       key: (storage?.key ??
@@ -238,21 +221,7 @@ export class MultiStepFormSchema<
     return next;
   }
 
-  createComponent<
-    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    props = undefined,
-  >(
-    options: HelperFn.BaseOptions<value, chosenSteps>,
-    fn: CreateComponentCallback<value, chosenSteps, props>,
-  ) {
-    return createComponent({
-      fn,
-      input: ({ stepData }) => ({
-        reset: this.#internal.createHelperFnInputReset(stepData),
-        update: this.#internal.createHelperFnInputUpdate(stepData),
-      }),
-      options,
-      value: this.stepSchema.value,
-    });
+  get createComponent(): CreateComponentFn<def, value> {
+    return this.stepSchema.createComponent;
   }
 }

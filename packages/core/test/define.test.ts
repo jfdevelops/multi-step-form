@@ -115,6 +115,38 @@ function createBookingDefinition() {
   });
 }
 
+describe('defineMultiStepForm: definition schema surface', () => {
+  it('exposes the schema and a type-only exact step union', () => {
+    const definition = createBookingDefinition();
+
+    type Step = typeof definition.stepNumbers;
+
+    expectTypeOf<Step>().toEqualTypeOf<'step1' | 'step2'>();
+    expect(definition.stepSchema.value.step1.title).toBe('Step 1');
+    expect('stepNumbers' in definition).toBe(false);
+  });
+
+  it('keeps definition and configured instance state independent', () => {
+    const definition = createBookingDefinition();
+    const createForm = definition.configure();
+    const client = createForm({ instance: 'client' });
+
+    definition.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Definition',
+    });
+    client.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Client',
+    });
+
+    expect(definition.stepSchema.getValue('step1', 'firstName')).toBe(
+      'Definition',
+    );
+    expect(client.stepSchema.getValue('step1', 'firstName')).toBe('Client');
+  });
+});
+
 describe('defineMultiStepForm: instances', () => {
   it('creates independent state per named instance', () => {
     const createForm = createBookingDefinition().configure();

@@ -1,13 +1,13 @@
 ---
 title: Instances, storage & the builder order
 description: "defineMultiStepForm in React: the withOverrides -> withForm -> withContext builder order and wiring the active instance in a React tree."
-package: '@jfdevelops/react-multi-step-form'
+package: "@jfdevelops/react-multi-step-form"
 category: guide
 status: beta
 order: 2
 ---
 
-import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
+import { defineMultiStepForm } from "@jfdevelops/react-multi-step-form";
 
 # Instances, storage & the builder order (beta)
 
@@ -15,6 +15,20 @@ import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
 package's factory (named instances, per-instance storage, shared `createHelperFn`,
 `withOverrides`) while producing full React `MultiStepFormSchema` instances with `.withForm()`,
 `.withContext()`, and `createComponent` available on every instance.
+
+The definition returned before `.configure()` is also a complete React schema. It exposes
+`stepSchema`, `withForm`, `withContext`, and `createComponent`, plus a declared-only exact step
+union:
+
+```tsx
+const bookingDefinition = defineMultiStepForm({
+  steps: {
+    step1: { title: "Contact", fields: { email: { defaultValue: "" } } },
+  },
+});
+
+type BookingStep = typeof bookingDefinition.stepNumbers; // 'step1'
+```
 
 > Upgrading from alpha? See [`migration.mdx`](./migration.mdx) first.
 >
@@ -31,15 +45,17 @@ An instance returned by the factory is a full `MultiStepFormSchema`, so `.withOv
 with the existing `.withForm()` / `.withContext()`:
 
 ```tsx
-import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
+import { defineMultiStepForm } from "@jfdevelops/react-multi-step-form";
 
 const createBookingForm = defineMultiStepForm({
-  steps: { /* ... */ },
-  instances: ['admin', 'client'],
-}).configure({ storage: { key: 'booking', configure: { instances: ['client'] } } });
+  steps: {/* ... */},
+  instances: ["admin", "client"],
+}).configure({
+  storage: { key: "booking", configure: { instances: ["client"] } },
+});
 
-const publicForm = createBookingForm({ instance: 'client' })
-  .withOverrides({ step1: async ({ fields }) => ({ /* ... */ }) })
+const publicForm = createBookingForm({ instance: "client" })
+  .withOverrides({ step1: async ({ fields }) => ({/* ... */}) })
   .withForm({ render: ({ id }, props) => <form id={id} {...props} /> })
   .withContext();
 
@@ -49,10 +65,61 @@ export const { useMultiStepFormData, useCurrentStepData } = publicForm.context;
 `withOverrides` → `withForm` → `withContext` is the supported order; `withOverrides` and
 `withForm`/`withContext` are each optional and can be skipped if you don't need them.
 
+Both instance-level and step-level `createComponent` use a single object API. Targeting one step
+from an instance delegates to that step's component factory, so both render callbacks receive the
+same `Field`, form component, suspense, selector, update/reset, and default-value utilities:
+
+```tsx
+const ContactStep = publicForm.createComponent({
+  stepData: ["step1"],
+  render({ Field, Form, useStep }) {
+    return <Form>{/* ... */}</Form>;
+  },
+});
+
+const SameContactStep = publicForm.stepSchema.value.step1.createComponent({
+  render({ Field, Form, useStep }) {
+    return <Form>{/* ... */}</Form>;
+  },
+});
+```
+
+Use `createComponent.forField` when a component only represents one field. The schema-level form
+accepts both `step` and `field`; a step-specific factory already knows its step:
+
+```tsx
+const SharedFirstName = createBookingForm.createComponent.forField({
+  step: "step1",
+  field: "firstName",
+  render(field, props: { placeholder?: string }) {
+    return (
+      <input
+        value={field.defaultValue}
+        placeholder={props.placeholder}
+        onChange={(event) => field.onInputChange(event.target.value)}
+      />
+    );
+  },
+});
+
+const InstanceFirstName =
+  publicForm.stepSchema.value.step1.createComponent.forField({
+    field: "firstName",
+    render: (field) => <input value={field.defaultValue} readOnly />,
+  });
+
+// `name` and `children` are fixed internally; Field props and custom props are forwarded.
+<SharedFirstName placeholder="Your name" suspend={false} />;
+```
+
+The configured-factory version resolves against the active instance and caches a separate bound
+component per instance. This lets the same component definition be reused without sharing form
+state or subscriptions.
+
 ## Wiring the active instance
 
 Shared `createHelperFn`s (`createBookingForm.step2.createHelperFn(...)`) dispatch to whichever
-instance is currently *active* — the instance most recently created/used via the factory, or
+instance is currently _active_ — the instance most recently created/used via the factory, or
 whichever `createBookingForm.setActiveInstance(...)` last selected. In a React tree with more than
 one instance (e.g. a public route and an admin route mounted in the same app), build or re-select
 the right instance for that part of the tree before it renders anything that calls shared helpers:
@@ -61,13 +128,13 @@ the right instance for that part of the tree before it renders anything that cal
 function PublicBookingPage() {
   // Marks "client" active for this render. Memoize/hoist this in real usage so it
   // isn't rebuilt on every render — see the core docs for instance reuse semantics.
-  const form = createBookingForm({ instance: 'client' });
+  const form = createBookingForm({ instance: "client" });
 
   return <BookingForm schema={form} />;
 }
 
 function AdminBookingPage() {
-  const form = createBookingForm({ instance: 'admin' });
+  const form = createBookingForm({ instance: "admin" });
 
   return <BookingForm schema={form} />;
 }

@@ -1,13 +1,13 @@
 ---
 title: Instances, storage & field metadata
 description: "defineMultiStepForm: named instances, per-instance storage, shared createHelperFn, withOverrides, field metadata, and step isComplete."
-package: '@jfdevelops/multi-step-form-core'
+package: "@jfdevelops/multi-step-form-core"
 category: guide
 status: beta
 order: 2
 ---
 
-import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
+import { defineMultiStepForm } from "@jfdevelops/multi-step-form-core";
 
 # Instances, storage & field metadata (beta)
 
@@ -34,33 +34,51 @@ touch storage at all.
 
 ## 1. Instances & storage
 
+The definition itself retains the full schema surface, so it can be used directly wherever the
+old single-schema factory was used. Its declared-only `stepNumbers` property exposes the exact
+step union without adding a runtime property:
+
+```ts
+const bookingDefinition = defineMultiStepForm({
+  steps: {
+    step1: { title: "Contact", fields: { email: { defaultValue: "" } } },
+  },
+});
+
+type BookingStep = typeof bookingDefinition.stepNumbers; // 'step1'
+bookingDefinition.stepSchema.value.step1.fields.email.defaultValue;
+```
+
+Calling `.configure()` builds an instance factory from the same shape. The definition and every
+created instance own independent state.
+
 `instances` declares the named, independent copies of the form the factory can create. Each
 instance has its own in-memory state, its own override-resolution state, and (optionally) its own
 storage backend — updates on one instance never leak into another.
 
 ```ts
 const createBookingForm = defineMultiStepForm({
-  steps: { /* ... */ },
-  instances: ['admin', 'client'], // omit `instances` for a single default instance
+  steps: {/* ... */},
+  instances: ["admin", "client"], // omit `instances` for a single default instance
 }).configure({
   storage: {
     // a single string shares one key across every configured instance;
     // a record resolves a different key per instance
-    key: { client: 'booking:client', admin: 'booking:admin' },
+    key: { client: "booking:client", admin: "booking:admin" },
     // only instances listed here ever read/write storage — everyone else is memory-only
-    configure: { instances: ['client'] },
+    configure: { instances: ["client"] },
   },
   update: {
     // optional extra gate on top of storage allocation. Accepts a boolean or a
     // `(instance) => boolean` function. Defaults to `true` when omitted — so an
     // instance persists whenever it has storage allocated. When provided, both this
     // gate AND `storage.configure.instances` must agree for updates to persist.
-    updateStorage: (instance) => instance === 'client',
+    updateStorage: (instance) => instance === "client",
   },
 });
 
-const clientForm = createBookingForm({ instance: 'client' }); // persists to "booking:client"
-const adminForm = createBookingForm({ instance: 'admin' }); // memory-only, never touches storage
+const clientForm = createBookingForm({ instance: "client" }); // persists to "booking:client"
+const adminForm = createBookingForm({ instance: "admin" }); // memory-only, never touches storage
 ```
 
 `.configure()` also accepts `nameTransformCasing` — the default casing used to derive a field's
@@ -69,10 +87,12 @@ const adminForm = createBookingForm({ instance: 'admin' }); // memory-only, neve
 per-definition default applied when each instance is constructed:
 
 ```ts
-defineMultiStepForm({ steps: { /* ... */ } }).configure({ nameTransformCasing: 'camel' });
+defineMultiStepForm({ steps: {/* ... */} }).configure({
+  nameTransformCasing: "camel",
+});
 ```
 
-Calling the factory again with the same `instance` name returns the *same* instance (it doesn't
+Calling the factory again with the same `instance` name returns the _same_ instance (it doesn't
 reset state); calling it also marks that instance "active" for shared helper dispatch (see below).
 Calling with an instance name that wasn't declared in `instances` throws `InvalidInstanceError`.
 
@@ -84,14 +104,15 @@ currently active, so `client` and `admin` reuse the exact same update logic:
 ```ts
 const addService = createBookingForm.step2.createHelperFn(
   { validator: addServiceParams },
-  ({ data, update }) => update.step2({ fields: 'all', updater: { service: data.service } }),
+  ({ data, update }) =>
+    update.step2({ fields: "all", updater: { service: data.service } }),
 );
 
-createBookingForm({ instance: 'client' }); // marks "client" active
-addService({ data: { service: 'Haircut' } }); // updates the client instance
+createBookingForm({ instance: "client" }); // marks "client" active
+addService({ data: { service: "Haircut" } }); // updates the client instance
 
-createBookingForm({ instance: 'admin' }); // marks "admin" active
-addService({ data: { service: 'Color' } }); // updates the admin instance instead
+createBookingForm({ instance: "admin" }); // marks "admin" active
+addService({ data: { service: "Color" } }); // updates the admin instance instead
 ```
 
 Calling a shared helper before any instance has been created throws `NoActiveInstanceError` with a
@@ -105,12 +126,12 @@ Overrides live on the instance, not the shared step config, so client and admin 
 defaults from the exact same field definitions:
 
 ```ts
-const publicForm = createBookingForm({ instance: 'client' }).withOverrides({
+const publicForm = createBookingForm({ instance: "client" }).withOverrides({
   step1: async () => ({ firstName: await currentUser.firstName }),
 });
 
-const adminForm = createBookingForm({ instance: 'admin' }).withOverrides({
-  step3: async () => ({ date: searchParams.get('date') ?? '' }),
+const adminForm = createBookingForm({ instance: "admin" }).withOverrides({
+  step3: async () => ({ date: searchParams.get("date") ?? "" }),
 });
 ```
 
@@ -148,12 +169,12 @@ step1: {
 },
 ```
 
-Read it back via the bound per-step method or the schema-level helper (both reflect the *current*
+Read it back via the bound per-step method or the schema-level helper (both reflect the _current_
 field values, live):
 
 ```ts
 instance.stepSchema.value.step1.isComplete(); // bound, no args
-instance.stepSchema.isStepComplete('step1'); // equivalent
+instance.stepSchema.isStepComplete("step1"); // equivalent
 ```
 
 A step with no `isComplete` configured is always considered complete.
@@ -163,23 +184,23 @@ A step with no `isComplete` configured is always considered complete.
 ```ts
 import type {
   DefineMultiStepFormOptions, // the { steps, instances? } shape defineMultiStepForm accepts
-  InstanceName,               // InstanceName<['admin','client']> = 'admin' | 'client'
-  StorageKey,                 // string | Record<InstanceName, string>
-  WithOverridesMap,           // the object shape .withOverrides() accepts, keyed by step
-  MultiStepFormFactory,       // the callable + step-helper shape .configure() returns
-} from '@jfdevelops/multi-step-form-core';
+  InstanceName, // InstanceName<['admin','client']> = 'admin' | 'client'
+  StorageKey, // string | Record<InstanceName, string>
+  WithOverridesMap, // the object shape .withOverrides() accepts, keyed by step
+  MultiStepFormFactory, // the callable + step-helper shape .configure() returns
+} from "@jfdevelops/multi-step-form-core";
 
 // A form with no `instances` declared has a single, always-available "default" instance:
-const createForm = defineMultiStepForm({ steps: { /* ... */ } }).configure();
+const createForm = defineMultiStepForm({ steps: {/* ... */} }).configure();
 createForm(); // no args needed
 createForm().instanceName; // 'default'
 
 // A form with `instances` declared requires `{ instance }` on every call:
 const createBookingForm = defineMultiStepForm({
-  steps: { /* ... */ },
-  instances: ['admin', 'client'],
+  steps: {/* ... */},
+  instances: ["admin", "client"],
 }).configure();
-createBookingForm({ instance: 'client' }); // ok
+createBookingForm({ instance: "client" }); // ok
 // @ts-expect-error "instance" is required once `instances` is declared
 createBookingForm();
 ```
