@@ -137,6 +137,45 @@ describe('creating components via "createComponent" fn', () => {
       expect(screen.getByTestId('instance-field').textContent).toBe('Taylor');
     });
 
+    it('provides strongly typed data for every step when stepData is all', async () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Contact',
+            fields: { firstName: { defaultValue: 'Taylor' } },
+          },
+          step2: {
+            title: 'Details',
+            fields: { age: { defaultValue: 30 } },
+          },
+        },
+      }).configure()();
+
+      const AllSteps = schema.createComponent({
+        stepData: 'all',
+        render({ ctx }) {
+          expectTypeOf(
+            ctx.step1.fields.firstName.defaultValue,
+          ).toEqualTypeOf<string>();
+          expectTypeOf(
+            ctx.step2.fields.age.defaultValue,
+          ).toEqualTypeOf<number>();
+
+          return (
+            <span data-testid='all-steps'>
+              {ctx.step1.fields.firstName.defaultValue}:{
+                ctx.step2.fields.age.defaultValue
+              }
+            </span>
+          );
+        },
+      });
+
+      const screen = await renderInJsdom(<AllSteps />);
+
+      expect(screen.getByTestId('all-steps').textContent).toBe('Taylor:30');
+    });
+
     it('only accepts an object with a render property', () => {
       const schema = defineMultiStepForm({
         steps: {

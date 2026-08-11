@@ -45,10 +45,16 @@ export interface CreateComponentFn<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
 > {
-  <targetStep extends StepNumbers<value>, props = undefined>(
-    config: HelperFn.BaseOptions<value, [targetStep]> & {
+  <
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      StepNumbers<value>
+    >,
+    props = undefined,
+  >(
+    config: HelperFn.BaseOptions<value, chosenSteps> & {
       render: CreateComponent<
-        StepSpecificComponent.instanceInput<def, value, [targetStep]>,
+        StepSpecificComponent.instanceInput<def, value, chosenSteps>,
         props
       >;
     },
