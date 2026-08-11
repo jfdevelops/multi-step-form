@@ -25,62 +25,205 @@ import {
 } from './utils';
 
 export namespace StepSpecificComponent {
-  type instantiateFormComponentForAllSteps<
-    def extends StepSchema.Config,
-    value = MultiStepFormSchemaConfig.instantiateFormConfig<def>,
-  > =
-    MultiStepFormSchemaConfig.EnabledForSteps.get<value> extends MultiStepFormSchemaConfig.defaultEnabledFor
-      ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
-      : {};
-  type instantiateFormComponentForTuple<
-    def extends StepSchema.Config,
-    steps extends instantiateReactSteps,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
-  > =
-    MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.tupleNotation<
-      StepNumbers<steps>
-    >
-      ? chosenSteps[number] extends StepNumbers<steps>
-        ? chosenSteps[number] extends MultiStepFormSchemaConfig.EnabledForSteps.get<def>[number]
-          ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
-          : {}
-        : {}
-      : {};
-
-  type instantiateFormComponentForObject<
-    def extends StepSchema.Config,
-    steps extends instantiateReactSteps,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
-  > =
-    MultiStepFormSchemaConfig.EnabledForSteps.get<def> extends HelperFnChosenSteps.objectNotation<
-      StepNumbers<steps>
-    >
-      ? chosenSteps[number] extends StepNumbers<steps>
-        ? chosenSteps[number] extends keyof MultiStepFormSchemaConfig.EnabledForSteps.get<def>
-          ? MultiStepFormSchemaConfig.instantiateFormConfig<def>
-          : {}
-        : {}
-      : {};
-  type instantiateFormComponent<
+  type enabledFormSteps<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps<def>,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
-  > = {
-    all: instantiateFormComponentForAllSteps<def>;
-    tuple: instantiateFormComponentForTuple<def, steps, chosenSteps>;
-    object: instantiateFormComponentForObject<def, steps, chosenSteps>;
-  };
-  // A form component can only be selected unambiguously when one concrete step is targeted.
-  // Instance-level `createComponent` delegates that case to the same step-specific factory.
+  > = MultiStepFormSchemaConfig.instantiateFormConfig<def> extends {
+    enabledForSteps: infer enabled;
+  }
+    ? enabled extends HelperFnChosenSteps.main<steps, StepNumbers<steps>>
+      ? HelperFnChosenSteps.resolve<steps, enabled>
+      : never
+    : never;
+
   export type formComponent<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps<def>,
-    chosenSteps extends HelperFnChosenSteps.tupleNotation<StepNumbers<steps>>,
-  > = instantiateFormComponent<
-    def,
-    steps,
-    chosenSteps
-  >[MultiStepFormSchemaConfig.EnabledForSteps.resolveType<def, steps>];
+    chosenSteps extends HelperFnChosenSteps.main<steps, StepNumbers<steps>>,
+  > = Extract<
+    HelperFnChosenSteps.resolve<steps, chosenSteps>,
+    enabledFormSteps<def, steps>
+  > extends never
+    ? {}
+    : MultiStepFormSchemaConfig.instantiateFormConfig<def>;
+
+  type selectedDefaultValues<
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  > = {
+    [step in HelperFnChosenSteps.resolve<
+      value,
+      chosenSteps
+    >]: Expand<getDefaultValues<value, step>>;
+  };
+
+  type keysOfUnion<value> = value extends value ? keyof value : never;
+  type valueForKey<value, key extends PropertyKey> = value extends value
+    ? key extends keyof value
+      ? value[key]
+      : never
+    : never;
+  type stepsContainingField<
+    grouped,
+    field extends PropertyKey,
+  > = {
+    [step in keyof grouped]: field extends keyof grouped[step] ? step : never;
+  }[keyof grouped];
+  type isUnion<value, original = value> = value extends original
+    ? [original] extends [value]
+      ? false
+      : true
+    : never;
+  type groupedFieldValues<
+    grouped,
+    field extends PropertyKey,
+  > = Expand<{
+    [step in stepsContainingField<grouped, field>]: field extends keyof grouped[step]
+      ? grouped[step][field]
+      : never;
+  }>;
+  type flatFieldValue<grouped, field extends PropertyKey> = isUnion<
+    stepsContainingField<grouped, field>
+  > extends true
+    ? groupedFieldValues<grouped, field>
+    : valueForKey<grouped[keyof grouped], field>;
+
+  export type multiStepDefaultValues<
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+    grouped extends selectedDefaultValues<value, chosenSteps> = selectedDefaultValues<
+      value,
+      chosenSteps
+    >,
+  > = {
+    /** Default field values grouped under their selected step keys. */
+    grouped: Expand<grouped>;
+    /**
+     * Default field values from every selected step merged into one object.
+     * A field name declared by multiple selected steps is grouped under those step keys so no
+     * value is overwritten.
+     */
+    flat: Expand<{
+      [field in keysOfUnion<grouped[keyof grouped]>]: flatFieldValue<
+        grouped,
+        field
+      >;
+    }>;
+  };
+
+  export type multiStepFieldName<
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  > = {
+    [step in HelperFnChosenSteps.resolve<
+      value,
+      chosenSteps
+    >]: `${step}.${getDeepFields<value, step>}`;
+  }[HelperFnChosenSteps.resolve<value, chosenSteps>];
+
+  type stepFromFieldName<name extends string> = name extends `${infer step}.${string}`
+    ? step
+    : never;
+  type fieldFromFieldName<name extends string> = name extends `${string}.${infer field}`
+    ? field
+    : never;
+  type multiStepFieldChildrenProps<
+    value extends instantiateReactSteps,
+    name extends string,
+    selected,
+    step extends StepNumbers<value> = Extract<
+      stepFromFieldName<name>,
+      StepNumbers<value>
+    >,
+    targetField extends getDeepFields<value, step> = Extract<
+      fieldFromFieldName<name>,
+      getDeepFields<value, step>
+    >,
+  > = Expand<
+    Omit<
+      [selected] extends [never]
+        ? field.childrenProps<value, targetField, step>
+        : field.childrenPropsWithSelected<
+            value,
+            step,
+            targetField,
+            selected
+          >,
+      'name'
+    > & { name: name }
+  >;
+  type selectedFieldStep<
+    value extends instantiateReactSteps,
+    step extends StepNumbers<value>,
+  > = Expand<{ [key in step]: value[key] }>;
+  type selectedFieldStepKey<
+    value extends instantiateReactSteps,
+    step extends StepNumbers<value>,
+  > = StepNumbers<selectedFieldStep<value, step>>;
+  type multiStepFieldProps<
+    value extends instantiateReactSteps,
+    name extends string,
+    selected,
+    step extends StepNumbers<value> = Extract<
+      stepFromFieldName<name>,
+      StepNumbers<value>
+    >,
+    targetField extends getDeepFields<value, step> = Extract<
+      fieldFromFieldName<name>,
+      getDeepFields<value, step>
+    >,
+  > = Expand<
+    Omit<
+      field.boundProps<
+        selectedFieldStep<value, step>,
+        selectedFieldStepKey<value, step>,
+        Extract<
+          targetField,
+          getDeepFields<
+            selectedFieldStep<value, step>,
+            selectedFieldStepKey<value, step>
+          >
+        >,
+        selected
+      >,
+      'name' | 'children'
+    > & {
+      name: name;
+      children: (
+        props: multiStepFieldChildrenProps<value, name, selected>,
+      ) => ReactNode;
+    }
+  >;
+  export type multiStepFieldComponent<
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  > = <
+    name extends multiStepFieldName<value, chosenSteps>,
+    selected = never,
+  >(
+    props: multiStepFieldProps<value, name, selected>,
+  ) => ReactNode;
+
+  export type multiStepInput<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  > = Expand<
+    HelperFnInput.BaseInput<value, chosenSteps, never, {}> &
+      formComponent<def, value, chosenSteps> & {
+        /**
+         * Renders a field from any selected step. Names include the owning step, such as
+         * `step1.firstName`, so fields with the same name remain unambiguous.
+         */
+        Field: multiStepFieldComponent<value, chosenSteps>;
+        /** Reactively selects a value from the selected steps' context. */
+        useSelector: UseSelector<HelperFn.buildCtx<value, chosenSteps>>;
+        /** Reactively renders a selected value without rerendering the parent component. */
+        Selector: selector.component<HelperFn.buildCtx<value, chosenSteps>>;
+        /** Default values for the selected steps in grouped and flattened forms. */
+        defaultValues: multiStepDefaultValues<value, chosenSteps>;
+      }
+  >;
   export type updateWrappers<
     value extends instantiateReactSteps,
     targetStep extends StepNumbers<value>,
@@ -259,10 +402,12 @@ export namespace StepSpecificComponent {
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
-  > = field.childrenProps<value, targetField, targetStep> & {
-    /** Present when the returned component receives a `selectorFn`. */
-    selected?: { value: unknown };
-  };
+  > = targetField extends getDeepFields<value, targetStep>
+    ? field.childrenProps<value, targetField, targetStep> & {
+        /** Present when the returned component receives a `selectorFn`. */
+        selected?: { value: unknown };
+      }
+    : never;
 
   export type fieldComponentProps<
     def extends StepSchema.Config,
@@ -295,6 +440,41 @@ export namespace StepSpecificComponent {
     >,
   ) => ReactNode;
 
+  export type selectableFieldComponentProps<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    customProps extends object,
+  > = Expand<
+    fieldComponentProps<
+      def,
+      value,
+      targetStep,
+      targetField,
+      customProps
+    > & {
+      /** Selects which field in the component's step is rendered. */
+      field: targetField;
+    }
+  >;
+
+  export type selectableFieldComponent<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    customProps extends object,
+  > = (
+    props: selectableFieldComponentProps<
+      def,
+      value,
+      targetStep,
+      targetField,
+      customProps
+    >,
+  ) => ReactNode;
+
   export type fieldConfig<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
@@ -303,6 +483,19 @@ export namespace StepSpecificComponent {
     customProps extends object,
   > = {
     field: targetField;
+    render: CreateComponent<
+      fieldInput<def, value, targetStep, targetField>,
+      customProps
+    >;
+  };
+
+  export type selectableFieldConfig<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    customProps extends object,
+  > = {
     render: CreateComponent<
       fieldInput<def, value, targetStep, targetField>,
       customProps
@@ -318,7 +511,7 @@ export namespace StepSpecificComponent {
         input<def, value, targetStep, {}> &
           formComponent<def, value, [targetStep]>
       >
-    : HelperFnInput.BaseInput<value, chosenSteps, never, {}>;
+    : multiStepInput<def, value, chosenSteps>;
 }
 
 type IsLegacyFormAvailable<
@@ -386,6 +579,23 @@ export interface StepSpecificCreateComponentFn<
     value,
     targetStep,
     targetField,
+    customProps
+  >;
+
+  /** Creates a reusable component that selects one of this step's fields when rendered. */
+  forField<customProps extends object = {}>(
+    config: StepSpecificComponent.selectableFieldConfig<
+      def,
+      value,
+      targetStep,
+      getDeepFields<value, targetStep>,
+      customProps
+    >,
+  ): StepSpecificComponent.selectableFieldComponent<
+    def,
+    value,
+    targetStep,
+    getDeepFields<value, targetStep>,
     customProps
   >;
 }
