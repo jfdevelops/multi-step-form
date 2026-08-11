@@ -641,34 +641,22 @@ export namespace MultiStepFormSchemaConfig {
    * @param enabledFor The steps that the form _is_ enabled for.
    * @returns A boolean representing if the form should be available.
    */
-  // Note: the implementation is specific to `MultiStepFormStepSchema.createComponentForStep`
-  // because the `target` will always be an `Array` in `MultiStepFormStepSchema.createComponentForStep`.
-  // TODO add validation to keys
   export function isFormAvailable<
     value extends instantiateReactSteps,
     target extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     enabledFor extends formEnabledFor<value>,
   >(target: target, enabledFor: enabledFor) {
-    if (Array.isArray(target)) {
-      const match = HelperFnChosenSteps.match({
-        meta: {
-          target,
-        },
-        default: () => false,
-        all: () => true,
-        tuple: ({ chosenSteps, meta }) => {
-          return chosenSteps.some((key) => meta.target.includes(key));
-        },
-        object: ({ chosenSteps, meta }) => {
-          return Object.keys(chosenSteps).some((key) =>
-            meta.target.includes(key as StepNumbers<value>),
-          );
-        },
-      });
-
-      return match<value, enabledFor>(enabledFor);
+    if (target === 'all' || enabledFor === 'all') {
+      return true;
     }
 
-    return false;
+    const targetSteps = Array.isArray(target) ? target : Object.keys(target);
+    const enabledSteps = Array.isArray(enabledFor)
+      ? enabledFor
+      : Object.keys(enabledFor);
+
+    // Availability follows the existing "any selected step" behavior for tuples and extends it
+    // consistently to object selectors and `all`.
+    return targetSteps.some((step) => enabledSteps.includes(step));
   }
 }

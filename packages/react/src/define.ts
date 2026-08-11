@@ -9,6 +9,11 @@ import {
   type DefaultCasing,
   type DefineConfig,
   type DefineMultiStepFormOptions,
+  type Expand,
+  type getDeepFields,
+  type HelperFn,
+  type HelperFnChosenSteps,
+  InvalidComponentError,
   type InstanceName,
   type StepConfig,
   type StepNumbers,
@@ -16,8 +21,14 @@ import {
   type WithOverridesMap,
 } from '@jfdevelops/multi-step-form-core';
 import { MultiStepFormSchema } from './schema';
-import type { CreateComponentFn } from './step-schema';
-import type { instantiateReactSteps } from './steps';
+import {
+  type instantiateReactSteps,
+  type StepSpecificComponent,
+} from './steps';
+import type {
+  CreateComponent,
+  CreatedMultiStepFormComponent,
+} from './utils';
 import { createElement, type ReactNode } from 'react';
 
 // The factory schema is an API surface, not a persisted form instance. Keeping its
@@ -41,10 +52,10 @@ const factorySchemaStorage: Storage = {
  * The resolved instantiated value shape for a form definition's steps, independent of any
  * particular instance.
  */
-export type DefineReactValue<TSteps extends StepConfig> =
-  instantiateReactSteps<{
-    steps: TSteps;
-  }>;
+export type DefineReactValue<
+  TSteps extends StepConfig,
+  TCasing extends CasingType = DefaultCasing,
+> = instantiateReactSteps<DefineConfig<TSteps, TCasing>>;
 
 export interface MultiStepFormReactInstance<
   def extends DefineConfig,
@@ -222,6 +233,193 @@ export interface MultiStepFormReactFactoryStepFunctions<
   createHelperFn: StepSpecificHelperFn<DefineReactValue<TSteps>, key>;
 }
 
+type FactoryFieldComponentProps<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+  targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+  targetField extends getDeepFields<
+    DefineReactValue<TSteps, TCasing>,
+    targetStep
+  >,
+  customProps extends object,
+  selectable extends boolean,
+> = Expand<
+  (selectable extends true
+    ? StepSpecificComponent.selectableFieldComponentProps<
+        DefineConfig<TSteps, TCasing>,
+        DefineReactValue<TSteps, TCasing>,
+        targetStep,
+        targetField,
+        customProps
+      >
+    : StepSpecificComponent.fieldComponentProps<
+        DefineConfig<TSteps, TCasing>,
+        DefineReactValue<TSteps, TCasing>,
+        targetStep,
+        targetField,
+        customProps
+      >) & {
+    /** The configured form instance whose state and overrides this component reads. */
+    instance: MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>;
+  }
+>;
+
+interface MultiStepFormReactFactoryCreateComponentFn<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+> {
+  <
+    chosenSteps extends HelperFnChosenSteps.main<
+      DefineReactValue<TSteps, TCasing>,
+      StepNumbers<DefineReactValue<TSteps, TCasing>>
+    >,
+    props = undefined,
+  >(
+    config: HelperFn.BaseOptions<
+      DefineReactValue<TSteps, TCasing>,
+      chosenSteps
+    > & {
+      render: CreateComponent<
+        StepSpecificComponent.instanceInput<
+          DefineConfig<TSteps, TCasing>,
+          DefineReactValue<TSteps, TCasing>,
+          chosenSteps
+        >,
+        props
+      >;
+    },
+  ): CreatedMultiStepFormComponent<props>;
+
+  forField<
+    targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+    targetField extends getDeepFields<
+      DefineReactValue<TSteps, TCasing>,
+      targetStep
+    >,
+    customProps extends object = {},
+  >(
+    config: StepSpecificComponent.fieldConfig<
+      DefineConfig<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing>,
+      targetStep,
+      targetField,
+      customProps
+    > & { step: targetStep },
+  ): (
+    props: FactoryFieldComponentProps<
+      TSteps,
+      TCasing,
+      targetStep,
+      targetField,
+      customProps,
+      false
+    >,
+  ) => ReactNode;
+
+  forField<
+    targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+    customProps extends object = {},
+  >(
+    config: StepSpecificComponent.selectableFieldConfig<
+      DefineConfig<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing>,
+      targetStep,
+      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      customProps
+    > & { step: targetStep },
+  ): (
+    props: FactoryFieldComponentProps<
+      TSteps,
+      TCasing,
+      targetStep,
+      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      customProps,
+      true
+    >,
+  ) => ReactNode;
+}
+
+interface MultiStepFormReactFactoryStepCreateComponentFn<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+  targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+> {
+  <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
+    config: StepSpecificComponent.config<
+      DefineConfig<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing>,
+      targetStep,
+      props,
+      additionalCtx
+    >,
+  ): CreatedMultiStepFormComponent<props>;
+
+  forField<
+    targetField extends getDeepFields<
+      DefineReactValue<TSteps, TCasing>,
+      targetStep
+    >,
+    customProps extends object = {},
+  >(
+    config: StepSpecificComponent.fieldConfig<
+      DefineConfig<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing>,
+      targetStep,
+      targetField,
+      customProps
+    >,
+  ): (
+    props: FactoryFieldComponentProps<
+      TSteps,
+      TCasing,
+      targetStep,
+      targetField,
+      customProps,
+      false
+    >,
+  ) => ReactNode;
+
+  forField<customProps extends object = {}>(
+    config: StepSpecificComponent.selectableFieldConfig<
+      DefineConfig<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing>,
+      targetStep,
+      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      customProps
+    >,
+  ): (
+    props: FactoryFieldComponentProps<
+      TSteps,
+      TCasing,
+      targetStep,
+      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      customProps,
+      true
+    >,
+  ) => ReactNode;
+}
+
+type MultiStepFormReactFactoryStepSchema<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+> = Omit<
+  MultiStepFormSchema<DefineConfig<TSteps, TCasing>>['stepSchema'],
+  'value'
+> & {
+  value: {
+    [targetStep in StepNumbers<DefineReactValue<TSteps, TCasing>>]: Omit<
+      DefineReactValue<TSteps, TCasing>[targetStep],
+      'createComponent'
+    > & {
+      createComponent: MultiStepFormReactFactoryStepCreateComponentFn<
+        TSteps,
+        TCasing,
+        targetStep
+      >;
+    };
+  };
+};
+
 export type MultiStepFormReactFactoryStepProperties<TSteps extends StepConfig> =
   {
     [
@@ -233,8 +431,13 @@ export type MultiStepFormReactFactoryBase<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
-> = MultiStepFormSchema<DefineConfig<TSteps, TCasing>> &
+> = Omit<
+  MultiStepFormSchema<DefineConfig<TSteps, TCasing>>,
+  'createComponent' | 'stepSchema'
+> &
   MultiStepFormReactFactoryStepProperties<TSteps> & {
+  createComponent: MultiStepFormReactFactoryCreateComponentFn<TSteps, TCasing>;
+  stepSchema: MultiStepFormReactFactoryStepSchema<TSteps, TCasing>;
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
    *
@@ -426,24 +629,39 @@ function createReactFactory<
   const sharedFieldComponent = {
     forField(componentConfig: {
       step: string;
-      field: string;
+      field?: string;
       render: (field: unknown, props: unknown) => ReactNode;
     }) {
-      // Each active instance gets its own bound component. Caching preserves component identity
-      // and subscriptions when the shared component is reused across independently stored forms.
+      // Each explicitly selected instance gets its own bound component. Caching preserves
+      // component identity and subscriptions without relying on mutable global selection.
       const components = new WeakMap<object, (props?: unknown) => ReactNode>();
 
       return (props?: unknown) => {
-        const active = getActiveInstance();
-        let Component = components.get(active);
+        InvalidComponentError.invariant(
+          typeof props === 'object' &&
+            props !== null &&
+            'instance' in props,
+          {
+            reason:
+              'A shared field component requires an "instance" prop containing the configured form instance it should use',
+            component: 'createFieldComponent',
+            argument: 'props.instance',
+            value: props,
+          },
+        );
+
+        const { instance, ...componentProps } = props as {
+          instance: MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>;
+        } & Record<string, unknown>;
+        let Component = components.get(instance);
 
         if (!Component) {
-          const step = (active.stepSchema.value as Record<string, unknown>)[
+          const step = (instance.stepSchema.value as Record<string, unknown>)[
             componentConfig.step
           ] as {
             createComponent: {
               forField: (config: {
-                field: string;
+                field?: string;
                 render: (field: unknown, props: unknown) => ReactNode;
               }) => (props?: unknown) => ReactNode;
             };
@@ -453,21 +671,44 @@ function createReactFactory<
             field: componentConfig.field,
             render: componentConfig.render,
           });
-          components.set(active, Component);
+          components.set(instance, Component);
         }
 
-        return createElement(Component as never, props as never);
+        return createElement(Component as never, componentProps as never);
       };
     },
   };
+
+  // The factory schema exposes the definition's step surface, but its reusable field
+  // components must bind to a real configured instance instead of the inert schema state.
+  for (const stepKey of stepKeys) {
+    const step = (factorySchema.stepSchema.value as Record<string, unknown>)[
+      stepKey
+    ] as {
+      createComponent: Function & {
+        forField: (config: {
+          field?: string;
+          render: (field: unknown, props: unknown) => ReactNode;
+        }) => (props?: unknown) => ReactNode;
+      };
+    };
+
+    Object.assign(step.createComponent, {
+      forField: (config: {
+        field?: string;
+        render: (field: unknown, props: unknown) => ReactNode;
+      }) => sharedFieldComponent.forField({ ...config, step: stepKey }),
+    });
+  }
+
   const sharedCreateComponent = Object.assign(
     function createFactoryComponent(componentConfig: unknown) {
       return factorySchema.createComponent(componentConfig as never);
     },
     sharedFieldComponent,
-  ) as unknown as CreateComponentFn<
-    DefineConfig<TSteps, TCasing>,
-    instantiateReactSteps<DefineConfig<TSteps, TCasing>>
+  ) as unknown as MultiStepFormReactFactoryCreateComponentFn<
+    TSteps,
+    TCasing
   >;
 
   return Object.assign(

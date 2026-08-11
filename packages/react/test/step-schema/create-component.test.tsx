@@ -142,38 +142,160 @@ describe('creating components via "createComponent" fn', () => {
         steps: {
           step1: {
             title: 'Contact',
-            fields: { firstName: { defaultValue: 'Taylor' } },
+            fields: {
+              firstName: { defaultValue: 'Taylor' },
+              email: { defaultValue: 'client@example.com' },
+            },
           },
           step2: {
             title: 'Details',
-            fields: { age: { defaultValue: 30 } },
+            fields: {
+              age: { defaultValue: 30 },
+              email: { defaultValue: 'admin@example.com' },
+            },
           },
         },
       }).configure()();
 
       const AllSteps = schema.createComponent({
         stepData: 'all',
-        render({ ctx }) {
+        render({ ctx, defaultValues, Selector, useSelector }) {
+          const selectedAge = useSelector(
+            (steps) => steps.step2.fields.age.defaultValue,
+          );
+
           expectTypeOf(
             ctx.step1.fields.firstName.defaultValue,
           ).toEqualTypeOf<string>();
           expectTypeOf(
             ctx.step2.fields.age.defaultValue,
           ).toEqualTypeOf<number>();
+          expectTypeOf(defaultValues.grouped.step1.firstName).toEqualTypeOf<
+            string
+          >();
+          expectTypeOf(defaultValues.grouped.step2.age).toEqualTypeOf<number>();
+          expectTypeOf(defaultValues.flat.firstName).toEqualTypeOf<string>();
+          expectTypeOf(defaultValues.flat.age).toEqualTypeOf<number>();
+          expectTypeOf(defaultValues.flat.email.step1).toEqualTypeOf<string>();
+          expectTypeOf(defaultValues.flat.email.step2).toEqualTypeOf<string>();
+          expectTypeOf(Selector).toBeFunction();
+          expectTypeOf(selectedAge).toEqualTypeOf<number>();
 
           return (
-            <span data-testid='all-steps'>
-              {ctx.step1.fields.firstName.defaultValue}:{
-                ctx.step2.fields.age.defaultValue
-              }
-            </span>
+            <>
+              <span data-testid='all-steps'>
+                {defaultValues.flat.firstName}:{defaultValues.grouped.step2.age}
+                :{selectedAge}
+              </span>
+              <Selector
+                selector={(steps) =>
+                  steps.step1.fields.firstName.defaultValue
+                }
+              >
+                {(firstName) => (
+                  <span data-testid='all-steps-selector'>{firstName}</span>
+                )}
+              </Selector>
+            </>
           );
         },
       });
 
       const screen = await renderInJsdom(<AllSteps />);
 
-      expect(screen.getByTestId('all-steps').textContent).toBe('Taylor:30');
+      expect(screen.getByTestId('all-steps').textContent).toBe('Taylor:30:30');
+      expect(screen.getByTestId('all-steps-selector').textContent).toBe(
+        'Taylor',
+      );
+    });
+
+    it('provides grouped and flat default values for multiple selected steps', async () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Contact',
+            fields: {
+              firstName: { defaultValue: 'Taylor' },
+              email: { defaultValue: 'client@example.com' },
+            },
+          },
+          step2: {
+            title: 'Details',
+            fields: {
+              age: { defaultValue: 30 },
+              email: { defaultValue: 'admin@example.com' },
+            },
+          },
+          step3: {
+            title: 'Unselected',
+            fields: { accepted: { defaultValue: false } },
+          },
+        },
+      }).configure()();
+
+      const SelectedSteps = schema.createComponent({
+        stepData: ['step1', 'step2'],
+        render({ defaultValues, Field }) {
+          expectTypeOf<keyof typeof defaultValues.grouped>().toEqualTypeOf<
+            'step1' | 'step2'
+          >();
+          expectTypeOf(defaultValues.flat.firstName).toEqualTypeOf<string>();
+          expectTypeOf(defaultValues.flat.age).toEqualTypeOf<number>();
+          expectTypeOf(defaultValues.flat.email.step1).toEqualTypeOf<string>();
+          expectTypeOf(defaultValues.flat.email.step2).toEqualTypeOf<string>();
+
+          if (false) {
+            // @ts-expect-error Unselected step defaults are not included.
+            defaultValues.grouped.step3;
+            // @ts-expect-error Unselected field defaults are not included.
+            defaultValues.flat.accepted;
+            // @ts-expect-error Field paths must belong to a selected step.
+            <Field name='step3.accepted'>{() => null}</Field>;
+            // @ts-expect-error Field paths must contain the owning step.
+            <Field name='firstName'>{() => null}</Field>;
+          }
+
+          return (
+            <>
+              <span data-testid='selected-default-values'>
+                {defaultValues.grouped.step1.firstName}:
+                {defaultValues.flat.age}:{defaultValues.flat.email.step1}:
+                {defaultValues.flat.email.step2}
+              </span>
+              <Field name='step1.firstName'>
+                {(field) => {
+                  expectTypeOf(field.name).toEqualTypeOf<'step1.firstName'>();
+                  expectTypeOf(field.defaultValue).toEqualTypeOf<string>();
+
+                  return (
+                    <button
+                      data-testid='multi-step-field'
+                      onClick={() => field.onInputChange('Jordan')}
+                    >
+                      {field.name}:{field.defaultValue}
+                    </button>
+                  );
+                }}
+              </Field>
+            </>
+          );
+        },
+      });
+
+      const screen = await renderInJsdom(<SelectedSteps />);
+
+      expect(screen.getByTestId('selected-default-values').textContent).toBe(
+        'Taylor:30:client@example.com:admin@example.com',
+      );
+      const field = screen.getByTestId('multi-step-field');
+
+      expect(field.textContent).toBe('step1.firstName:Taylor');
+
+      await act(async () => {
+        field.click();
+      });
+
+      expect(field.textContent).toBe('step1.firstName:Jordan');
     });
 
     it('preserves step helpers for a partial object step selector', async () => {
@@ -778,8 +900,8 @@ describe('creating components via "createComponent" fn', () => {
 });
 
 describe('creating reusable components via "createComponent.forField"', () => {
-  it('creates a field component without custom props', async () => {
-    const schema = defineMultiStepForm({
+  it('creates a selectable field component for explicit instances without custom props', async () => {
+    const createForm = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Contact',
@@ -788,51 +910,77 @@ describe('creating reusable components via "createComponent.forField"', () => {
               defaultValue: 'Taylor',
               label: 'First name',
             },
+            lastName: {
+              defaultValue: 'Client',
+              label: 'Last name',
+            },
           },
         },
       },
-    }).configure()();
+      instances: ['client', 'admin'],
+    }).configure();
+    const client = createForm({ instance: 'client' }).withOverrides({
+      step1: async () => ({
+        firstName: 'Client override',
+        lastName: 'Wrong client field',
+      }),
+    });
+    const admin = createForm({ instance: 'admin' }).withOverrides({
+      step1: async () => ({
+        firstName: 'Wrong admin field',
+        lastName: 'Admin override',
+      }),
+    });
 
-    const FirstName = schema.stepSchema.value.step1.createComponent.forField({
-      field: 'firstName',
+    const Name = createForm.stepSchema.value.step1.createComponent.forField({
       render(field) {
-        expectTypeOf(field.name).toEqualTypeOf<'firstName'>();
+        expectTypeOf(field.name).toEqualTypeOf<'firstName' | 'lastName'>();
         expectTypeOf(field.defaultValue).toEqualTypeOf<string>();
 
-        return (
-          <button
-            data-testid='first-name'
-            onClick={() => field.onInputChange('Jordan')}
-          >
-            {field.defaultValue}
-          </button>
-        );
+        return <p>{field.defaultValue}</p>;
       },
     });
 
-    const screen = await renderInJsdom(<FirstName suspend={false} />);
-    const button = screen.getByTestId('first-name');
+    if (false) {
+      // @ts-expect-error Factory field components must choose an instance explicitly.
+      <Name field='firstName' />;
+      // @ts-expect-error Only fields declared by step1 can be selected.
+      <Name instance={client} field='email' />;
+    }
 
-    expect(button.textContent).toContain('Taylor');
+    const screen = await renderInJsdom(
+      <>
+        <Name
+          instance={client}
+          field='firstName'
+          suspend
+          fallback={<p>Loading client</p>}
+        />
+        <Name
+          instance={admin}
+          field='lastName'
+          suspend
+          fallback={<p>Loading admin</p>}
+        />
+      </>,
+    );
 
-    await act(async () => {
-      button.click();
-    });
-
-    expect(button.textContent).toContain('Jordan');
+    expect(screen.getByText('Client override')).toBeDefined();
+    expect(screen.getByText('Admin override')).toBeDefined();
   });
 
-  it('creates a field component with custom props', async () => {
-    const schema = defineMultiStepForm({
+  it('creates a bound field component for an explicit instance with custom props', async () => {
+    const createForm = defineMultiStepForm({
       steps: {
         step2: {
           title: 'Details',
           fields: { age: { defaultValue: 30 } },
         },
       },
-    }).configure()();
+    }).configure();
+    const instance = createForm();
 
-    const Age = schema.createComponent.forField({
+    const Age = createForm.createComponent.forField({
       step: 'step2',
       field: 'age',
       render(field, props: { suffix: string }) {
@@ -847,7 +995,9 @@ describe('creating reusable components via "createComponent.forField"', () => {
       },
     });
 
-    const screen = await renderInJsdom(<Age suffix='years' />);
+    const screen = await renderInJsdom(
+      <Age instance={instance} suffix='years' />,
+    );
 
     expect(screen.getByText('Age: 30 years')).toBeDefined();
   });

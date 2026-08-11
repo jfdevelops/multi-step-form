@@ -69,7 +69,7 @@ describe('createComponent Form availability', () => {
     });
     let receivedForm: unknown;
     const Component = schema.createComponent({
-      stepData: ['step1'],
+      stepData: 'all',
       render({ Form }) {
         expectTypeOf(Form).toBeFunction();
         receivedForm = Form;
@@ -92,7 +92,7 @@ describe('createComponent Form availability', () => {
     });
     let receivedForm: unknown;
     const Component = schema.createComponent({
-      stepData: ['step1'],
+      stepData: 'all',
       render({ CustomForm }) {
         expectTypeOf(CustomForm).toBeFunction();
         receivedForm = CustomForm;

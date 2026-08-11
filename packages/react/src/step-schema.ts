@@ -6,7 +6,7 @@ import {
   getDefaultValues,
   type getDeepFields,
   type HelperFn,
-  type HelperFnChosenSteps,
+  HelperFnChosenSteps,
   InvalidComponentError,
   InvalidFieldError,
   InvalidFormConfigError,
@@ -32,7 +32,6 @@ import {
   type StepSpecificCreateComponentFn,
 } from './steps';
 import {
-  createComponent,
   type CreateComponent,
   type CreatedMultiStepFormComponent,
   getValidatedCustomInputHooks,
@@ -78,6 +77,26 @@ export interface CreateComponentFn<
     value,
     targetStep,
     targetField,
+    customProps
+  >;
+
+  /** Creates a reusable component that selects a field from one step when rendered. */
+  forField<
+    targetStep extends StepNumbers<value>,
+    customProps extends object = {},
+  >(
+    config: StepSpecificComponent.selectableFieldConfig<
+      def,
+      value,
+      targetStep,
+      getDeepFields<value, targetStep>,
+      customProps
+    > & { step: targetStep },
+  ): StepSpecificComponent.selectableFieldComponent<
+    def,
+    value,
+    targetStep,
+    getDeepFields<value, targetStep>,
     customProps
   >;
 }
@@ -135,6 +154,7 @@ export class MultiStepFormStepSchema<
   value: value;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+  readonly #form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
   readonly createComponent: CreateComponentFn<def, value>;
 
   constructor(config: MultiStepFormStepSchema.config<def, value>) {
@@ -154,6 +174,7 @@ export class MultiStepFormStepSchema<
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next as never),
     });
+    this.#form = form;
 
     this.sync();
 
@@ -677,7 +698,7 @@ export class MultiStepFormStepSchema<
         },
       );
 
-      const { field: targetField, render } = fieldConfig;
+      const { field: configuredField, render } = fieldConfig;
 
       InvalidComponentError.invariant(typeof render === 'function', {
         reason: 'The "render" property must be a function',
@@ -687,7 +708,9 @@ export class MultiStepFormStepSchema<
       });
 
       // Reuse the existing Field component so specialized components inherit its subscriptions,
-      // validation, deep-field support, and update/reset behavior.
+      // validation, deep-field support, and update/reset behavior. When the configuration omits
+      // a field, ownership moves to the returned component so one implementation can serve every
+      // compatible field in the step.
       return impl({
         render: (
           { Field }: StepSpecificComponent.input<def, value, targetStep, {}>,
@@ -698,19 +721,36 @@ export class MultiStepFormStepSchema<
             targetField,
             customProps
           >,
-        ) =>
-          createElement(
+        ) => {
+          const { field: selectedField, ...forwardedProps } = componentProps as
+            StepSpecificComponent.fieldComponentProps<
+              def,
+              value,
+              targetStep,
+              targetField,
+              customProps
+            > & { field?: targetField };
+          const targetField = configuredField ?? selectedField;
+
+          InvalidFieldError.invariant(targetField !== undefined, {
+            reason:
+              'The returned field component requires a "field" prop because its configuration did not provide one',
+            targetStep,
+          });
+
+          return createElement(
             Field as never,
             {
-              ...componentProps,
+              ...forwardedProps,
               name: targetField,
               children: (fieldProps: unknown) =>
                 render(
                   fieldProps as never,
-                  componentProps as unknown as customProps,
+                  forwardedProps as unknown as customProps,
                 ),
             } as never,
-          ),
+          );
+        },
       } as never);
     };
 
@@ -767,15 +807,169 @@ export class MultiStepFormStepSchema<
       return step.createComponent({ render } as never);
     }
 
-    return createComponent<value, chosenSteps, props>({
-      render: render as never,
-      input: ({ stepData }) => ({
+    const stepData = options.stepData as chosenSteps;
+    const getCtx = () => createCtx(this.value, stepData);
+    const useSelector = createUseSelector(getCtx as never, this.subscribe);
+    const Selector = selector.create(getCtx as never, this.subscribe);
+    const selectedSteps = this.getSelectedSteps(stepData);
+    const Field = this.createMultiStepField(selectedSteps);
+    const defaultFormId = selectedSteps.join('-');
+    const form = MultiStepFormSchemaConfig.instantiateFormConfig(
+      () => this.value,
+      this.subscribe,
+      Object.keys(this.value) as StepNumbers<value>[],
+    )(this.#form, defaultFormId) as
+      | undefined
+      | ({
+          alias: string;
+          enabledForSteps: HelperFnChosenSteps.main<
+            value,
+            StepNumbers<value>
+          >;
+        } & Record<string, unknown>);
+
+    return ((props: props) => {
+      const input: Record<string, unknown> = {
+        ctx: getCtx(),
         reset: this.#internal.createHelperFnInputReset(stepData),
         update: this.#internal.createHelperFnInputUpdate(stepData),
-      }),
-      options: options as HelperFn.BaseOptions<value, chosenSteps>,
-      value: this.value,
-    });
+        Field,
+        useSelector,
+        Selector,
+        defaultValues: this.createMultiStepDefaultValues(selectedSteps),
+      };
+
+      if (
+        form &&
+        MultiStepFormSchemaConfig.isFormAvailable(
+          stepData as never,
+          form.enabledForSteps as never,
+        )
+      ) {
+        input[form.alias] = form[form.alias];
+      }
+
+      return render(
+        input as StepSpecificComponent.instanceInput<
+          def,
+          value,
+          chosenSteps
+        >,
+        props,
+      );
+    }) as CreatedMultiStepFormComponent<props>;
+  }
+
+  private getSelectedSteps<
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  >(stepData: chosenSteps) {
+    if (stepData === 'all') {
+      return Object.keys(this.value) as StepNumbers<value>[];
+    }
+
+    if (Array.isArray(stepData)) {
+      return [...stepData] as StepNumbers<value>[];
+    }
+
+    return Object.keys(stepData) as StepNumbers<value>[];
+  }
+
+  private createMultiStepField(selectedSteps: StepNumbers<value>[]) {
+    type BridgeProps = {
+      children: (props: Record<string, unknown>) => ReactNode;
+      fieldName: string;
+      qualifiedName: string;
+    } & Record<string, unknown>;
+
+    const fields = new Map<string, CreatedMultiStepFormComponent<BridgeProps>>();
+
+    for (const step of selectedSteps) {
+      const stepValue = this.value[step] as {
+        createComponent: (config: {
+          render: (input: { Field: Function }, props: BridgeProps) => ReactNode;
+        }) => CreatedMultiStepFormComponent<BridgeProps>;
+      };
+      const StepField = stepValue.createComponent({
+        render({ Field }, props) {
+          const {
+            children,
+            fieldName,
+            qualifiedName,
+            ...fieldOptions
+          } = props;
+
+          return createElement(Field as never, {
+            ...fieldOptions,
+            name: fieldName,
+            children: (fieldProps: Record<string, unknown>) =>
+              children({ ...fieldProps, name: qualifiedName }),
+          } as never);
+        },
+      });
+
+      fields.set(step, StepField);
+    }
+
+    return (props: {
+      name: string;
+      children: (props: Record<string, unknown>) => ReactNode;
+    }) => {
+      const { name, children, ...fieldOptions } = props;
+
+      InvalidFieldError.invariant(typeof name === 'string', {
+        reason: 'The multi-step Field "name" prop must be a string',
+        field: name,
+      });
+
+      const separatorIndex = name.indexOf('.');
+      const step = name.slice(0, separatorIndex);
+      const fieldName = name.slice(separatorIndex + 1);
+
+      InvalidFieldError.invariant(
+        separatorIndex > 0 && fields.has(step),
+        {
+          reason: `The field name "${name}" must start with one of the selected steps`,
+          field: name,
+          validSteps: selectedSteps,
+        },
+      );
+
+      const StepField = fields.get(step)!;
+
+      return createElement(StepField as never, {
+        ...fieldOptions,
+        children,
+        fieldName,
+        qualifiedName: name,
+      } as never);
+    };
+  }
+
+  private createMultiStepDefaultValues(
+    selectedSteps: StepNumbers<value>[],
+  ) {
+    const grouped = Object.fromEntries(
+      selectedSteps.map((step) => [step, this.createDefaultValues(step)]),
+    );
+    const fields = new Map<string, Array<[string, unknown]>>();
+
+    for (const [step, defaultValues] of Object.entries(grouped)) {
+      for (const [field, defaultValue] of Object.entries(defaultValues)) {
+        const matches = fields.get(field) ?? [];
+
+        matches.push([step, defaultValue]);
+        fields.set(field, matches);
+      }
+    }
+
+    const flat = Object.fromEntries(
+      [...fields].map(([field, matches]) => [
+        field,
+        matches.length === 1 ? matches[0][1] : Object.fromEntries(matches),
+      ]),
+    );
+
+    return { grouped, flat };
   }
 
   createDefaultValues<targetStep extends StepNumbers<value>>(
