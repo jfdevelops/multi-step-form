@@ -20,6 +20,23 @@ import type { CreateComponentFn } from './step-schema';
 import type { instantiateReactSteps } from './steps';
 import { createElement, type ReactNode } from 'react';
 
+// The factory schema is an API surface, not a persisted form instance. Keeping its
+// store inert prevents it from reading or overwriting the shared default browser key.
+const factorySchemaStorage: Storage = {
+  clear() {},
+  getItem() {
+    return null;
+  },
+  key() {
+    return null;
+  },
+  get length() {
+    return 0;
+  },
+  removeItem() {},
+  setItem() {},
+};
+
 /**
  * The resolved instantiated value shape for a form definition's steps, independent of any
  * particular instance.
@@ -302,6 +319,10 @@ function createReactFactory<
   >({
     steps: steps as DefineConfig<TSteps, TCasing>['steps'],
     nameTransformCasing,
+    storage: {
+      key: DEFAULT_STORAGE_KEY,
+      store: factorySchemaStorage,
+    },
   } as never);
   let activeInstance: InstanceName<TInstances> | undefined;
 

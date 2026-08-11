@@ -176,6 +176,41 @@ describe('creating components via "createComponent" fn', () => {
       expect(screen.getByTestId('all-steps').textContent).toBe('Taylor:30');
     });
 
+    it('preserves step helpers for a partial object step selector', async () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Contact',
+            fields: { firstName: { defaultValue: 'Taylor' } },
+          },
+          step2: {
+            title: 'Details',
+            fields: { age: { defaultValue: 30 } },
+          },
+        },
+      }).configure()();
+
+      const Step1 = schema.createComponent({
+        stepData: { step1: true },
+        render({ ctx, reset, update }) {
+          expectTypeOf(update.step1).toBeFunction();
+          expectTypeOf(reset.step1).toBeFunction();
+
+          return (
+            <span data-testid='object-step-selector'>
+              {ctx.step1.fields.firstName.defaultValue}
+            </span>
+          );
+        },
+      });
+
+      const screen = await renderInJsdom(<Step1 />);
+
+      expect(screen.getByTestId('object-step-selector').textContent).toBe(
+        'Taylor',
+      );
+    });
+
     it('only accepts an object with a render property', () => {
       const schema = defineMultiStepForm({
         steps: {

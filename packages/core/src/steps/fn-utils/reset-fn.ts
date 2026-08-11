@@ -64,14 +64,9 @@ export namespace ResetFn {
     value extends instantiateSteps,
     chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   > = chosenSteps extends HelperFnChosenSteps.objectNotation<StepNumbers<value>>
-    ? {
-        [key in keyof chosenSteps]: key extends HelperFnChosenSteps.resolve<
-          value,
-          chosenSteps
-        >
-          ? StepSpecificHelperFn<value, chosenSteps>[key]
-          : never;
-      }
+    ? // StepSpecificHelperFn already maps only the resolved selector keys. Remapping
+      // every optional object-notation key would turn unselected helpers into never.
+      StepSpecificHelperFn<value, chosenSteps>
     : never;
   type HelperFnMap<
     value extends instantiateSteps,
