@@ -13,9 +13,8 @@ import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
 
 `@jfdevelops/react-multi-step-form` re-exports its own `defineMultiStepForm`, mirroring the core
 package's factory (named instances, per-instance storage, shared `createHelperFn`,
-`withOverrides`) but producing full React `MultiStepFormSchema` instances — the same objects
-`createMultiStepFormSchema` already returns, with `.withForm()` / `.withContext()` /
-`createComponent` available on every instance.
+`withOverrides`) while producing full React `MultiStepFormSchema` instances with `.withForm()`,
+`.withContext()`, and `createComponent` available on every instance.
 
 > Upgrading from alpha? See [`migration.mdx`](./migration.mdx) first.
 >
@@ -41,7 +40,7 @@ const createBookingForm = defineMultiStepForm({
 
 const publicForm = createBookingForm({ instance: 'client' })
   .withOverrides({ step1: async ({ fields }) => ({ /* ... */ }) })
-  .withForm({ render: (data) => (props) => <form {...props} /> })
+  .withForm({ render: ({ id }, props) => <form id={id} {...props} /> })
   .withContext();
 
 export const { useMultiStepFormData, useCurrentStepData } = publicForm.context;

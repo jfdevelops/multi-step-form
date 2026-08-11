@@ -163,7 +163,22 @@ key extends string = DefaultStorageKey
     const item = this.store.getItem(this.key);
 
     if (item) {
-      const parsed = JSON.parse(item);
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(item);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) {
+          throw error;
+        }
+
+        // A stale or partially written value should not prevent the form from mounting.
+        // Removing it lets the schema fall back to its configured defaults on this sync.
+        this.store.removeItem(this.key);
+
+        return;
+      }
+
       const converted = convertDateStringsToDates(parsed);
 
       return converted as data;

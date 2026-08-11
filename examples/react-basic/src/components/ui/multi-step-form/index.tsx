@@ -1,10 +1,10 @@
 import {
-  createMultiStepFormSchema,
+  defineMultiStepForm,
   type MultiStepFormSchema,
 } from '@jfdevelops/react-multi-step-form';
 import type { ComponentPropsWithRef, ReactNode } from 'react';
 
-export const schema = createMultiStepFormSchema({
+export const schema = defineMultiStepForm({
   steps: {
     step1: {
       title: 'Personal Information',
@@ -58,13 +58,15 @@ export const schema = createMultiStepFormSchema({
       },
     },
   },
+}).configure({
   storage: {
     key: 'MultiStepFormBasicExample',
   },
-})
+})()
   .withForm({
-    render(steps) {
-      return function Form({
+    render(
+      { steps },
+      {
         targetStep,
         title,
         description,
@@ -75,26 +77,26 @@ export const schema = createMultiStepFormSchema({
         title?: ReactNode;
         description?: ReactNode;
         footer?: ReactNode;
-      }) {
-        const step = steps[targetStep];
-        const stepDescription =
-          'description' in step && typeof step.description === 'string'
-            ? step.description
-            : undefined;
+      },
+    ) {
+      const step = steps[targetStep];
+      const stepDescription =
+        'description' in step && typeof step.description === 'string'
+          ? step.description
+          : undefined;
 
-        return (
-          <div className='flex flex-col gap-y-4'>
-            <div className='flex flex-col gap-y-2'>
-              <h1 className='font-bold text-xl'>{title || step.title}</h1>
-              {(description || stepDescription) && (
-                <p>{description || stepDescription}</p>
-              )}
-            </div>
-            <form id={targetStep} {...props} />
-            {footer}
+      return (
+        <div className='flex flex-col gap-y-4'>
+          <div className='flex flex-col gap-y-2'>
+            <h1 className='font-bold text-xl'>{title || step.title}</h1>
+            {(description || stepDescription) && (
+              <p>{description || stepDescription}</p>
+            )}
           </div>
-        );
-      };
+          <form id={targetStep} {...props} />
+          {footer}
+        </div>
+      );
     },
   })
   .withContext();

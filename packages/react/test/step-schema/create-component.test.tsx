@@ -1,7 +1,8 @@
 import type { MultiStepFormSchemaConfig } from '@/form-config';
-import type {
-  StepNumbers,
-  StrippedResolvedStep,
+import {
+  InvalidStepError,
+  type StepNumbers,
+  type StrippedResolvedStep,
 } from '@jfdevelops/multi-step-form-core';
 import {
   ComponentPropsWithRef,
@@ -10,9 +11,16 @@ import {
   act,
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, test, vi } from 'vitest';
 import {
-  createMultiStepFormSchema,
+  afterEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  test,
+  vi,
+} from 'vitest';
+import {
   defineMultiStepForm,
   type CreateStepSpecificComponentCallback,
   type StepSpecificComponent,
@@ -77,7 +85,7 @@ async function renderInJsdom(ui: ReactElement) {
 describe('creating components via "createComponent" fn', () => {
   describe('using step specific "createComponent" fn', () => {
     it('should only use the default "ctx"', async () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             title: 'First step',
@@ -114,7 +122,7 @@ describe('creating components via "createComponent" fn', () => {
             },
           },
         },
-      });
+      }).configure()();
 
       type ResolvedStep = typeof schema.stepSchema.value;
       type Steps = StepNumbers<ResolvedStep>;
@@ -134,9 +142,7 @@ describe('creating components via "createComponent" fn', () => {
         </div>
       ));
 
-      const Step1 = schema.stepSchema.value.step1.createComponent(
-        componentSpy as never,
-      );
+      const Step1 = schema.stepSchema.value.step1.createComponent(componentSpy);
 
       expect(Step1).toBeTypeOf('function');
 
@@ -156,7 +162,7 @@ describe('creating components via "createComponent" fn', () => {
     });
 
     it.skip('should use the provided custom "ctx"', async () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             title: 'First step',
@@ -175,7 +181,7 @@ describe('creating components via "createComponent" fn', () => {
             },
           },
         },
-      });
+      }).configure()();
 
       type ResolvedStep = typeof schema.stepSchema.value;
       type Steps = StepNumbers<ResolvedStep>;
@@ -207,12 +213,12 @@ describe('creating components via "createComponent" fn', () => {
           >['ctxData'],
           undefined
         >
-      >((({ ctx }: any) => ctx) as never);
+      >(({ ctx }) => ({ step2: ctx.step2 }));
       const Step1 = schema.stepSchema.value.step1.createComponent(
         {
-          ctxData: ctxDataSpy as never,
+          ctxData: ctxDataSpy,
         },
-        componentSpy as never,
+        componentSpy,
       );
       console.log('-------------------after------------------');
       console.log(schema.stepSchema.value);
@@ -249,7 +255,7 @@ describe('creating components via "createComponent" fn', () => {
     });
 
     it('should use "onInputChange" to update a value for the specified field', async () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             title: 'First step',
@@ -271,7 +277,7 @@ describe('creating components via "createComponent" fn', () => {
             },
           },
         },
-      });
+      }).configure()();
 
       type ResolvedStep = typeof schema.stepSchema.value;
       type Steps = StepNumbers<ResolvedStep>;
@@ -303,9 +309,7 @@ describe('creating components via "createComponent" fn', () => {
         </div>
       ));
 
-      const Step1 = schema.stepSchema.value.step1.createComponent(
-        componentSpy as never,
-      );
+      const Step1 = schema.stepSchema.value.step1.createComponent(componentSpy);
 
       expect(Step1).toBeTypeOf('function');
 
@@ -356,7 +360,7 @@ describe('creating components via "createComponent" fn', () => {
 
     describe('with .withForm()', () => {
       function makeBaseSchema() {
-        return createMultiStepFormSchema({
+        return defineMultiStepForm({
           steps: {
             step1: {
               title: 'Step 1',
@@ -367,58 +371,219 @@ describe('creating components via "createComponent" fn', () => {
               fields: { lastName: { defaultValue: '' } },
             },
           },
-        });
+        }).configure()();
       }
 
       it('injects the Form component under the default alias', async () => {
         const schema = makeBaseSchema().withForm({
-          render() {
-            return (props: ComponentPropsWithRef<'form'>) => (
-              <form data-testid='injected-form' {...props} />
-            );
+          render(_, props: ComponentPropsWithRef<'form'>) {
+            return <form data-testid='injected-form' {...props} />;
           },
         });
 
-        const spy = vi.fn(({ Form }: any) => (
-          // Do not pass data-testid here so the inner data-testid='injected-form' is preserved
-          <Form>
-            <span>content</span>
-          </Form>
-        ));
+        const spy = vi.fn();
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => {
+            spy(Form);
 
-        // `.value` collapses to `{}` here due to a pre-existing inference limitation in
-        // `withForm()`'s return type (same class of issue as elsewhere in this file).
-        const Step1 = (
-          schema.stepSchema.value as never as Record<string, any>
-        ).step1.createComponent(spy as never);
+            return (
+              <Form>
+                <span>content</span>
+              </Form>
+            );
+          },
+        );
 
         const screen = await renderInJsdom(<Step1 />);
 
         const lastCall = spy.mock.lastCall;
         expect(lastCall).toBeDefined();
-        expect(lastCall![0].Form).toBeTypeOf('function');
+        expect(lastCall![0]).toBeTypeOf('function');
 
         expect(screen.getByTestId('injected-form')).toBeDefined();
         expect(screen.getByText('content')).toBeDefined();
       });
 
-      it('infers Form from the return type of withForm.render', () => {
+      it('supports render without custom props', () => {
+        const schema = makeBaseSchema().withForm({
+          render({ id }) {
+            return <form id={id} />;
+          },
+        });
+
+        schema.stepSchema.value.step1.createComponent(({ Form }) => <Form />);
+      });
+
+      it('keeps render context steps up to date', async () => {
+        window.localStorage.clear();
+
+        type CustomFormProps = {
+          children?: ReactNode;
+        };
+        const renderSpy = vi.fn();
+        const schema = makeBaseSchema().withForm({
+          render({ id, steps }, { children }: CustomFormProps) {
+            const firstName = steps.step1.fields.firstName.defaultValue;
+            renderSpy(firstName);
+
+            return (
+              <form id={id}>
+                <span data-testid='live-first-name'>{firstName}</span>
+                {children}
+              </form>
+            );
+          },
+        });
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => <Form />,
+        );
+
+        const screen = await renderInJsdom(<Step1 />);
+
+        expect(screen.getByTestId('live-first-name').textContent).toBe('');
+
+        await act(async () => {
+          schema.stepSchema.value.step1.update({
+            fields: ['fields.firstName.defaultValue'],
+            updater: 'Taylor',
+          });
+        });
+
+        expect(screen.getByTestId('live-first-name').textContent).toBe(
+          'Taylor',
+        );
+        expect(renderSpy).toHaveBeenLastCalledWith('Taylor');
+      });
+
+      it('provides live hook-free current-step and progress callbacks', async () => {
+        const schema = makeBaseSchema().withForm({
+          render({ steps, getCurrentStepData, getProgress, isStepComplete }) {
+            const currentStep = getCurrentStepData({
+              targetStep: 'step1',
+            });
+            const progress = getProgress({
+              targetStep: 'step1',
+              progressTextTransformer(
+                { targetStep, totalSteps },
+                props: { className: string },
+              ) {
+                return (
+                  <div {...props}>
+                    {targetStep} of {totalSteps}
+                  </div>
+                );
+              },
+            });
+
+            expect(Reflect.has(steps.step1, 'update')).toBe(false);
+            expect(Reflect.has(steps.step1, 'reset')).toBe(false);
+            expect(Reflect.has(steps.step1, 'createComponent')).toBe(false);
+            expect(Reflect.has(steps.step1, 'createHelperFn')).toBe(false);
+            expect(() =>
+              Reflect.apply(isStepComplete, undefined, ['step3']),
+            ).toThrow(InvalidStepError);
+            expect(() =>
+              Reflect.apply(getCurrentStepData, undefined, [
+                { targetStep: 'step3' },
+              ]),
+            ).toThrow(InvalidStepError);
+
+            if (false) {
+              // @ts-expect-error Only concrete schema step keys are accepted.
+              getProgress({ targetStep: 'step3' });
+            }
+
+            if (!currentStep.hasData) {
+              return currentStep.renderNoCurrentData({
+                className: 'no-current-data',
+              });
+            }
+
+            expectTypeOf(
+              currentStep.data.fields.firstName.defaultValue,
+            ).toEqualTypeOf<string>();
+            expect(Reflect.has(currentStep.data, 'update')).toBe(false);
+
+            return (
+              <div>
+                <span data-testid='callback-first-name'>
+                  {currentStep.data.fields.firstName.defaultValue}
+                </span>
+                <span data-testid='callback-progress'>{progress.value}</span>
+                <span data-testid='callback-is-complete'>
+                  {String(isStepComplete('step1'))}
+                </span>
+                {progress.renderProgressText({ className: 'progress-text' })}
+              </div>
+            );
+          },
+        });
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => <Form />,
+        );
+
+        const screen = await renderInJsdom(<Step1 />);
+
+        expect(screen.getByTestId('callback-progress').textContent).toBe('50');
+        expect(screen.getByTestId('callback-is-complete').textContent).toBe(
+          'true',
+        );
+        expect(screen.getByText('step1 of 2')).toBeDefined();
+
+        await act(async () => {
+          schema.stepSchema.value.step1.update({
+            fields: ['fields.firstName.defaultValue'],
+            updater: 'Morgan',
+          });
+        });
+
+        expect(screen.getByTestId('callback-first-name').textContent).toBe(
+          'Morgan',
+        );
+      });
+
+      it('infers Form props from the second parameter of withForm.render', () => {
         type CustomFormProps = {
           title: string;
           children?: ReactNode;
         };
 
         const schema = makeBaseSchema().withForm({
-          render() {
-            return ({ title, children }: CustomFormProps) => (
-              <form aria-label={title}>{children}</form>
-            );
+          render(context, { title, children }: CustomFormProps) {
+            type HasWidenedStepIndex = `step${number}` extends keyof typeof context.steps
+              ? true
+              : false;
+
+            expectTypeOf<HasWidenedStepIndex>().toEqualTypeOf<false>();
+            expectTypeOf(
+              context.steps.step1.fields.firstName.defaultValue,
+            ).toEqualTypeOf<string>();
+            expectTypeOf(
+              context.steps.step1.fields.firstName.nameTransformCasing,
+            ).toEqualTypeOf<'title'>();
+            expectTypeOf(
+              context.steps.step1.fields.firstName.label,
+            ).toEqualTypeOf<'First Name'>();
+            expectTypeOf(
+              context.steps.step1.isComplete,
+            ).toEqualTypeOf<() => boolean>();
+            expectTypeOf(context.isStepComplete).parameter(0).toEqualTypeOf<
+              'step1' | 'step2'
+            >();
+
+            // @ts-expect-error Only concrete schema step keys are accepted.
+            context.isStepComplete('step3');
+
+            return <form aria-label={title}>{children}</form>;
           },
         });
 
-        (schema.stepSchema.value as never as Record<string, any>).step1.createComponent(
-          ({ Form }: { Form: (props: CustomFormProps) => React.JSX.Element }) => {
+        schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => {
             const TypedForm = Form;
+            expectTypeOf(TypedForm).toEqualTypeOf<
+              (props: CustomFormProps) => ReactNode
+            >();
 
             // @ts-expect-error The custom form requires a title prop.
             <TypedForm />;
@@ -435,23 +600,13 @@ describe('creating components via "createComponent" fn', () => {
         };
 
         const schema = makeBaseSchema().withForm({
-          render() {
-            return ({ title, children }: CustomFormProps) => (
-              <form aria-label={title}>{children}</form>
-            );
+          render(_, { title, children }: CustomFormProps) {
+            return <form aria-label={title}>{children}</form>;
           },
         });
 
-        // NOTE: `typeof schema.stepSchema.value` (and anything derived from it, like
-        // `StepNumbers<...>`) resolves to `{}`/`never` through `.withForm()`'s return type here
-        // (a pre-existing inference gap unrelated to instances/overrides), which would otherwise
-        // make `chosenSteps extends [StepNumbers<value>]` reject `['step1']` below. `any` sidesteps
-        // that broken constraint while still exercising the actual behavior under test: that
-        // `Form`'s prop typing is restored on the callback. (`any` alone doesn't work here since
-        // `StepNumbers<any>` itself resolves to `never` — `keyof any` is `string | number | symbol`,
-        // which isn't assignable to `string`.)
-        type ResolvedStep = Record<'step1', any>;
-        type Steps = 'step1';
+        type ResolvedStep = typeof schema.stepSchema.value;
+        type Steps = StepNumbers<ResolvedStep>;
 
         const callback: CreateStepSpecificComponentCallback<
           ResolvedStep,
@@ -468,9 +623,7 @@ describe('creating components via "createComponent" fn', () => {
           return <Form title='callback-typed-form'>content</Form>;
         };
 
-        const Step1 = (
-          schema.stepSchema.value as never as Record<string, any>
-        ).step1.createComponent(callback as never);
+        const Step1 = schema.stepSchema.value.step1.createComponent(callback);
 
         expect(Step1).toBeTypeOf('function');
       });
@@ -506,17 +659,13 @@ describe('creating components via "createComponent" fn', () => {
 
       it('renders correctly when the step component uses the injected Form', async () => {
         const schema = makeBaseSchema().withForm({
-          render() {
-            return (props: ComponentPropsWithRef<'form'>) => (
-              <form data-testid='form-renders-correctly' {...props} />
-            );
+          render(_, props: ComponentPropsWithRef<'form'>) {
+            return <form data-testid='form-renders-correctly' {...props} />;
           },
         });
 
-        const Step1 = (
-          schema.stepSchema.value as never as Record<string, any>
-        ).step1.createComponent(
-          ({ Form }: any) => (
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => (
             <Form>
               <span data-testid='form-inner-child'>child content</span>
             </Form>
@@ -532,22 +681,23 @@ describe('creating components via "createComponent" fn', () => {
       it('injects the Form under a custom alias', async () => {
         const schema = makeBaseSchema().withForm({
           alias: 'MyForm',
-          render() {
-            return (props: ComponentPropsWithRef<'form'>) => (
-              <form data-testid='alias-form' {...props} />
-            );
+          render(_, props: ComponentPropsWithRef<'form'>) {
+            return <form data-testid='alias-form' {...props} />;
           },
         });
 
-        const spy = vi.fn(({ MyForm }: any) => (
-          <MyForm>
-            <span>aliased</span>
-          </MyForm>
-        ));
+        const spy = vi.fn();
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ MyForm }) => {
+            spy({ MyForm });
 
-        const Step1 = (
-          schema.stepSchema.value as never as Record<string, any>
-        ).step1.createComponent(spy as never);
+            return (
+              <MyForm>
+                <span>aliased</span>
+              </MyForm>
+            );
+          },
+        );
 
         const screen = await renderInJsdom(<Step1 />);
 
@@ -563,44 +713,67 @@ describe('creating components via "createComponent" fn', () => {
       it('injects Form into all steps when enabledForSteps is "all"', async () => {
         const schema = makeBaseSchema().withForm({
           enabledForSteps: 'all',
-          render() {
-            return (props: ComponentPropsWithRef<'form'>) => (
-              <form data-testid='all-steps-form' {...props} />
-            );
+          render(_, props: ComponentPropsWithRef<'form'>) {
+            return <form data-testid='all-steps-form' {...props} />;
           },
         });
 
-        const step1Spy = vi.fn(({ Form }: any) => (
-          <Form data-testid='s1-form' />
-        ));
-        const step2Spy = vi.fn(({ Form }: any) => (
-          <Form data-testid='s2-form' />
-        ));
+        const step1Spy = vi.fn();
+        const step2Spy = vi.fn();
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => {
+            step1Spy(Form);
 
-        const stepValues = schema.stepSchema.value as never as Record<
-          string,
-          any
-        >;
-        const Step1 = stepValues.step1.createComponent(step1Spy as never);
-        const Step2 = stepValues.step2.createComponent(step2Spy as never);
+            return <Form data-testid='s1-form' />;
+          },
+        );
+        const Step2 = schema.stepSchema.value.step2.createComponent(
+          ({ Form }) => {
+            step2Spy(Form);
+
+            return <Form data-testid='s2-form' />;
+          },
+        );
 
         await renderInJsdom(<Step1 />);
         const step1LastCall = step1Spy.mock.lastCall;
         expect(step1LastCall).toBeDefined();
-        expect(step1LastCall![0].Form).toBeTypeOf('function');
+        expect(step1LastCall![0]).toBeTypeOf('function');
 
         await renderInJsdom(<Step2 />);
         const step2LastCall = step2Spy.mock.lastCall;
         expect(step2LastCall).toBeDefined();
-        expect(step2LastCall![0].Form).toBeTypeOf('function');
+        expect(step2LastCall![0]).toBeTypeOf('function');
       });
 
-      // NOTE: Step-specific enabledForSteps (e.g. ['step1']) is not currently testable
-      // because the core validator receives numeric step keys [1, 2] but the type system
-      // exposes string keys ('step1', 'step2'), causing a validation mismatch at runtime.
-      it.todo(
-        'does not inject Form when the step is excluded by enabledForSteps',
-      );
+      it('does not inject Form when the step is excluded by enabledForSteps', async () => {
+        const schema = makeBaseSchema().withForm({
+          enabledForSteps: ['step1'],
+          render(_, props: ComponentPropsWithRef<'form'>) {
+            return <form {...props} />;
+          },
+        });
+        const step1Spy = vi.fn();
+        const step2Spy = vi.fn();
+        const Step1 = schema.stepSchema.value.step1.createComponent(
+          ({ Form }) => {
+            step1Spy(Form);
+
+            return <Form />;
+          },
+        );
+        const Step2 = schema.stepSchema.value.step2.createComponent((input) => {
+          step2Spy(input);
+
+          return null;
+        });
+
+        await renderInJsdom(<Step1 />);
+        await renderInJsdom(<Step2 />);
+
+        expect(step1Spy).toHaveBeenCalledWith(expect.any(Function));
+        expect(step2Spy.mock.lastCall?.[0]).not.toHaveProperty('Form');
+      });
 
       it('infers step suspense helpers from the step field defaults', () => {
         const createForm = defineMultiStepForm({

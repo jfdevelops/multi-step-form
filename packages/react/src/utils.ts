@@ -15,7 +15,7 @@ export function resolvedCtxCreator<
   value extends instantiateSteps<def>
 >(
   logger: MultiStepFormLogger,
-  values: Omit<value, `step${StepNumbers<value>}`>
+  values: object
 ) {
   return function <
     chosenStep extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,

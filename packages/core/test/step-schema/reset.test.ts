@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 import { titleCreator } from '../utils/title-creator';
 
 describe('multi step form step schema: reset', () => {
   // Note: this test needs to be first otherwise `schema` will be from a different test
   it('should reset all the fields', () => {
     const title = titleCreator('reset:all');
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -18,7 +18,7 @@ describe('multi step form step schema: reset', () => {
           title: title('Step 1'),
         },
       },
-    });
+    }).configure()();
 
     schema.stepSchema.value.step1.update({
       updater: ({ ctx }) => {
@@ -72,9 +72,50 @@ describe('multi step form step schema: reset', () => {
     );
   });
 
+  it('preserves other steps when resetting all fields for one step', () => {
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+            },
+          },
+        },
+        step2: {
+          title: 'Step 2',
+          fields: {
+            lastName: {
+              defaultValue: '',
+            },
+          },
+        },
+      },
+    }).configure()();
+
+    schema.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Taylor',
+    });
+    schema.stepSchema.value.step2.update({
+      fields: ['fields.lastName.defaultValue'],
+      updater: 'Smith',
+    });
+
+    schema.stepSchema.value.step1.reset();
+
+    expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+      ''
+    );
+    expect(schema.stepSchema.value.step2.fields.lastName.defaultValue).toBe(
+      'Smith'
+    );
+  });
+
   describe('tuple notation', () => {
     it('should reset the specified field', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -102,11 +143,15 @@ describe('multi step form step schema: reset', () => {
             },
           },
         },
-      });
+      }).configure()();
 
       schema.stepSchema.value.step1.update({
         fields: ['fields.firstName.defaultValue'],
         updater: 'Updated',
+      });
+      schema.stepSchema.value.step2.update({
+        fields: ['fields.lastName.defaultValue'],
+        updater: 'Preserved',
       });
       expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
         'Updated'
@@ -118,10 +163,13 @@ describe('multi step form step schema: reset', () => {
       expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
         ''
       );
+      expect(schema.stepSchema.value.step2.fields.lastName.defaultValue).toBe(
+        'Preserved'
+      );
     });
 
     it('should reset the specified fields', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -149,7 +197,7 @@ describe('multi step form step schema: reset', () => {
             },
           },
         },
-      });
+      }).configure()();
 
       schema.stepSchema.value.step1.update({
         fields: ['fields.firstName'],
@@ -187,7 +235,7 @@ describe('multi step form step schema: reset', () => {
   describe('object notation', () => {
     it('should reset the specified field', () => {
       const title = titleCreator('reset:object-notation:field');
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -199,7 +247,7 @@ describe('multi step form step schema: reset', () => {
             title: title('Step 1'),
           },
         },
-      });
+      }).configure()();
 
       schema.stepSchema.value.step1.update({
         fields: {
@@ -231,7 +279,7 @@ describe('multi step form step schema: reset', () => {
 
     it('should reset the specified fields', () => {
       const title = titleCreator('reset:object-notation:fields');
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -259,7 +307,7 @@ describe('multi step form step schema: reset', () => {
             },
           },
         },
-      });
+      }).configure()();
 
       schema.stepSchema.value.step1.update({
         fields: {

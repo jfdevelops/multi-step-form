@@ -119,9 +119,9 @@ export type StepNumber = keyof MultiStepFormSchema.resolvedStep<typeof schema>;
 
 `defineMultiStepForm({ steps }).configure({ storage })` is a single-instance form by default — see
 the [beta docs](#beta-instances--storage) below for named instances (e.g. a persisted public form
-alongside a memory-only admin form) sharing this same definition. `createMultiStepFormSchema` (the
-pre-beta factory) still works the same way it always has, minus step-level `overrides` (moved to
-`.withOverrides(...)` — see the migration guides linked below).
+alongside a memory-only admin form) sharing this same definition. The pre-beta
+`createMultiStepFormSchema` factory has been removed; see the migration guides below for moving
+its configuration into `defineMultiStepForm(...).configure(...)`.
 
 ### 2. Create step specific components
 

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: label', () => {
   it('should omit the label when set to false', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -16,7 +16,7 @@ describe('multi step form step schema: label', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.get({ step: 'step1' }).data.fields.firstName).not.toHaveProperty(
       'label'
@@ -24,7 +24,7 @@ describe('multi step form step schema: label', () => {
   });
 
   it('should have a default label when no label is specified', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -36,7 +36,7 @@ describe('multi step form step schema: label', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(
       schema.stepSchema.get({
@@ -46,7 +46,7 @@ describe('multi step form step schema: label', () => {
   });
 
   it('should have a custom label when specified', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -59,7 +59,7 @@ describe('multi step form step schema: label', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(
       schema.stepSchema.get({

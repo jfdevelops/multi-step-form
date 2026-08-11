@@ -1,4 +1,4 @@
-import type { DeepKeys, unionHelpers } from './types';
+import type { DeepKeys, DeepPartial, unionHelpers } from './types';
 
 export namespace path {
   type getBy<T, TPath extends string> = TPath extends `${infer K}.${infer Rest}`
@@ -640,12 +640,13 @@ export namespace path {
 
   export type updateAtOptions<
     T extends Record<string, unknown>,
-    path extends DeepKeys<T>
+    path extends DeepKeys<T>,
+    partial extends boolean = false
   > = {
     obj: T;
     paths: Array<path>;
-    value: pickBy<T, path>;
-    partial?: boolean;
+    value: partial extends true ? DeepPartial<pickBy<T, path>> : pickBy<T, path>;
+    partial?: partial;
   };
 
   function getPathThatMatter(path: string) {
@@ -865,8 +866,9 @@ export namespace path {
 
   export function updateAt<
     obj extends Record<string, unknown>,
-    path extends DeepKeys<obj>
-  >(options: updateAtOptions<obj, path>) {
+    path extends DeepKeys<obj>,
+    partial extends boolean = false
+  >(options: updateAtOptions<obj, path, partial>) {
     const { obj, partial, paths, value } = options;
     const norm = normalizePaths(...paths);
     if (norm.length === 0) return obj;
@@ -875,12 +877,12 @@ export namespace path {
     let resolvedValue = value;
 
     if (partial) {
-      const missingPaths = findMissingPaths(obj, paths, value);
+      const missingPaths = findMissingPaths(obj, paths, value as pickBy<obj, path>);
 
       let missingData = joinAtPath(
         missingPaths as Array<path>,
         obj,
-        resolvedValue
+        resolvedValue as pickBy<obj, path>
       );
 
       // For arrays and objects, if missingData is undefined or empty object, we need to get the original value

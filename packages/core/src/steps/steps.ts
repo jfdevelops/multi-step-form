@@ -29,6 +29,13 @@ type ValidStepKey<N extends number = number> = `step${N}`;
 type StripStringIndex<T> = Expand<{
   [key in keyof T as string extends key ? never : key]: T[key];
 }>;
+type StripWidenedStepIndex<T> = Expand<{
+  [key in keyof T as key extends string
+    ? `step${number}` extends key
+      ? never
+      : key
+    : key]: T[key];
+}>;
 
 interface BaseConfig<
   TFields extends FieldConfig<CasingType>,
@@ -172,7 +179,7 @@ export type inferSchemaDefaultCasing<T> = T extends {
 
 export type _instantiateSteps<T = unknown> = [T] extends [object]
   ? T extends instantiateStepsConfig
-    ? {
+    ? StripWidenedStepIndex<{
         -readonly [key in keyof T['steps']]: Expand<
           {
             title: string;
@@ -192,7 +199,7 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
             ? { description: description }
             : {})
         >;
-      }
+      }>
     : {}
   : {};
 export type BaseStepFunctions<
@@ -227,7 +234,7 @@ export type instantiateSteps<
   [key in keyof value]: BaseStepFunctions<t, value, key>;
 }>;
 export type AnySteps = instantiateSteps<instantiateStepsConfig>;
-export type StepNumbers<T> = keyof T extends string ? keyof T : never;
+export type StepNumbers<T> = Extract<keyof T, ValidStepKey>;
 export type getCurrentStep<
   value extends instantiateSteps,
   stepNumbers extends StepNumbers<value>,

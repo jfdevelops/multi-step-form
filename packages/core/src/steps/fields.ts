@@ -243,6 +243,13 @@ export interface BaseFieldOptions<
    * The default / field-level error message copy.
    */
   errorMessage?: string;
+  /**
+   * Consumer-defined input metadata such as `string.email` or `boolean.switch`.
+   *
+   * Date defaults still use the narrower date-field branch below; the broad string
+   * here keeps non-date UI metadata valid during contextual step inference.
+   */
+  type?: string;
 }
 
 export interface BaseDateFieldOptions<
@@ -414,7 +421,9 @@ export type instantiateFields<
       }
     : never
   : never;
-export type instantiateConfig<TMap extends FieldConfig = FieldConfig> = {
+export type instantiateConfig<
+  TMap extends FieldConfig<CasingType> = FieldConfig<CasingType>,
+> = {
   fields: TMap;
   defaultCasing?: CasingType;
   validateFields?: Constrain<unknown, AnyValidator, DefaultValidator>;

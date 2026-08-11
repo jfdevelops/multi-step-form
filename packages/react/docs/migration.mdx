@@ -6,12 +6,12 @@ category: migration
 order: 1
 ---
 
-import { createMultiStepFormSchema, defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
+import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
 
 # Migrating from alpha
 
-`@jfdevelops/react-multi-step-form`'s `createMultiStepFormSchema` loses step-level `overrides`
-the same way the core package's does — see
+`@jfdevelops/react-multi-step-form` removes `createMultiStepFormSchema` and moves step-level
+`overrides` onto the new definition/instance flow — see
 [`packages/core/docs/migration.mdx`](../../core/docs/migration.mdx) for the general shape of the
 change (`overrides` moves off the step config and onto `.withOverrides(...)`).
 
@@ -51,5 +51,5 @@ const schema = createForm()
 everything `defineMultiStepForm` adds on top of this (instances, per-instance storage, shared
 `createHelperFn`).
 
-`createMultiStepFormSchema` itself is otherwise unchanged and remains available for forms that
-don't need multiple instances.
+For a single form, omit `instances` and call the default factory with no arguments:
+`defineMultiStepForm({ steps }).configure()()`.

@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { OverrideStatus } from '@jfdevelops/multi-step-form-core';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { createMultiStepFormSchema, defineMultiStepForm } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -149,7 +149,9 @@ describe('step overrides', () => {
 
     const screen = await renderInJsdom(<Step1 />);
 
-    expect(schema.stepSchema.getStepStatus('step1' as never)).toBe('loading');
+    expect(
+      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, ['step1']),
+    ).toBe('loading');
 
     await act(async () => {
       deferred.resolve({
@@ -213,7 +215,7 @@ describe('step overrides', () => {
   });
 
   it('isolates primitive and object useStep selectors', async () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -225,7 +227,7 @@ describe('step overrides', () => {
           },
         },
       },
-    });
+    }).configure()();
     const firstNameRender = vi.fn();
     const contactDetailsRender = vi.fn();
 
@@ -358,7 +360,9 @@ describe('step overrides', () => {
 
     const screen = await renderInJsdom(<Status />);
 
-    expect(schema.stepSchema.getStepStatus('step1' as never)).toBe('loading');
+    expect(
+      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, ['step1']),
+    ).toBe('loading');
 
     await act(async () => deferred.resolve({ firstName: 'Jordan' }));
 
@@ -477,7 +481,7 @@ describe('step overrides', () => {
   });
 
   it('types useStep errors as Error by default and allows an override', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -488,7 +492,7 @@ describe('step overrides', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     schema.stepSchema.value.step1.createComponent(({ useStep }) => {
       const defaultResult = useStep();
@@ -595,19 +599,21 @@ describe('step overrides', () => {
         },
       })
       .withForm({
-        render() {
-          return function Form(props: ComponentPropsWithRef<'form'>) {
-            return <form {...props} />;
-          };
+        render({ steps, isStepComplete }, props: ComponentPropsWithRef<'form'>) {
+          expectTypeOf(
+            steps.step1.fields.firstName.defaultValue,
+          ).toEqualTypeOf<string>();
+          expectTypeOf(steps.step1.isComplete).toEqualTypeOf<() => boolean>();
+          expectTypeOf(isStepComplete).parameter(0).toEqualTypeOf<'step1'>();
+
+          return <form {...props} />;
         },
       })
       .withContext();
 
-    // `.value` is not inferred here due to a pre-existing `const steps` inference limitation
-    // (see the same class of issue on `main` in packages/core/test/step-schema/update.test.ts).
-    const step1 = (schema.stepSchema.value as never as Record<string, any>).step1;
+    const step1 = schema.stepSchema.value.step1;
     const Step1 = step1.createComponent(
-      (({ Field, Form, Suspend }: any) => (
+      ({ Field, Form, Suspend }) => (
         <Suspend fallback={<p data-testid='loading'>Loading</p>}>
           <Form>
             <Field name='firstName'>
@@ -622,7 +628,7 @@ describe('step overrides', () => {
             </Field>
           </Form>
         </Suspend>
-      )) as never,
+      ),
     );
 
     const screen = await renderInJsdom(<Step1 />);

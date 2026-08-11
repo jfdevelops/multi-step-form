@@ -7,7 +7,6 @@ import {
   type HelperFnChosenSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
-  type StepConfig,
   type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import {
@@ -25,18 +24,55 @@ import { type instantiateReactSteps } from './steps';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
-  export type resolvedStep<T> =
-    T extends MultiStepFormSchema<infer _def, infer value> ? value : never;
+  // Read the public value property directly because inferring the class's constrained
+  // generic can widen exact step keys back to the generic StepConfig index signature.
+  export type resolvedStep<T> = T extends {
+    stepSchema: { value: infer value };
+  }
+    ? value
+    : never;
 
   export type withFormDef<
     def extends StepSchema.Config,
     formConfig extends object,
-  > = Expand<def & Readonly<{ form: formConfig }>>;
+  > = def & {
+    readonly form: MultiStepFormSchemaConfig.formDefinition<formConfig>;
+  };
+
+  type resolvedStepFunctionKey =
+    | 'createComponent'
+    | 'createHelperFn'
+    | 'isComplete'
+    | 'reset'
+    | 'update';
+  type withoutResolvedStepFunctions<value extends instantiateReactSteps> = {
+    [key in keyof value]: Expand<{
+      [property in keyof value[key] as property extends resolvedStepFunctionKey
+        ? never
+        : property]: value[key][property];
+    }>;
+  };
+
+  type withFormValueCandidate<
+    def extends StepSchema.Config,
+    formConfig extends object,
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+  > = instantiateReactSteps<
+    withFormDef<def, formConfig>,
+    withoutResolvedStepFunctions<value>
+  >;
 
   export type withFormValue<
     def extends StepSchema.Config,
     formConfig extends object,
-  > = instantiateReactSteps<withFormDef<def, formConfig>>;
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+  > = withFormValueCandidate<
+    def,
+    formConfig,
+    value
+  > extends instantiateReactSteps<withFormDef<def, formConfig>>
+    ? withFormValueCandidate<def, formConfig, value>
+    : instantiateReactSteps<withFormDef<def, formConfig>>;
 
   export type config<
     def extends StepSchema.Config,
@@ -136,7 +172,7 @@ export class MultiStepFormSchema<
    *
    * @example
    * ```tsx
-   * const schema = createMultiStepFormSchema({
+   * const schema = defineMultiStepForm({
    *   steps: {
    *     step1: {
    *       title: 'Step 1',
@@ -148,27 +184,31 @@ export class MultiStepFormSchema<
    *     },
    *   },
    * }).withForm({
-   *   render(data) {
-   *     return (props: MyCustomProps) => {
-   *       return <form {...props}>{props.children}</form>;
-   *     };
+   *   render({ id, steps }, props: MyCustomProps) {
+   *     return <form id={id} {...props}>{props.children}</form>;
    *   },
    * });
    * ```
    * @param config The form configuration.
    * @returns A new {@linkcode MultiStepFormSchema} with the form configuration.
    */
-  withForm<const formConfig extends object>(
-    config: formConfig & MultiStepFormSchemaConfig.FormConfig<def, value>,
+  withForm<
+    const formConfig extends MultiStepFormSchemaConfig.FormConfig<
+      def,
+      value,
+      never
+    >,
+  >(
+    config: formConfig,
   ): MultiStepFormSchema<
     MultiStepFormSchema.withFormDef<def, formConfig>,
-    MultiStepFormSchema.withFormValue<def, formConfig>
+    MultiStepFormSchema.withFormValue<def, formConfig, value>
   > {
     const { key, store, throwWhenUndefined } = this.storageConfig;
 
     return new MultiStepFormSchema<
       MultiStepFormSchema.withFormDef<def, formConfig>,
-      MultiStepFormSchema.withFormValue<def, formConfig>
+      MultiStepFormSchema.withFormValue<def, formConfig, value>
     >({
       steps: this.stepSchema.original,
       form: config,
@@ -215,10 +255,4 @@ export class MultiStepFormSchema<
       value: this.stepSchema.value,
     });
   }
-}
-
-export function createMultiStepFormSchema<const steps extends StepConfig>(
-  options: StepSchema.Config<steps>,
-) {
-  return new MultiStepFormSchema<StepSchema.Config<steps>>(options);
 }

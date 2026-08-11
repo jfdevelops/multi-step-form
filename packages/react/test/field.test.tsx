@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../src';
+import { defineMultiStepForm } from '../src';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -48,7 +48,7 @@ async function renderInJsdom(ui: ReactElement) {
 
 describe('Field', () => {
   it('preserves a suspended input node and focus after a value update', async () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -59,7 +59,7 @@ describe('Field', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
       <Field name='firstName' suspend fallback={<div>Loading</div>}>
@@ -98,7 +98,7 @@ describe('Field', () => {
 
   it('renders each children property to the dom', async () => {
     const date = new Date('2024-01-01T00:00:00.000Z');
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -119,7 +119,7 @@ describe('Field', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }: any) => (
       <>
@@ -178,12 +178,8 @@ describe('Field', () => {
       </>
     ));
 
-    // NOTE: `schema.stepSchema.value.step1` loses its precise type through `.withForm()`'s
-    // return type in this pre-existing inference gap (unrelated to instances/overrides), so the
-    // `Field`/`props` types here are no longer narrow enough to assert that disabled labels are
-    // excluded from `props` at compile time. Runtime behavior is unaffected and covered above.
-    (schema.stepSchema.value as never as Record<string, any>).step1.createComponent(
-      ({ Field }: any) => (
+    schema.stepSchema.value.step1.createComponent(
+      ({ Field }) => (
         <Field name='middleName'>{() => null}</Field>
       ),
     );

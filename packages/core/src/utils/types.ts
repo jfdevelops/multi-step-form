@@ -111,16 +111,19 @@ type Builtin =
   | Set<unknown>
   | WeakMap<object, unknown>
   | WeakSet<object>
-  | Array<unknown>
   | Promise<unknown>;
 
-export type DeepPartial<T> = T extends Builtin
+export type DeepPartial<T> = T extends Array<infer Item>
+  ? Array<DeepPartial<Item>>
+  : T extends ReadonlyArray<infer Item>
+  ? ReadonlyArray<DeepPartial<Item>>
+  : T extends Builtin
   ? T
   : T extends object
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : T;
 export type stripFunctions<T> = Expand<{
-  [key in keyof T]: T[key] extends Function ? never : T[key];
+  [key in keyof T as T[key] extends Function ? never : key]: T[key];
 }>;
 export type IsString<T> = T extends string ? T : never;
 export type Updater<TInput, TOutput = TInput> =

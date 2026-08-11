@@ -1,10 +1,10 @@
-import { createMultiStepFormSchema } from '@/schema';
+import { defineMultiStepForm } from '@/define';
 import { MultiStepFormStepSchema } from '@/steps';
 import { describe, expect, it } from 'vitest';
 
 describe('hasData', () => {
   it('should return true if the value is a valid step config', () => {
-    const config = createMultiStepFormSchema({
+    const config = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -15,7 +15,7 @@ describe('hasData', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(MultiStepFormStepSchema.hasData(config.stepSchema.value)).toBe(true);
   });

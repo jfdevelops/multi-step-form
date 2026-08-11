@@ -11,13 +11,10 @@ import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
 
 # Instances, storage & field metadata (beta)
 
-`defineMultiStepForm` is the recommended way to define a form starting with the `beta`
-pre-releases. It supersedes `createMultiStepFormSchema` for anything that needs more than a
-single, always-persisted form — e.g. a public/client form and an internal/admin form that share
-the same steps and helper functions, or a form that shouldn't touch storage at all.
-`createMultiStepFormSchema` still works for the single-instance case, but the new features
-described here (storage-per-instance, `withOverrides`, field `isRequired`/`placeholder`/
-`errorMessage`, step `isComplete`) apply the same way regardless of which factory you use.
+`defineMultiStepForm` is the single form-definition API starting with the `beta` pre-releases.
+It supports a default single instance as well as named instances — e.g. a public/client form and
+an internal/admin form that share the same steps and helper functions, or a form that shouldn't
+touch storage at all.
 
 > Upgrading from alpha? See [`migration.mdx`](./migration.mdx) first.
 >
