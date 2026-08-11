@@ -97,23 +97,26 @@ describe('creating components via "createComponent" fn', () => {
 
       const Step1 = schema.createComponent({
         stepData: ['step1'],
-        render({
-          ctx,
-          Field,
-          Form,
-          Selector,
-          Suspend,
-          defaultValues,
-          onInputChange,
-          reset,
-          update,
-          useSelector,
-          useStep,
-        }) {
+        render(input) {
+          expectTypeOf(input).not.toHaveProperty('Form');
+          expect(input).not.toHaveProperty('Form');
+
+          const {
+            ctx,
+            Field,
+            Selector,
+            Suspend,
+            defaultValues,
+            onInputChange,
+            reset,
+            update,
+            useSelector,
+            useStep,
+          } = input;
+
           expectTypeOf(ctx.step1.title).toEqualTypeOf<string>();
           expectTypeOf(defaultValues.firstName).toEqualTypeOf<string>();
           expectTypeOf(Field).toBeFunction();
-          expectTypeOf(Form).toBeFunction();
           expectTypeOf(Selector).toBeFunction();
           expectTypeOf(Suspend).toBeFunction();
           expectTypeOf(onInputChange).toBeFunction();
@@ -253,11 +256,7 @@ describe('creating components via "createComponent" fn', () => {
         CreateStepSpecificComponentCallback<
           ResolvedStep,
           Steps,
-          ['step1'],
-          undefined,
-          MultiStepFormSchemaConfig.defaultFormAlias,
-          ComponentPropsWithRef<'form'>,
-          MultiStepFormSchemaConfig.defaultEnabledFor
+          ['step1']
         >
       >(({ ctx }) => (
         <div>
@@ -317,8 +316,8 @@ describe('creating components via "createComponent" fn', () => {
           Steps,
           ['step1'],
           undefined,
-          MultiStepFormSchemaConfig.defaultFormAlias,
-          ComponentPropsWithRef<'form'>,
+          string,
+          undefined,
           MultiStepFormSchemaConfig.defaultEnabledFor,
           {},
           { step2: StrippedResolvedStep<ResolvedStep['step2'], false> }
@@ -409,11 +408,7 @@ describe('creating components via "createComponent" fn', () => {
         CreateStepSpecificComponentCallback<
           ResolvedStep,
           Steps,
-          ['step1'],
-          undefined,
-          MultiStepFormSchemaConfig.defaultFormAlias,
-          ComponentPropsWithRef<'form'>,
-          MultiStepFormSchemaConfig.defaultEnabledFor
+          ['step1']
         >
       >(({ ctx, onInputChange }) => (
         <div>

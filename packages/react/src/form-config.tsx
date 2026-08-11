@@ -428,7 +428,8 @@ export namespace MultiStepFormSchemaConfig {
       };
 
       if (!config) {
-        return defaults as inst;
+        // No runtime form object should exist until the schema explicitly opts in via withForm.
+        return undefined;
       }
 
       const {
@@ -669,16 +670,5 @@ export namespace MultiStepFormSchemaConfig {
     }
 
     return false;
-  }
-
-  /**
-   * Creates a form component with a default id.
-   * @param id The default id for the form.
-   * @returns A form component with a default {@linkcode id}.
-   */
-  export function createDefaultForm(id: string) {
-    return (props: Omit<ComponentPropsWithRef<'form'>, 'id'>) => (
-      <form id={id} {...props} />
-    );
   }
 }

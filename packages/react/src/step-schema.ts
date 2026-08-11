@@ -94,7 +94,6 @@ namespace CreateComponentImplConfig {
     _value extends instantiateReactSteps<def>,
   > = {
     isStepSpecific: true;
-    defaultId: string;
     form?: Record<string, unknown>;
   };
 
@@ -172,7 +171,6 @@ export class MultiStepFormStepSchema<
       return {
         createComponent: this.createStepSpecificComponentFactory(targetStep, {
           isStepSpecific: true,
-          defaultId: id,
           form: instantiatedForm,
         }),
       };
@@ -389,7 +387,7 @@ export class MultiStepFormStepSchema<
         // Call hook functions from extraInput at the top level of the component
         // This ensures hooks are called in a valid React context (before any conditionals)
         const hookResults = getValidatedCustomInputHooks(extraInput);
-        const { defaultId, form } = config;
+        const { form } = config;
 
         InvalidStepError.invariant(this.steps.isValidStep(step), {
           reason: `The target step ${step} is invalid`,
@@ -603,14 +601,7 @@ export class MultiStepFormStepSchema<
           return fn(fnInput, props);
         }
 
-        return fn(
-          {
-            ...fnInput,
-            [MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS]:
-              MultiStepFormSchemaConfig.createDefaultForm(defaultId),
-          },
-          props,
-        );
+        return fn(fnInput, props);
       }) as CreatedMultiStepFormComponent<props>;
   }
 
