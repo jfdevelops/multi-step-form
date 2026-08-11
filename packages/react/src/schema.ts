@@ -3,10 +3,8 @@ import {
   DEFAULT_CASING,
   DEFAULT_STORAGE_KEY,
   type Expand,
-  type HelperFnChosenSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
-  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
 import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import {
@@ -14,9 +12,12 @@ import {
   type MultiStepFormContextResult,
 } from './create-context';
 import { MultiStepFormSchemaConfig } from './form-config';
-import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
-import type { CreateComponent } from './utils';
-import { type instantiateReactSteps, StepSpecificComponent } from './steps';
+import {
+  type CreateComponentFn,
+  type HelperFunctions,
+  MultiStepFormStepSchema,
+} from './step-schema';
+import type { instantiateReactSteps } from './steps';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
@@ -220,16 +221,7 @@ export class MultiStepFormSchema<
     return next;
   }
 
-  createComponent<
-    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    props = undefined,
-  >(config: {
-    stepData: chosenSteps;
-    render: CreateComponent<
-      StepSpecificComponent.instanceInput<def, value, chosenSteps>,
-      props
-    >;
-  }) {
-    return this.stepSchema.createComponent(config);
+  get createComponent(): CreateComponentFn<def, value> {
+    return this.stepSchema.createComponent;
   }
 }

@@ -4,6 +4,7 @@ import {
   instantiateSteps as instantiateStepsCore,
   type Expand,
   getDefaultValues,
+  type getDeepFields,
   type HelperFn,
   type HelperFnChosenSteps,
   InvalidComponentError,
@@ -40,17 +41,34 @@ import {
 import { Suspense, createElement, useEffect, type ReactNode } from 'react';
 import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
 
-export type CreateComponentFn<
+export interface CreateComponentFn<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
-> = <targetStep extends StepNumbers<value>, props = undefined>(
-  config: HelperFn.BaseOptions<value, [targetStep]> & {
-    render: CreateComponent<
-      StepSpecificComponent.instanceInput<def, value, [targetStep]>,
+> {
+  <targetStep extends StepNumbers<value>, props = undefined>(
+    config: HelperFn.BaseOptions<value, [targetStep]> & {
+      render: CreateComponent<
+        StepSpecificComponent.instanceInput<def, value, [targetStep]>,
+        props
+      >;
+    },
+  ): CreatedMultiStepFormComponent<props>;
+
+  /** Creates a reusable component bound to one field in one step. */
+  forField<
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    props = undefined,
+  >(
+    config: StepSpecificComponent.fieldConfig<
+      def,
+      value,
+      targetStep,
+      targetField,
       props
-    >;
-  },
-) => CreatedMultiStepFormComponent<props>;
+    > & { step: targetStep },
+  ): CreatedMultiStepFormComponent<props>;
+}
 
 export interface HelperFunctions<
   def extends StepSchema.Config,
@@ -106,6 +124,7 @@ export class MultiStepFormStepSchema<
   value: value;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+  readonly createComponent: CreateComponentFn<def, value>;
 
   constructor(config: MultiStepFormStepSchema.config<def, value>) {
     const { form, ...rest } = config;
@@ -146,6 +165,51 @@ export class MultiStepFormStepSchema<
         }),
       };
     });
+
+    // A function object preserves the callable factory while grouping the field-specific
+    // variant under the API it specializes.
+    this.createComponent = Object.assign(this.createComponentImpl.bind(this), {
+      forField: <
+        targetStep extends StepNumbers<value>,
+        targetField extends getDeepFields<value, targetStep>,
+        props = undefined,
+      >(
+        componentConfig: StepSpecificComponent.fieldConfig<
+          def,
+          value,
+          targetStep,
+          targetField,
+          props
+        > & { step: targetStep },
+      ) => {
+        InvalidComponentError.invariant(
+          typeof componentConfig === 'object' && componentConfig !== null,
+          {
+            reason:
+              'The argument must be a field component configuration object',
+            component: 'createFieldComponent',
+            argument: 'config',
+            value: componentConfig,
+          },
+        );
+
+        const { step, ...fieldConfig } = componentConfig;
+        InvalidStepError.invariant(this.steps.isValidStep(step), {
+          reason: `The target step ${step} is invalid`,
+          targetStep: step,
+          validSteps: [...this.steps.value],
+        });
+        const target = this.value[step] as {
+          createComponent: StepSpecificCreateComponentFn<
+            def,
+            value,
+            targetStep
+          >;
+        };
+
+        return target.createComponent.forField(fieldConfig as never);
+      },
+    }) as CreateComponentFn<def, value>;
   }
 
   private createResolvedCtx<
@@ -588,13 +652,66 @@ export class MultiStepFormStepSchema<
       })(render);
     };
 
-    return impl as StepSpecificCreateComponentFn<def, value, targetStep>;
+    const forField = <
+      targetField extends getDeepFields<value, targetStep>,
+      props = undefined,
+    >(
+      fieldConfig: StepSpecificComponent.fieldConfig<
+        def,
+        value,
+        targetStep,
+        targetField,
+        props
+      >,
+    ) => {
+      InvalidComponentError.invariant(
+        typeof fieldConfig === 'object' && fieldConfig !== null,
+        {
+          reason: 'The argument must be a field component configuration object',
+          component: 'createFieldComponent',
+          argument: 'config',
+          value: fieldConfig,
+        },
+      );
+
+      const { field: targetField, render } = fieldConfig;
+
+      InvalidComponentError.invariant(typeof render === 'function', {
+        reason: 'The "render" property must be a function',
+        component: 'createFieldComponent',
+        argument: 'config.render',
+        value: render,
+      });
+
+      // Reuse the existing Field component so specialized components inherit its subscriptions,
+      // validation, deep-field support, and update/reset behavior.
+      return impl({
+        render: (
+          { Field }: StepSpecificComponent.input<def, value, targetStep, {}>,
+          props: props,
+        ) =>
+          createElement(
+            Field as never,
+            {
+              name: targetField,
+              children: (fieldProps: unknown) =>
+                render(fieldProps as never, props),
+            } as never,
+          ),
+      } as never);
+    };
+
+    return Object.assign(impl, { forField }) as StepSpecificCreateComponentFn<
+      def,
+      value,
+      targetStep
+    >;
   }
 
   /**
    * Creates a component from selected step data and an object-based render configuration.
    */
-  createComponent<
+  private createComponentImpl<
     chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     props = undefined,
   >(

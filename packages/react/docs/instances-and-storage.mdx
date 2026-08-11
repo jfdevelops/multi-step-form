@@ -84,6 +84,35 @@ const SameContactStep = publicForm.stepSchema.value.step1.createComponent({
 });
 ```
 
+Use `createComponent.forField` when a component only represents one field. The schema-level form
+accepts both `step` and `field`; a step-specific factory already knows its step:
+
+```tsx
+const SharedFirstName = createBookingForm.createComponent.forField({
+  step: "step1",
+  field: "firstName",
+  render(field, props: { placeholder?: string }) {
+    return (
+      <input
+        value={field.defaultValue}
+        placeholder={props.placeholder}
+        onChange={(event) => field.onInputChange(event.target.value)}
+      />
+    );
+  },
+});
+
+const InstanceFirstName =
+  publicForm.stepSchema.value.step1.createComponent.forField({
+    field: "firstName",
+    render: (field) => <input value={field.defaultValue} readOnly />,
+  });
+```
+
+The configured-factory version resolves against the active instance and caches a separate bound
+component per instance. This lets the same component definition be reused without sharing form
+state or subscriptions.
+
 ## Wiring the active instance
 
 Shared `createHelperFn`s (`createBookingForm.step2.createHelperFn(...)`) dispatch to whichever

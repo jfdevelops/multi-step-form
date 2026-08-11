@@ -2,6 +2,7 @@ import type {
   _instantiateSteps,
   BaseStepFunctions,
   Expand,
+  getDeepFields,
   getDefaultValues,
   HelperFn,
   HelperFnChosenSteps,
@@ -102,7 +103,7 @@ export namespace StepSpecificComponent {
      */
     reset: ResetFn.stepSpecific<value, targetStep>;
   };
-  type buildCurrentStep<
+  export type buildCurrentStep<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     targetStep extends StepNumbers<value>,
@@ -260,6 +261,27 @@ export namespace StepSpecificComponent {
       props
     >;
 
+  export type fieldInput<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+  > = field.childrenProps<value, targetField, targetStep>;
+
+  export type fieldConfig<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
+    props,
+  > = {
+    field: targetField;
+    render: CreateComponent<
+      fieldInput<def, value, targetStep, targetField>,
+      props
+    >;
+  };
+
   export type instanceInput<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
@@ -317,6 +339,20 @@ export interface StepSpecificCreateComponentFn<
       targetStep,
       props,
       additionalCtx
+    >,
+  ): CreatedMultiStepFormComponent<props>;
+
+  /** Creates a reusable component bound to one field in this step. */
+  forField<
+    targetField extends getDeepFields<value, targetStep>,
+    props = undefined,
+  >(
+    config: StepSpecificComponent.fieldConfig<
+      def,
+      value,
+      targetStep,
+      targetField,
+      props
     >,
   ): CreatedMultiStepFormComponent<props>;
 }

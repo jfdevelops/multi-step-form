@@ -188,6 +188,32 @@ export const Step1 = schema.stepSchema.value.step1.createComponent({
 // more step components
 ```
 
+Create reusable field components directly from a schema or a specific step. The render callback
+receives the resolved field value, metadata, and update/reset helpers. Custom props remain typed
+on the returned component:
+
+```tsx
+export const FirstName = schema.createComponent.forField({
+  step: "step1",
+  field: "firstName",
+  render(field, props: { placeholder?: string }) {
+    return (
+      <Input
+        value={field.defaultValue}
+        placeholder={props.placeholder}
+        onChange={(event) => field.onInputChange(event.target.value)}
+      />
+    );
+  },
+});
+
+export const StepFirstName =
+  schema.stepSchema.value.step1.createComponent.forField({
+    field: "firstName",
+    render: (field) => <Input value={field.defaultValue} />,
+  });
+```
+
 ### 3. Create a "Step Layout"
 
 ```tsx
