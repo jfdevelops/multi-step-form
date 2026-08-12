@@ -61,7 +61,9 @@ runCommand(pnpmCommand, [
 console.log('🔎 Typechecking packages...');
 runCommand(pnpmCommand, ['run', 'typecheck:packages']);
 
-console.log('📦 Building packages...');
-runCommand(pnpmCommand, ['run', 'build:packages']);
+console.log('📦 Building packages and consumers...');
+// Package-local typechecks cannot detect missing links between emitted declarations. The full
+// workspace build compiles the example against package exports, matching a real consumer.
+runCommand(pnpmCommand, ['run', 'build']);
 
 console.log('✅ Tests, typecheck, and build succeeded - proceeding with commit.');
