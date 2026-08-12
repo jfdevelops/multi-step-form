@@ -669,6 +669,62 @@ export class MultiStepFormStepSchema<
   }
 
   /**
+   * Persisted storage is JSON, so function-valued field metadata (e.g. a date field's
+   * `transform`) never survives the round trip. Restore it from the current, in-memory
+   * fields — only `defaultValue` is trusted from storage.
+   */
+  private restoreFieldMetadata(storageValues: value): value {
+    const merged: Record<string, unknown> = { ...storageValues };
+    const currentValue = this.value as unknown as Record<string, unknown>;
+
+    for (const [stepKey, storedStep] of Object.entries(merged)) {
+      const currentStep = currentValue[stepKey] as
+        | { fields?: Record<string, Record<string, unknown>> }
+        | undefined;
+
+      if (
+        !currentStep?.fields ||
+        typeof storedStep !== 'object' ||
+        storedStep === null ||
+        !('fields' in storedStep) ||
+        typeof (storedStep as { fields?: unknown }).fields !== 'object'
+      ) {
+        continue;
+      }
+
+      const currentFields = currentStep.fields;
+      const storedFields = (
+        storedStep as { fields: Record<string, Record<string, unknown>> }
+      ).fields;
+      const nextFields: Record<string, unknown> = { ...currentFields };
+
+      for (const [fieldName, storedField] of Object.entries(storedFields)) {
+        const currentField = currentFields[fieldName];
+
+        if (
+          !currentField ||
+          typeof storedField !== 'object' ||
+          storedField === null
+        ) {
+          continue;
+        }
+
+        nextFields[fieldName] = {
+          ...currentField,
+          defaultValue: storedField.defaultValue,
+        };
+      }
+
+      merged[stepKey] = {
+        ...storedStep,
+        fields: nextFields,
+      };
+    }
+
+    return merged as value;
+  }
+
+  /**
    * Syncs the values from storage to {@linkcode value}.
    */
   sync() {
@@ -676,7 +732,8 @@ export class MultiStepFormStepSchema<
     const storageValues = this.__getStorage().get();
 
     if (storageValues) {
-      const enrichedValues = this.#internal.enrichValues(storageValues);
+      const restoredValues = this.restoreFieldMetadata(storageValues);
+      const enrichedValues = this.#internal.enrichValues(restoredValues);
 
       this.value = { ...enrichedValues };
     }
