@@ -919,12 +919,15 @@ describe('creating reusable components via "createComponent.forField"', () => {
       },
       instances: ['client', 'admin'],
     }).configure();
-    const client = createForm({ instance: 'client' }).withOverrides({
-      step1: async () => ({
-        firstName: 'Client override',
-        lastName: 'Wrong client field',
-      }),
-    });
+    const client = createForm({ instance: 'client' })
+      .withOverrides({
+        step1: async () => ({
+          firstName: 'Client override',
+          lastName: 'Wrong client field',
+        }),
+      })
+      .withForm({ render: () => null })
+      .withContext();
     const admin = createForm({ instance: 'admin' }).withOverrides({
       step1: async () => ({
         firstName: 'Wrong admin field',
