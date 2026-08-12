@@ -59,7 +59,11 @@ export interface CreateComponentFn<
     },
   ): CreatedMultiStepFormComponent<props>;
 
-  /** Creates a reusable component bound to one field in one step. */
+  /**
+   * Creates a reusable component bound to one field in one step.
+   * Field metadata and current values are passed to `render`; remaining component props are
+   * forwarded as its optional custom props argument.
+   */
   forField<
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
@@ -80,7 +84,11 @@ export interface CreateComponentFn<
     customProps
   >;
 
-  /** Creates a reusable component that selects a field from one step when rendered. */
+  /**
+   * Creates a reusable component that selects a field from one step when rendered.
+   * The returned component requires `field`, while field metadata and current values are
+   * passed to `render`.
+   */
   forField<
     targetStep extends StepNumbers<value>,
     customProps extends object = {},
