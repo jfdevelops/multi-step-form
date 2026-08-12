@@ -293,6 +293,12 @@ interface MultiStepFormReactFactoryCreateComponentFn<
     },
   ): CreatedMultiStepFormComponent<props>;
 
+  /**
+   * Creates a reusable field component from the definition.
+   *
+   * Pass the schema to render through the returned component's `instance` prop so one
+   * definition can be shared by independently configured form instances.
+   */
   forField<
     targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
     targetField extends getDeepFields<
@@ -319,6 +325,10 @@ interface MultiStepFormReactFactoryCreateComponentFn<
     >,
   ) => ReactNode;
 
+  /**
+   * Creates a reusable component whose field is selected when the component is rendered.
+   * The selected instance supplies current values, overrides, and subscriptions.
+   */
   forField<
     targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
     customProps extends object = {},
@@ -357,6 +367,10 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
     >,
   ): CreatedMultiStepFormComponent<props>;
 
+  /**
+   * Creates a reusable component bound to one field in this factory step.
+   * The returned component requires the schema instance whose field data it should read.
+   */
   forField<
     targetField extends getDeepFields<
       DefineReactValue<TSteps, TCasing>,
@@ -382,6 +396,10 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
     >,
   ) => ReactNode;
 
+  /**
+   * Creates a reusable component that selects one field in this factory step at render time.
+   * The selected instance supplies current values, overrides, and subscriptions.
+   */
   forField<customProps extends object = {}>(
     config: StepSpecificComponent.selectableFieldConfig<
       DefineConfig<TSteps, TCasing>,
