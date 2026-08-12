@@ -331,13 +331,17 @@ interface MultiStepFormReactFactoryCreateComponentFn<
    */
   forField<
     targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+    targetField extends getDeepFields<
+      DefineReactValue<TSteps, TCasing>,
+      targetStep
+    > = getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
     customProps extends object = {},
   >(
     config: StepSpecificComponent.selectableFieldConfig<
       DefineConfig<TSteps, TCasing>,
       DefineReactValue<TSteps, TCasing>,
       targetStep,
-      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      targetField,
       customProps
     > & { step: targetStep },
   ): (
@@ -345,7 +349,7 @@ interface MultiStepFormReactFactoryCreateComponentFn<
       TSteps,
       TCasing,
       targetStep,
-      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      targetField,
       customProps,
       true
     >,
@@ -400,12 +404,18 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
    * Creates a reusable component that selects one field in this factory step at render time.
    * The selected instance supplies current values, overrides, and subscriptions.
    */
-  forField<customProps extends object = {}>(
+  forField<
+    targetField extends getDeepFields<
+      DefineReactValue<TSteps, TCasing>,
+      targetStep
+    > = getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+    customProps extends object = {},
+  >(
     config: StepSpecificComponent.selectableFieldConfig<
       DefineConfig<TSteps, TCasing>,
       DefineReactValue<TSteps, TCasing>,
       targetStep,
-      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      targetField,
       customProps
     >,
   ): (
@@ -413,7 +423,7 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
       TSteps,
       TCasing,
       targetStep,
-      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+      targetField,
       customProps,
       true
     >,
@@ -651,6 +661,7 @@ function createReactFactory<
     forField(componentConfig: {
       step: string;
       field?: string;
+      fields?: readonly string[];
       render: (field: unknown, props: unknown) => ReactNode;
     }) {
       // Each explicitly selected instance gets its own bound component. Caching preserves
@@ -683,6 +694,7 @@ function createReactFactory<
             createComponent: {
               forField: (config: {
                 field?: string;
+                fields?: readonly string[];
                 render: (field: unknown, props: unknown) => ReactNode;
               }) => (props?: unknown) => ReactNode;
             };
@@ -690,6 +702,7 @@ function createReactFactory<
 
           Component = step.createComponent.forField({
             field: componentConfig.field,
+            fields: componentConfig.fields,
             render: componentConfig.render,
           });
           components.set(instance, Component);
@@ -709,6 +722,7 @@ function createReactFactory<
       createComponent: Function & {
         forField: (config: {
           field?: string;
+          fields?: readonly string[];
           render: (field: unknown, props: unknown) => ReactNode;
         }) => (props?: unknown) => ReactNode;
       };

@@ -498,6 +498,8 @@ export namespace StepSpecificComponent {
     targetField extends getDeepFields<value, targetStep>,
     customProps extends object,
   > = {
+    /** Limits the fields accepted by the returned component and narrows `render` field data. */
+    fields?: readonly targetField[];
     render: CreateComponent<
       fieldInput<def, value, targetStep, targetField>,
       customProps
@@ -593,19 +595,25 @@ export interface StepSpecificCreateComponentFn<
    * The returned component requires `field`, while field metadata and current values are
    * passed to `render`.
    */
-  forField<customProps extends object = {}>(
+  forField<
+    targetField extends getDeepFields<value, targetStep> = getDeepFields<
+      value,
+      targetStep
+    >,
+    customProps extends object = {},
+  >(
     config: StepSpecificComponent.selectableFieldConfig<
       def,
       value,
       targetStep,
-      getDeepFields<value, targetStep>,
+      targetField,
       customProps
     >,
   ): StepSpecificComponent.selectableFieldComponent<
     def,
     value,
     targetStep,
-    getDeepFields<value, targetStep>,
+    targetField,
     customProps
   >;
 }

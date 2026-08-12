@@ -914,6 +914,9 @@ describe('creating reusable components via "createComponent.forField"', () => {
               defaultValue: 'Client',
               label: 'Last name',
             },
+            email: {
+              defaultValue: 'client@example.com',
+            },
           },
         },
       },
@@ -936,6 +939,7 @@ describe('creating reusable components via "createComponent.forField"', () => {
     });
 
     const Name = createForm.stepSchema.value.step1.createComponent.forField({
+      fields: ['firstName', 'lastName'],
       render(field) {
         expectTypeOf(field.name).toEqualTypeOf<'firstName' | 'lastName'>();
         expectTypeOf(field.defaultValue).toEqualTypeOf<string>();

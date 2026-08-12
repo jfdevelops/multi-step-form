@@ -91,20 +91,24 @@ export interface CreateComponentFn<
    */
   forField<
     targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep> = getDeepFields<
+      value,
+      targetStep
+    >,
     customProps extends object = {},
   >(
     config: StepSpecificComponent.selectableFieldConfig<
       def,
       value,
       targetStep,
-      getDeepFields<value, targetStep>,
+      targetField,
       customProps
     > & { step: targetStep },
   ): StepSpecificComponent.selectableFieldComponent<
     def,
     value,
     targetStep,
-    getDeepFields<value, targetStep>,
+    targetField,
     customProps
   >;
 }
@@ -706,7 +710,9 @@ export class MultiStepFormStepSchema<
         },
       );
 
-      const { field: configuredField, render } = fieldConfig;
+      const { field: configuredField, fields, render } = fieldConfig as typeof fieldConfig & {
+        fields?: readonly targetField[];
+      };
 
       InvalidComponentError.invariant(typeof render === 'function', {
         reason: 'The "render" property must be a function',
@@ -745,6 +751,15 @@ export class MultiStepFormStepSchema<
               'The returned field component requires a "field" prop because its configuration did not provide one',
             targetStep,
           });
+
+          InvalidFieldError.invariant(
+            fields === undefined || fields.includes(targetField),
+            {
+              reason: 'The selected field is not included in the configured "fields" list',
+              targetStep,
+              targetField,
+            },
+          );
 
           return createElement(
             Field as never,
