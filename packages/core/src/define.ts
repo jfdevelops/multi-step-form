@@ -105,7 +105,10 @@ export type ConfigureOptions<
   // `DefineConfig` / `StepSchema.Config`. Call sites that want the runtime default pass
   // `DefaultCasing` explicitly (see {@linkcode MultiStepFormDefinition.configure}).
   TCasing extends CasingType = CasingType,
+  TSteps extends StepConfig = StepConfig,
 > = NameTransformCasingOptions<TCasing> & {
+  /** Override resolvers applied to every instance created by this factory. */
+  defaultOverrides?: WithOverridesMap<TSteps>;
   storage?: ConfigureStorageConfig<InstanceName<TInstances>>;
   update?: ConfigureUpdateConfig<InstanceName<TInstances>>;
 };
@@ -139,6 +142,23 @@ export function mergeStepOverrides<TSteps extends StepConfig>(
       ];
     }),
   ) as TSteps;
+}
+
+interface OverrideResolvable {
+  stepSchema: {
+    resolveOverrides(): unknown;
+  };
+}
+
+export function scheduleOverrideResolution<TInstance extends OverrideResolvable>(
+  instance: TInstance,
+  getCurrentInstance: () => TInstance | undefined,
+) {
+  queueMicrotask(() => {
+    if (getCurrentInstance() === instance) {
+      instance.stepSchema.resolveOverrides();
+    }
+  });
 }
 
 /**
@@ -346,10 +366,11 @@ export type MultiStepFormFactory<
 function resolveStorageConfig<
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
+  TSteps extends StepConfig,
 >(
   instanceName: InstanceName<TInstances>,
   declaredInstances: TInstances,
-  configureOptions: ConfigureOptions<TInstances, TCasing>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
 ): BaseStorageConfig<string> {
   const { storage, update } = configureOptions;
   const configuredInstances: readonly InstanceName<TInstances>[] =
@@ -396,10 +417,11 @@ function createFactory<
   const TCasing extends CasingType,
 >(
   config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  configureOptions: ConfigureOptions<TInstances, TCasing>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
 ): MultiStepFormFactory<TSteps, TInstances, TCasing> {
   const { steps, instances: declaredInstances } = config;
-  const { nameTransformCasing } = configureOptions;
+  const { defaultOverrides, nameTransformCasing } = configureOptions;
+  const configuredSteps = mergeStepOverrides(steps as TSteps, defaultOverrides);
   const registry = new Map<
     InstanceName<TInstances>,
     MultiStepFormInstanceImpl<DefineConfig<TSteps, TCasing>>
@@ -423,7 +445,7 @@ function createFactory<
     const instance = new MultiStepFormInstanceImpl<
       DefineConfig<TSteps, TCasing>
     >({
-      steps: steps as DefineConfig<TSteps, TCasing>['steps'],
+      steps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
       nameTransformCasing,
       storageConfig,
       instanceName,
@@ -431,6 +453,7 @@ function createFactory<
     });
 
     setActive(instanceName, instance);
+    scheduleOverrideResolution(instance, () => registry.get(instanceName));
 
     return instance;
   }
@@ -533,8 +556,9 @@ export class MultiStepFormDefinition<
   configure<const TCasing extends CasingType = DefaultCasing>(
     configureOptions: ConfigureOptions<
       TInstances,
-      TCasing
-    > = {} as ConfigureOptions<TInstances, TCasing>,
+      TCasing,
+      TSteps
+    > = {} as ConfigureOptions<TInstances, TCasing, TSteps>,
   ): MultiStepFormFactory<TSteps, TInstances, TCasing> {
     return createFactory<TSteps, TInstances, TCasing>(
       this.config,

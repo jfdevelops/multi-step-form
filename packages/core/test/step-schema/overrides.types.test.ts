@@ -2,6 +2,25 @@ import { describe, expectTypeOf, it } from 'vitest';
 import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: overrides types', () => {
+  it('infers default override data from configure options', () => {
+    defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: { firstName: { defaultValue: '' } },
+        },
+      },
+    }).configure({
+      defaultOverrides: {
+        step1: ({ fields }) => {
+          expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+
+          return { firstName: 'Default' };
+        },
+      },
+    });
+  });
+
   it('infers createValueOverride data and return values from its target step', () => {
     const createForm = defineMultiStepForm({
       steps: {

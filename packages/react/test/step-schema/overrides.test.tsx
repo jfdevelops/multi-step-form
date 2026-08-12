@@ -70,6 +70,50 @@ function createDeferred<T>() {
 }
 
 describe('step overrides', () => {
+  it('loads default overrides from a server for every instance', async () => {
+    const pretendServer = {
+      getSharedName: vi.fn(async () => ({ firstName: 'Server default' })),
+      getSharedAge: vi.fn(async () => ({ age: 42 })),
+      getClientName: vi.fn(async () => ({ firstName: 'Client' })),
+    };
+    const createForm = defineMultiStepForm({
+      instances: ['client', 'admin'],
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: { firstName: { defaultValue: '' } },
+        },
+        step2: {
+          title: 'Step 2',
+          fields: { age: { defaultValue: 0 } },
+        },
+      },
+    }).configure({
+      defaultOverrides: {
+        step1: async () => pretendServer.getSharedName(),
+        step2: async () => pretendServer.getSharedAge(),
+      },
+    });
+    const client = createForm({ instance: 'client' }).withOverrides({
+      step1: async () => pretendServer.getClientName(),
+    });
+    const admin = createForm({ instance: 'admin' });
+
+    await vi.waitFor(() => {
+      expect(
+        client.stepSchema.value.step1.fields.firstName.defaultValue,
+      ).toBe('Client');
+      expect(client.stepSchema.value.step2.fields.age.defaultValue).toBe(42);
+      expect(admin.stepSchema.value.step1.fields.firstName.defaultValue).toBe(
+        'Server default',
+      );
+      expect(admin.stepSchema.value.step2.fields.age.defaultValue).toBe(42);
+    });
+    expect(pretendServer.getSharedName).toHaveBeenCalledTimes(1);
+    expect(pretendServer.getSharedAge).toHaveBeenCalledTimes(2);
+    expect(pretendServer.getClientName).toHaveBeenCalledTimes(1);
+  });
+
   it('creates typed value overrides and runs them when attached', async () => {
     const createForm = defineMultiStepForm({
       steps: {

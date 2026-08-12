@@ -16,6 +16,7 @@ import {
   type InstanceName,
   mergeStepOverrides,
   type MultiStepFormFactoryCreateValueOverrideFn,
+  scheduleOverrideResolution,
   type StepConfig,
   type StepNumbers,
   type StepSpecificHelperFn,
@@ -152,10 +153,11 @@ function attachInstance<
 function resolveStorageConfig<
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
+  TSteps extends StepConfig,
 >(
   instanceName: InstanceName<TInstances>,
   declaredInstances: TInstances,
-  configureOptions: ConfigureOptions<TInstances, TCasing>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
 ): BaseStorageConfig<string> {
   const { storage, update } = configureOptions;
   const configuredInstances: readonly InstanceName<TInstances>[] =
@@ -397,10 +399,11 @@ function createReactFactory<
   const TCasing extends CasingType,
 >(
   config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  configureOptions: ConfigureOptions<TInstances, TCasing>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
 ): MultiStepFormReactFactory<TSteps, TInstances, TCasing> {
   const { steps, instances: declaredInstances } = config;
-  const { nameTransformCasing } = configureOptions;
+  const { defaultOverrides, nameTransformCasing } = configureOptions;
+  const configuredSteps = mergeStepOverrides(steps as TSteps, defaultOverrides);
   const registry = new Map<
     InstanceName<TInstances>,
     MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>
@@ -408,7 +411,7 @@ function createReactFactory<
   const factorySchema = new MultiStepFormSchema<
     DefineConfig<TSteps, TCasing>
   >({
-    steps: steps as DefineConfig<TSteps, TCasing>['steps'],
+    steps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
     nameTransformCasing,
     storage: {
       key: DEFAULT_STORAGE_KEY,
@@ -436,12 +439,12 @@ function createReactFactory<
       InstanceName<TInstances>
     >(
       new MultiStepFormSchema<DefineConfig<TSteps, TCasing>>({
-        steps: steps as DefineConfig<TSteps, TCasing>['steps'],
+        steps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
         nameTransformCasing,
         storage: storageConfig,
       } as never),
       {
-        rawSteps: steps as DefineConfig<TSteps, TCasing>['steps'],
+        rawSteps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
         nameTransformCasing,
         storageConfig,
         instanceName,
@@ -450,6 +453,7 @@ function createReactFactory<
     );
 
     setActive(instanceName, instance);
+    scheduleOverrideResolution(instance, () => registry.get(instanceName));
 
     return instance;
   }
@@ -648,8 +652,9 @@ export class MultiStepFormReactDefinition<
   configure<const TCasing extends CasingType = DefaultCasing>(
     configureOptions: ConfigureOptions<
       TInstances,
-      TCasing
-    > = {} as ConfigureOptions<TInstances, TCasing>,
+      TCasing,
+      TSteps
+    > = {} as ConfigureOptions<TInstances, TCasing, TSteps>,
   ): MultiStepFormReactFactory<TSteps, TInstances, TCasing> {
     return createReactFactory<TSteps, TInstances, TCasing>(
       this.config,
