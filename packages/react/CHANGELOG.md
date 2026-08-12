@@ -1,5 +1,14 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.8
+
+### Patch Changes
+
+- 638a38f: Prevent `withOverrides` from being chained a second time on the same instance, removing the race where a superseded instance's override resolver could still run.
+- Updated dependencies [638a38f]
+- Updated dependencies [94b45a4]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.5
+
 ## 1.0.0-beta.7
 
 ### Patch Changes
