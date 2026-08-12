@@ -1,5 +1,13 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-beta.4
+
+### Patch Changes
+
+- 6bd7a7d: Add the core `createValueOverride` factory API and immediately run overrides attached with `withOverrides`.
+- cdd4ad8: Add configured `defaultOverrides` that run for every form instance.
+- aa86af0: Preserve complete resolved field metadata across public core and React helpers.
+
 ## 1.0.0-beta.3
 
 ### Patch Changes

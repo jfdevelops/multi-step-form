@@ -1,5 +1,18 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.7
+
+### Patch Changes
+
+- 6bd7a7d: Add the core `createValueOverride` factory API and immediately run overrides attached with `withOverrides`.
+- cdd4ad8: Add configured `defaultOverrides` that run for every form instance.
+- aa86af0: Preserve complete resolved field metadata across public core and React helpers.
+- e915ae1: Deeply expand nested field default values in the `defaultValues.flat` type.
+- Updated dependencies [6bd7a7d]
+- Updated dependencies [cdd4ad8]
+- Updated dependencies [aa86af0]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.4
+
 ## 1.0.0-beta.6
 
 ### Minor Changes
