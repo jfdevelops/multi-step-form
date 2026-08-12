@@ -1,7 +1,10 @@
 import { InvalidInstanceError } from '@/errors/invalid-instance';
 import { NoActiveInstanceError } from '@/errors/no-active-instance';
 import { MultiStepFormSchema } from '@/schema';
-import type { NameTransformCasingOptions } from '@/steps/fields';
+import type {
+  getDefaultValues,
+  NameTransformCasingOptions,
+} from '@/steps/fields';
 import type { StepSpecificHelperFn } from '@/steps/fn-utils/helper-fn/utils';
 import {
   instantiateSteps,
@@ -13,7 +16,13 @@ import {
 } from '@/steps/steps';
 import { functionalUpdate } from '@/steps/utils';
 import { DEFAULT_STORAGE_KEY, type BaseStorageConfig } from '@/storage';
-import type { CasingType, DefaultCasing, Updater } from '@/utils';
+import type {
+  CasingType,
+  DefaultCasing,
+  Expand,
+  stripFunctions,
+  Updater,
+} from '@/utils';
 
 /**
  * The name used for the single instance created when {@linkcode DefineMultiStepFormOptions.instances}
@@ -106,6 +115,31 @@ export type WithOverridesMap<TSteps extends StepConfig> = Partial<{
     key in keyof TSteps as string extends key ? never : key
   ]: TSteps[key] extends AnyConfig ? StepOverrides<TSteps[key]> : never;
 }>;
+
+export function mergeStepOverrides<TSteps extends StepConfig>(
+  steps: TSteps,
+  overrides: WithOverridesMap<TSteps> | undefined,
+) {
+  if (!overrides) {
+    return steps;
+  }
+
+  return Object.fromEntries(
+    Object.entries(steps as Record<string, object>).map(([key, stepConfig]) => {
+      const override = (overrides as Record<string, unknown>)[key];
+
+      return [
+        key,
+        override
+          ? {
+              ...stepConfig,
+              overrides: override,
+            }
+          : stepConfig,
+      ];
+    }),
+  ) as TSteps;
+}
 
 /**
  * The resolved instantiated value shape for a form definition's steps, independent of any
@@ -207,23 +241,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
   }
 
   withOverrides(overrides: WithOverridesMap<def['steps']>) {
-    const mergedSteps = Object.fromEntries(
-      Object.entries(this.#rawSteps as Record<string, object>).map(
-        ([key, stepConfig]) => {
-          const override = (overrides as Record<string, unknown>)[key];
-
-          return [
-            key,
-            override
-              ? {
-                  ...stepConfig,
-                  overrides: override,
-                }
-              : stepConfig,
-          ];
-        },
-      ),
-    ) as def['steps'];
+    const mergedSteps = mergeStepOverrides(this.#rawSteps, overrides);
 
     const next = new MultiStepFormInstanceImpl<def>({
       steps: mergedSteps,
@@ -234,6 +252,8 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
     });
 
     this.#onRebuild(next);
+
+    next.stepSchema.resolveOverrides();
 
     return next as unknown as MultiStepFormInstance<def>;
   }
@@ -264,6 +284,30 @@ export interface MultiStepFormFactoryStepFunctions<
   createHelperFn: StepSpecificHelperFn<DefineValue<TSteps>, key>;
 }
 
+export interface MultiStepFormFactoryCreateValueOverrideFn<
+  TSteps extends StepConfig,
+> {
+  <targetStep extends StepNumbers<DefineValue<TSteps>>>(options: {
+    step: targetStep;
+    values: (
+      data: Expand<stripFunctions<DefineValue<TSteps>[targetStep]>>,
+    ) =>
+      | Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>
+      | Promise<Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>>;
+  }): (
+    data: Expand<stripFunctions<DefineValue<TSteps>[targetStep]>>,
+  ) =>
+    | Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>
+    | Promise<Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>>;
+}
+
+export function createValueOverride<data, result>(options: {
+  step: string;
+  values: (data: data) => result;
+}) {
+  return (data: data) => options.values(data);
+}
+
 export type MultiStepFormFactoryStepProperties<TSteps extends StepConfig> = {
   [key in StepNumbers<DefineValue<TSteps>>]: MultiStepFormFactoryStepFunctions<
     TSteps,
@@ -275,6 +319,8 @@ export type MultiStepFormFactoryBase<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
 > = MultiStepFormFactoryStepProperties<TSteps> & {
+  /** Creates a typed value override resolver for one step. */
+  createValueOverride: MultiStepFormFactoryCreateValueOverrideFn<TSteps>;
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
    *
@@ -450,6 +496,7 @@ function createFactory<
   );
 
   return Object.assign(factory, stepHelpers, {
+    createValueOverride,
     setActiveInstance(instanceName: InstanceName<TInstances>) {
       InvalidInstanceError.invariant(registry.has(instanceName), {
         reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,

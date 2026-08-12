@@ -1,7 +1,40 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: overrides', () => {
+  it('creates and automatically runs typed value overrides from the core factory', async () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            profile: {
+              defaultValue: { name: 'Taylor', active: false },
+              type: 'object.profile',
+            },
+          },
+        },
+      },
+    }).configure();
+    const override = createForm.createValueOverride({
+      step: 'step1',
+      values: ({ fields }) => ({
+        profile: {
+          name: fields.profile.defaultValue.name,
+          active: true,
+        },
+      }),
+    });
+    const schema = createForm().withOverrides({ step1: override });
+
+    await vi.waitFor(() => {
+      expect(schema.stepSchema.getValue('step1', 'profile')).toEqual({
+        name: 'Taylor',
+        active: true,
+      });
+    });
+  });
+
   it('resolves async overrides for a single step', async () => {
     const createForm = defineMultiStepForm({
       steps: {
@@ -30,7 +63,7 @@ describe('multi step form step schema: overrides', () => {
       }),
     });
 
-    expect(schema.stepSchema.getStepStatus('step1')).toBe('idle');
+    expect(schema.stepSchema.getStepStatus('step1')).toBe('loading');
     expect(schema.stepSchema.getStepStatus('step2')).toBe('resolved');
     expect(schema.stepSchema.getValue('step1', 'firstName')).toBe('');
 

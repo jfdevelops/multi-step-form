@@ -6,6 +6,7 @@ import {
   type BaseStorageConfig,
   type CasingType,
   type ConfigureOptions,
+  createValueOverride,
   type DefaultCasing,
   type DefineConfig,
   type DefineMultiStepFormOptions,
@@ -13,6 +14,8 @@ import {
   type HelperFnChosenSteps,
   InvalidComponentError,
   type InstanceName,
+  mergeStepOverrides,
+  type MultiStepFormFactoryCreateValueOverrideFn,
   type StepConfig,
   type StepNumbers,
   type StepSpecificHelperFn,
@@ -120,23 +123,7 @@ function attachInstance<
   return Object.assign(instance, {
     instanceName,
     withOverrides(overrides: WithOverridesMap<def['steps']>) {
-      const mergedSteps = Object.fromEntries(
-        Object.entries(rawSteps as Record<string, object>).map(
-          ([key, stepConfig]) => {
-            const override = (overrides as Record<string, unknown>)[key];
-
-            return [
-              key,
-              override
-                ? {
-                    ...stepConfig,
-                    overrides: override,
-                  }
-                : stepConfig,
-            ];
-          },
-        ),
-      ) as def['steps'];
+      const mergedSteps = mergeStepOverrides(rawSteps, overrides);
 
       const next = attachInstance<def, TInstance>(
         new MultiStepFormSchema<def>({
@@ -154,6 +141,8 @@ function attachInstance<
       );
 
       onRebuild(next);
+
+      next.stepSchema.resolveOverrides();
 
       return next;
     },
@@ -331,6 +320,11 @@ export type MultiStepFormReactFactoryBase<
 > &
   MultiStepFormReactFactoryStepProperties<TSteps> & {
   createComponent: MultiStepFormReactFactoryCreateComponentFn<TSteps, TCasing>;
+  /**
+   * Creates a typed value override resolver for one step that can be passed to
+   * {@linkcode MultiStepFormReactInstance.withOverrides}.
+   */
+  createValueOverride: MultiStepFormFactoryCreateValueOverrideFn<TSteps>;
   stepSchema: MultiStepFormReactFactoryStepSchema<TSteps, TCasing>;
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
@@ -616,6 +610,7 @@ function createReactFactory<
     stepHelpers,
     {
       createComponent: sharedCreateComponent,
+      createValueOverride,
       setActiveInstance(instanceName: InstanceName<TInstances>) {
         InvalidInstanceError.invariant(registry.has(instanceName), {
           reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,

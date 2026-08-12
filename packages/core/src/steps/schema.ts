@@ -777,6 +777,16 @@ export class MultiStepFormStepSchema<
     return this.value[step];
   }
 
+  resolveOverrides(
+    steps = Object.keys(this.value) as StepNumbers<value>[],
+  ) {
+    for (const step of steps) {
+      void this.resolveStep(step).catch(() => {
+        // Resolution errors remain available through the public step error state.
+      });
+    }
+  }
+
   suspendStep<targetStep extends StepNumbers<value>>(step: targetStep) {
     if (!this.hasOverrides(step)) {
       return this.value[step];

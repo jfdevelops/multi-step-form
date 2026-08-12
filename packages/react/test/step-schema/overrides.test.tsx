@@ -70,6 +70,54 @@ function createDeferred<T>() {
 }
 
 describe('step overrides', () => {
+  it('creates typed value overrides and runs them when attached', async () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            profile: {
+              defaultValue: {
+                name: 'Taylor',
+                active: false,
+              },
+              type: 'object.profile',
+            },
+          },
+        },
+      },
+    }).configure();
+    const override = createForm.createValueOverride({
+      step: 'step1',
+      values: ({ fields }) => {
+        expectTypeOf(fields.profile.type).toEqualTypeOf<'object.profile'>();
+        expectTypeOf(fields.profile.defaultValue).toEqualTypeOf<{
+          name: string;
+          active: boolean;
+        }>();
+
+        return {
+          profile: {
+            name: fields.profile.defaultValue.name,
+            active: true,
+          },
+        };
+      },
+    });
+    const schema = createForm().withOverrides({ step1: override });
+
+    await vi.waitFor(() => {
+      expect(
+        schema.stepSchema.value.step1.fields.profile.defaultValue,
+      ).toEqual({ name: 'Taylor', active: true });
+    });
+    expect(
+      Reflect.apply(schema.stepSchema.getStepStatus, schema.stepSchema, [
+        'step1',
+      ]),
+    ).toBe('resolved');
+  });
+
   it('suspends the full step through Suspend', async () => {
     const deferred = createDeferred<{ firstName: string }>();
     const createForm = defineMultiStepForm({
