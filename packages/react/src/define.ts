@@ -20,7 +20,10 @@ import {
   type StepSpecificHelperFn,
   type WithOverridesMap,
 } from '@jfdevelops/multi-step-form-core';
-import { MultiStepFormSchema } from './schema';
+import {
+  type AnyMultiStepFormSchema,
+  MultiStepFormSchema,
+} from './schema';
 import {
   type instantiateReactSteps,
   type StepSpecificComponent,
@@ -260,7 +263,7 @@ type FactoryFieldComponentProps<
         customProps
       >) & {
     /** The configured form instance whose state and overrides this component reads. */
-    instance: MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>;
+    instance: AnyMultiStepFormSchema;
   }
 >;
 
@@ -651,7 +654,7 @@ function createReactFactory<
         );
 
         const { instance, ...componentProps } = props as {
-          instance: MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>;
+          instance: AnyMultiStepFormSchema;
         } & Record<string, unknown>;
         let Component = components.get(instance);
 
