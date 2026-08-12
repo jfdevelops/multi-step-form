@@ -1,5 +1,12 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-beta.5
+
+### Patch Changes
+
+- 638a38f: Prevent `withOverrides` from being chained a second time on the same instance, removing the race where a superseded instance's override resolver could still run.
+- 94b45a4: Fix storage sync discarding function-valued field metadata (e.g. a date field's `transform`) by restoring it from the in-memory fields instead of the JSON-parsed storage value.
+
 ## 1.0.0-beta.4
 
 ### Patch Changes
