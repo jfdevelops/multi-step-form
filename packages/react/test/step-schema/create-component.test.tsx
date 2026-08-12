@@ -209,6 +209,50 @@ describe('creating components via "createComponent" fn', () => {
       );
     });
 
+    it('only groups duplicate flat keys under the steps that declare them', () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Contact',
+            fields: {
+              firstName: { defaultValue: 'Taylor' },
+              lastName: { defaultValue: 'Client' },
+            },
+          },
+          step2: {
+            title: 'Account',
+            fields: { email: { defaultValue: 'client@example.com' } },
+          },
+          step3: {
+            title: 'Preferences',
+            fields: {
+              firstName: { defaultValue: false },
+              age: { defaultValue: 30 },
+            },
+          },
+          step4: {
+            title: 'Confirmation',
+            fields: { accepted: { defaultValue: true } },
+          },
+        },
+      }).configure()();
+
+      schema.createComponent({
+        stepData: 'all',
+        render({ defaultValues }) {
+          expectTypeOf(defaultValues.flat).toEqualTypeOf<{
+            firstName: { step1: string; step3: boolean };
+            lastName: string;
+            email: string;
+            age: number;
+            accepted: boolean;
+          }>();
+
+          return null;
+        },
+      });
+    });
+
     it('provides grouped and flat default values for multiple selected steps', async () => {
       const schema = defineMultiStepForm({
         steps: {

@@ -57,55 +57,70 @@ export namespace StepSpecificComponent {
     >]: Expand<getDefaultValues<value, step>>;
   };
 
-  type keysOfUnion<value> = value extends value ? keyof value : never;
-  type valueForKey<value, key extends PropertyKey> = value extends value
-    ? key extends keyof value
-      ? value[key]
-      : never
-    : never;
   type stepsContainingField<
-    grouped,
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     field extends PropertyKey,
   > = {
-    [step in keyof grouped]: field extends keyof grouped[step] ? step : never;
-  }[keyof grouped];
+    [step in HelperFnChosenSteps.resolve<
+      value,
+      chosenSteps
+    >]: field extends keyof getDefaultValues<value, step> ? step : never;
+  }[HelperFnChosenSteps.resolve<value, chosenSteps>];
   type isUnion<value, original = value> = value extends original
     ? [original] extends [value]
       ? false
       : true
     : never;
   type groupedFieldValues<
-    grouped,
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
     field extends PropertyKey,
   > = Expand<{
-    [step in stepsContainingField<grouped, field>]: field extends keyof grouped[step]
-      ? grouped[step][field]
+    [step in stepsContainingField<
+      value,
+      chosenSteps,
+      field
+    >]: field extends keyof getDefaultValues<value, step>
+      ? getDefaultValues<value, step>[field]
       : never;
   }>;
-  type flatFieldValue<grouped, field extends PropertyKey> = isUnion<
-    stepsContainingField<grouped, field>
+  type selectedFieldNames<
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  > = {
+    [step in HelperFnChosenSteps.resolve<
+      value,
+      chosenSteps
+    >]: keyof getDefaultValues<value, step>;
+  }[HelperFnChosenSteps.resolve<value, chosenSteps>];
+  type flatFieldValue<
+    value extends instantiateReactSteps,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+    field extends PropertyKey,
+  > = isUnion<
+    stepsContainingField<value, chosenSteps, field>
   > extends true
-    ? groupedFieldValues<grouped, field>
-    : valueForKey<grouped[keyof grouped], field>;
+    ? groupedFieldValues<value, chosenSteps, field>
+    : groupedFieldValues<value, chosenSteps, field> extends infer values
+      ? values[keyof values]
+      : never;
 
   export type multiStepDefaultValues<
     value extends instantiateReactSteps,
     chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    grouped extends selectedDefaultValues<value, chosenSteps> = selectedDefaultValues<
-      value,
-      chosenSteps
-    >,
   > = {
     /** Default field values grouped under their selected step keys. */
-    grouped: Expand<grouped>;
+    grouped: Expand<selectedDefaultValues<value, chosenSteps>>;
     /**
      * Default field values from every selected step merged into one object.
      * A field name declared by multiple selected steps is grouped under those step keys so no
      * value is overwritten.
      */
     flat: Expand<{
-      [field in keysOfUnion<grouped[keyof grouped]>]: flatFieldValue<
-        grouped,
+      [field in selectedFieldNames<value, chosenSteps>]: flatFieldValue<
+        value,
+        chosenSteps,
         field
       >;
     }>;
@@ -426,22 +441,6 @@ export namespace StepSpecificComponent {
       Omit<customProps, 'name' | 'children'>
   >;
 
-  export type fieldComponent<
-    def extends StepSchema.Config,
-    value extends instantiateReactSteps<def>,
-    targetStep extends StepNumbers<value>,
-    targetField extends getDeepFields<value, targetStep>,
-    customProps extends object,
-  > = (
-    props: fieldComponentProps<
-      def,
-      value,
-      targetStep,
-      targetField,
-      customProps
-    >,
-  ) => ReactNode;
-
   export type selectableFieldComponentProps<
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
@@ -460,22 +459,6 @@ export namespace StepSpecificComponent {
       field: targetField;
     }
   >;
-
-  export type selectableFieldComponent<
-    def extends StepSchema.Config,
-    value extends instantiateReactSteps<def>,
-    targetStep extends StepNumbers<value>,
-    targetField extends getDeepFields<value, targetStep>,
-    customProps extends object,
-  > = (
-    props: selectableFieldComponentProps<
-      def,
-      value,
-      targetStep,
-      targetField,
-      customProps
-    >,
-  ) => ReactNode;
 
   export type fieldConfig<
     def extends StepSchema.Config,
@@ -571,66 +554,10 @@ export interface StepSpecificCreateComponentFn<
    * Field metadata and current values are passed to `render`; remaining component props are
    * forwarded as its optional custom props argument.
    */
-  forField<
-    targetField extends getDeepFields<value, targetStep>,
-    customProps extends object = {},
-  >(
-    config: StepSpecificComponent.fieldConfig<
-      def,
-      value,
-      targetStep,
-      targetField,
-      customProps
-    >,
-  ): StepSpecificComponent.fieldComponent<
+  forField: import('./for-field').ForField.stepCreateComponentFn<
     def,
     value,
-    targetStep,
-    targetField,
-    customProps
-  >;
-
-  /**
-   * Creates a reusable component that selects one of this step's fields when rendered.
-   * The returned component requires `field`, while field metadata and current values are
-   * passed to `render`.
-   */
-  forField<
-    targetField extends getDeepFields<value, targetStep>,
-    customProps extends object = {},
-  >(
-    config: StepSpecificComponent.selectableFieldConfig<
-      def,
-      value,
-      targetStep,
-      targetField,
-      customProps
-    > & { fields: readonly targetField[] },
-  ): StepSpecificComponent.selectableFieldComponent<
-    def,
-    value,
-    targetStep,
-    targetField,
-    customProps
-  >;
-
-  forField<customProps extends object = {}>(
-    config: Omit<
-      StepSpecificComponent.selectableFieldConfig<
-        def,
-        value,
-        targetStep,
-        getDeepFields<value, targetStep>,
-        customProps
-      >,
-      'fields'
-    > & { fields?: undefined },
-  ): StepSpecificComponent.selectableFieldComponent<
-    def,
-    value,
-    targetStep,
-    getDeepFields<value, targetStep>,
-    customProps
+    targetStep
   >;
 }
 
