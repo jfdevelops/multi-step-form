@@ -687,7 +687,9 @@ export class MultiStepFormStepSchema<
         typeof storedStep !== 'object' ||
         storedStep === null ||
         !('fields' in storedStep) ||
-        typeof (storedStep as { fields?: unknown }).fields !== 'object'
+        storedStep.fields === null ||
+        typeof storedStep.fields !== 'object'
+
       ) {
         continue;
       }
