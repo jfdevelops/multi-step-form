@@ -105,10 +105,8 @@ describe('createMultiStepFormContext', () => {
         targetStep: 'step1',
       });
 
-      if (false) {
-        // @ts-expect-error Only concrete schema step keys are accepted.
-        useCurrentStepData({ targetStep: 'step3' });
-      }
+      type CurrentStepOptions = Parameters<typeof useCurrentStepData>[0];
+      expectTypeOf<{ targetStep: 'step3' }>().not.toMatchTypeOf<CurrentStepOptions>();
 
       if (!hasData) {
         return <NoCurrentData />;

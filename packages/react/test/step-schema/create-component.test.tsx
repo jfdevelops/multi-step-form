@@ -244,16 +244,15 @@ describe('creating components via "createComponent" fn', () => {
           expectTypeOf(defaultValues.flat.email.step1).toEqualTypeOf<string>();
           expectTypeOf(defaultValues.flat.email.step2).toEqualTypeOf<string>();
 
-          if (false) {
-            // @ts-expect-error Unselected step defaults are not included.
-            defaultValues.grouped.step3;
-            // @ts-expect-error Unselected field defaults are not included.
-            defaultValues.flat.accepted;
-            // @ts-expect-error Field paths must belong to a selected step.
-            <Field name='step3.accepted'>{() => null}</Field>;
-            // @ts-expect-error Field paths must contain the owning step.
-            <Field name='firstName'>{() => null}</Field>;
-          }
+          expectTypeOf<'step3'>().not.toMatchTypeOf<
+            keyof typeof defaultValues.grouped
+          >();
+          expectTypeOf<'accepted'>().not.toMatchTypeOf<
+            keyof typeof defaultValues.flat
+          >();
+          type FieldName = Parameters<typeof Field>[0]['name'];
+          expectTypeOf<'step3.accepted'>().not.toMatchTypeOf<FieldName>();
+          expectTypeOf<'firstName'>().not.toMatchTypeOf<FieldName>();
 
           return (
             <>
@@ -343,12 +342,12 @@ describe('creating components via "createComponent" fn', () => {
         },
       }).configure()();
 
-      if (false) {
-        // @ts-expect-error createComponent no longer accepts a callback argument.
-        schema.stepSchema.value.step1.createComponent(() => null);
-        // @ts-expect-error instance createComponent requires render in its config object.
-        schema.createComponent({ stepData: ['step1'] });
-      }
+      expectTypeOf<() => null>().not.toMatchTypeOf<
+        Parameters<typeof schema.stepSchema.value.step1.createComponent>[0]
+      >();
+      expectTypeOf<{ stepData: ['step1'] }>().not.toMatchTypeOf<
+        Parameters<typeof schema.createComponent>[0]
+      >();
 
       expect(() =>
         Reflect.apply(
@@ -734,10 +733,8 @@ describe('creating components via "createComponent" fn', () => {
               ]),
             ).toThrow(InvalidStepError);
 
-            if (false) {
-              // @ts-expect-error Only concrete schema step keys are accepted.
-              getProgress({ targetStep: 'step3' });
-            }
+            type ProgressOptions = Parameters<typeof getProgress>[0];
+            expectTypeOf<{ targetStep: 'step3' }>().not.toMatchTypeOf<ProgressOptions>();
 
             if (!currentStep.hasData) {
               const NoCurrentData = currentStep.NoCurrentData;
@@ -948,12 +945,9 @@ describe('creating reusable components via "createComponent.forField"', () => {
       },
     });
 
-    if (false) {
-      // @ts-expect-error Factory field components must choose an instance explicitly.
-      <Name field='firstName' />;
-      // @ts-expect-error Only fields declared by step1 can be selected.
-      <Name instance={client} field='email' />;
-    }
+    type NameProps = ComponentPropsWithRef<typeof Name>;
+    expectTypeOf<{ field: 'firstName' }>().not.toMatchTypeOf<NameProps>();
+    expectTypeOf<{ instance: typeof client; field: 'email' }>().not.toMatchTypeOf<NameProps>();
 
     const screen = await renderInJsdom(
       <>
