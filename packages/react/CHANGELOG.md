@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.5
+
+### Minor Changes
+
+- d99989d: Add a `fields` selector to `createComponent.forField` so reusable selectable components can narrow their accepted field prop and render data.
+
+### Patch Changes
+
+- 638be2f: Preserve the full step field union when `createComponent.forField` omits `fields`, while narrowing only when an explicit `fields` selector is provided.
+- 92040f3: Allow reusable factory field components to bind to any created multi-step form schema, including schemas finalized with `withForm()` and `withContext()`.
+
 ## 1.0.0-beta.4
 
 ### Major Changes
