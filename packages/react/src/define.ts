@@ -334,7 +334,7 @@ interface MultiStepFormReactFactoryCreateComponentFn<
     targetField extends getDeepFields<
       DefineReactValue<TSteps, TCasing>,
       targetStep
-    > = getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+    >,
     customProps extends object = {},
   >(
     config: StepSpecificComponent.selectableFieldConfig<
@@ -343,13 +343,38 @@ interface MultiStepFormReactFactoryCreateComponentFn<
       targetStep,
       targetField,
       customProps
-    > & { step: targetStep },
+    > & { fields: readonly targetField[]; step: targetStep },
   ): (
     props: FactoryFieldComponentProps<
       TSteps,
       TCasing,
       targetStep,
       targetField,
+      customProps,
+      true
+    >,
+  ) => ReactNode;
+
+  forField<
+    targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+    customProps extends object = {},
+  >(
+    config: Omit<
+      StepSpecificComponent.selectableFieldConfig<
+        DefineConfig<TSteps, TCasing>,
+        DefineReactValue<TSteps, TCasing>,
+        targetStep,
+        getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+        customProps
+      >,
+      'fields'
+    > & { fields?: undefined; step: targetStep },
+  ): (
+    props: FactoryFieldComponentProps<
+      TSteps,
+      TCasing,
+      targetStep,
+      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
       customProps,
       true
     >,
@@ -408,7 +433,7 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
     targetField extends getDeepFields<
       DefineReactValue<TSteps, TCasing>,
       targetStep
-    > = getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+    >,
     customProps extends object = {},
   >(
     config: StepSpecificComponent.selectableFieldConfig<
@@ -417,13 +442,35 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
       targetStep,
       targetField,
       customProps
-    >,
+    > & { fields: readonly targetField[] },
   ): (
     props: FactoryFieldComponentProps<
       TSteps,
       TCasing,
       targetStep,
       targetField,
+      customProps,
+      true
+    >,
+  ) => ReactNode;
+
+  forField<customProps extends object = {}>(
+    config: Omit<
+      StepSpecificComponent.selectableFieldConfig<
+        DefineConfig<TSteps, TCasing>,
+        DefineReactValue<TSteps, TCasing>,
+        targetStep,
+        getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
+        customProps
+      >,
+      'fields'
+    > & { fields?: undefined },
+  ): (
+    props: FactoryFieldComponentProps<
+      TSteps,
+      TCasing,
+      targetStep,
+      getDeepFields<DefineReactValue<TSteps, TCasing>, targetStep>,
       customProps,
       true
     >,

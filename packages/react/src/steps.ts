@@ -596,10 +596,7 @@ export interface StepSpecificCreateComponentFn<
    * passed to `render`.
    */
   forField<
-    targetField extends getDeepFields<value, targetStep> = getDeepFields<
-      value,
-      targetStep
-    >,
+    targetField extends getDeepFields<value, targetStep>,
     customProps extends object = {},
   >(
     config: StepSpecificComponent.selectableFieldConfig<
@@ -608,12 +605,31 @@ export interface StepSpecificCreateComponentFn<
       targetStep,
       targetField,
       customProps
-    >,
+    > & { fields: readonly targetField[] },
   ): StepSpecificComponent.selectableFieldComponent<
     def,
     value,
     targetStep,
     targetField,
+    customProps
+  >;
+
+  forField<customProps extends object = {}>(
+    config: Omit<
+      StepSpecificComponent.selectableFieldConfig<
+        def,
+        value,
+        targetStep,
+        getDeepFields<value, targetStep>,
+        customProps
+      >,
+      'fields'
+    > & { fields?: undefined },
+  ): StepSpecificComponent.selectableFieldComponent<
+    def,
+    value,
+    targetStep,
+    getDeepFields<value, targetStep>,
     customProps
   >;
 }
