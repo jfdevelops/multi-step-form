@@ -1,7 +1,10 @@
 import { InvalidInstanceError } from '@/errors/invalid-instance';
 import { NoActiveInstanceError } from '@/errors/no-active-instance';
 import { MultiStepFormSchema } from '@/schema';
-import type { NameTransformCasingOptions } from '@/steps/fields';
+import type {
+  getDefaultValues,
+  NameTransformCasingOptions,
+} from '@/steps/fields';
 import type { StepSpecificHelperFn } from '@/steps/fn-utils/helper-fn/utils';
 import {
   instantiateSteps,
@@ -13,7 +16,13 @@ import {
 } from '@/steps/steps';
 import { functionalUpdate } from '@/steps/utils';
 import { DEFAULT_STORAGE_KEY, type BaseStorageConfig } from '@/storage';
-import type { CasingType, DefaultCasing, Updater } from '@/utils';
+import type {
+  CasingType,
+  DefaultCasing,
+  Expand,
+  stripFunctions,
+  Updater,
+} from '@/utils';
 
 /**
  * The name used for the single instance created when {@linkcode DefineMultiStepFormOptions.instances}
@@ -96,7 +105,10 @@ export type ConfigureOptions<
   // `DefineConfig` / `StepSchema.Config`. Call sites that want the runtime default pass
   // `DefaultCasing` explicitly (see {@linkcode MultiStepFormDefinition.configure}).
   TCasing extends CasingType = CasingType,
+  TSteps extends StepConfig = StepConfig,
 > = NameTransformCasingOptions<TCasing> & {
+  /** Override resolvers applied to every instance created by this factory. */
+  defaultOverrides?: WithOverridesMap<TSteps>;
   storage?: ConfigureStorageConfig<InstanceName<TInstances>>;
   update?: ConfigureUpdateConfig<InstanceName<TInstances>>;
 };
@@ -106,6 +118,48 @@ export type WithOverridesMap<TSteps extends StepConfig> = Partial<{
     key in keyof TSteps as string extends key ? never : key
   ]: TSteps[key] extends AnyConfig ? StepOverrides<TSteps[key]> : never;
 }>;
+
+export function mergeStepOverrides<TSteps extends StepConfig>(
+  steps: TSteps,
+  overrides: WithOverridesMap<TSteps> | undefined,
+) {
+  if (!overrides) {
+    return steps;
+  }
+
+  return Object.fromEntries(
+    Object.entries(steps as Record<string, object>).map(([key, stepConfig]) => {
+      const override = (overrides as Record<string, unknown>)[key];
+
+      return [
+        key,
+        override
+          ? {
+              ...stepConfig,
+              overrides: override,
+            }
+          : stepConfig,
+      ];
+    }),
+  ) as TSteps;
+}
+
+interface OverrideResolvable {
+  stepSchema: {
+    resolveOverrides(): unknown;
+  };
+}
+
+export function scheduleOverrideResolution<TInstance extends OverrideResolvable>(
+  instance: TInstance,
+  getCurrentInstance: () => TInstance | undefined,
+) {
+  queueMicrotask(() => {
+    if (getCurrentInstance() === instance) {
+      instance.stepSchema.resolveOverrides();
+    }
+  });
+}
 
 /**
  * The resolved instantiated value shape for a form definition's steps, independent of any
@@ -207,23 +261,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
   }
 
   withOverrides(overrides: WithOverridesMap<def['steps']>) {
-    const mergedSteps = Object.fromEntries(
-      Object.entries(this.#rawSteps as Record<string, object>).map(
-        ([key, stepConfig]) => {
-          const override = (overrides as Record<string, unknown>)[key];
-
-          return [
-            key,
-            override
-              ? {
-                  ...stepConfig,
-                  overrides: override,
-                }
-              : stepConfig,
-          ];
-        },
-      ),
-    ) as def['steps'];
+    const mergedSteps = mergeStepOverrides(this.#rawSteps, overrides);
 
     const next = new MultiStepFormInstanceImpl<def>({
       steps: mergedSteps,
@@ -234,6 +272,8 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
     });
 
     this.#onRebuild(next);
+
+    next.stepSchema.resolveOverrides();
 
     return next as unknown as MultiStepFormInstance<def>;
   }
@@ -264,6 +304,30 @@ export interface MultiStepFormFactoryStepFunctions<
   createHelperFn: StepSpecificHelperFn<DefineValue<TSteps>, key>;
 }
 
+export interface MultiStepFormFactoryCreateValueOverrideFn<
+  TSteps extends StepConfig,
+> {
+  <targetStep extends StepNumbers<DefineValue<TSteps>>>(options: {
+    step: targetStep;
+    values: (
+      data: Expand<stripFunctions<DefineValue<TSteps>[targetStep]>>,
+    ) =>
+      | Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>
+      | Promise<Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>>;
+  }): (
+    data: Expand<stripFunctions<DefineValue<TSteps>[targetStep]>>,
+  ) =>
+    | Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>
+    | Promise<Partial<getDefaultValues<DefineValue<TSteps>, targetStep>>>;
+}
+
+export function createValueOverride<data, result>(options: {
+  step: string;
+  values: (data: data) => result;
+}) {
+  return (data: data) => options.values(data);
+}
+
 export type MultiStepFormFactoryStepProperties<TSteps extends StepConfig> = {
   [key in StepNumbers<DefineValue<TSteps>>]: MultiStepFormFactoryStepFunctions<
     TSteps,
@@ -275,6 +339,8 @@ export type MultiStepFormFactoryBase<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
 > = MultiStepFormFactoryStepProperties<TSteps> & {
+  /** Creates a typed value override resolver for one step. */
+  createValueOverride: MultiStepFormFactoryCreateValueOverrideFn<TSteps>;
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
    *
@@ -300,10 +366,11 @@ export type MultiStepFormFactory<
 function resolveStorageConfig<
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
+  TSteps extends StepConfig,
 >(
   instanceName: InstanceName<TInstances>,
   declaredInstances: TInstances,
-  configureOptions: ConfigureOptions<TInstances, TCasing>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
 ): BaseStorageConfig<string> {
   const { storage, update } = configureOptions;
   const configuredInstances: readonly InstanceName<TInstances>[] =
@@ -350,10 +417,11 @@ function createFactory<
   const TCasing extends CasingType,
 >(
   config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  configureOptions: ConfigureOptions<TInstances, TCasing>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
 ): MultiStepFormFactory<TSteps, TInstances, TCasing> {
   const { steps, instances: declaredInstances } = config;
-  const { nameTransformCasing } = configureOptions;
+  const { defaultOverrides, nameTransformCasing } = configureOptions;
+  const configuredSteps = mergeStepOverrides(steps as TSteps, defaultOverrides);
   const registry = new Map<
     InstanceName<TInstances>,
     MultiStepFormInstanceImpl<DefineConfig<TSteps, TCasing>>
@@ -377,7 +445,7 @@ function createFactory<
     const instance = new MultiStepFormInstanceImpl<
       DefineConfig<TSteps, TCasing>
     >({
-      steps: steps as DefineConfig<TSteps, TCasing>['steps'],
+      steps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
       nameTransformCasing,
       storageConfig,
       instanceName,
@@ -385,6 +453,7 @@ function createFactory<
     });
 
     setActive(instanceName, instance);
+    scheduleOverrideResolution(instance, () => registry.get(instanceName));
 
     return instance;
   }
@@ -450,6 +519,7 @@ function createFactory<
   );
 
   return Object.assign(factory, stepHelpers, {
+    createValueOverride,
     setActiveInstance(instanceName: InstanceName<TInstances>) {
       InvalidInstanceError.invariant(registry.has(instanceName), {
         reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,
@@ -486,8 +556,9 @@ export class MultiStepFormDefinition<
   configure<const TCasing extends CasingType = DefaultCasing>(
     configureOptions: ConfigureOptions<
       TInstances,
-      TCasing
-    > = {} as ConfigureOptions<TInstances, TCasing>,
+      TCasing,
+      TSteps
+    > = {} as ConfigureOptions<TInstances, TCasing, TSteps>,
   ): MultiStepFormFactory<TSteps, TInstances, TCasing> {
     return createFactory<TSteps, TInstances, TCasing>(
       this.config,

@@ -370,6 +370,25 @@ type instantiateResolvedErrorMessageProp<T> = T extends {
 }
   ? { errorMessage: string }
   : {};
+type instantiateFieldMetadata<T> = T extends object
+  ? Omit<
+      T,
+      | 'defaultValue'
+      | 'label'
+      | 'nameTransformCasing'
+      | 'isRequired'
+      | 'placeholder'
+      | 'errorMessage'
+      | 'type'
+    >
+  : {};
+type instantiateResolvedTypeProp<T> = 'type' extends keyof T
+  ? T extends object
+    ? T['type'] extends infer type extends string
+      ? { type: type }
+      : {}
+    : {}
+  : {};
 export type inferResolvedDateFieldType<T> = T extends {
   type: infer type extends DateFieldType;
 }
@@ -382,7 +401,7 @@ export type instantiateFields<
   ? T extends instantiateConfig
     ? {
         -readonly [key in keyof T['fields']]: Expand<
-          {
+          instantiateFieldMetadata<T['fields'][key]> & {
             /**
              * The default value for the field.
              */
@@ -411,6 +430,7 @@ export type instantiateFields<
             : {}) &
             instantiateResolvedPlaceholderProp<T['fields'][key]> &
             instantiateResolvedErrorMessageProp<T['fields'][key]> &
+            instantiateResolvedTypeProp<T['fields'][key]> &
             (inferDefaultValue<T['fields'][key]> extends Date
               ? /**
                  * The type of the field.
@@ -522,17 +542,21 @@ export function instantiateFields<
       },
     );
 
-    const { defaultValue, label, nameTransformCasing, placeholder, isRequired, errorMessage } =
-      values;
+    const {
+      defaultValue,
+      label,
+      nameTransformCasing,
+      isRequired,
+      ...metadata
+    } = values;
     const casing = nameTransformCasing ?? defaultCasing ?? DEFAULT_CASING;
     const resolvedLabel = createFieldLabel(label, name, casing, Boolean(isRequired));
     const sharedFields = {
+      ...metadata,
       nameTransformCasing: casing,
       name,
       isRequired: Boolean(isRequired),
       ...(resolvedLabel === undefined ? {} : { label: resolvedLabel }),
-      ...(placeholder === undefined ? {} : { placeholder }),
-      ...(errorMessage === undefined ? {} : { errorMessage }),
     };
 
     if (defaultValue instanceof Date) {

@@ -210,7 +210,7 @@ describe('creating components via "createComponent" fn', () => {
     });
 
     it('only groups duplicate flat keys under the steps that declare them', () => {
-      const schema = defineMultiStepForm({
+      const createForm = defineMultiStepForm({
         steps: {
           step1: {
             title: 'Contact',
@@ -235,9 +235,9 @@ describe('creating components via "createComponent" fn', () => {
             fields: { accepted: { defaultValue: true } },
           },
         },
-      }).configure()();
+      }).configure();
 
-      schema.createComponent({
+      createForm.createComponent({
         stepData: 'all',
         render({ defaultValues }) {
           expectTypeOf(defaultValues.flat).toEqualTypeOf<{
@@ -341,6 +341,36 @@ describe('creating components via "createComponent" fn', () => {
       expect(field.textContent).toBe('step1.firstName:Jordan');
     });
 
+    it('preserves nested object types in flat default values', () => {
+      const createForm = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Profile',
+            fields: {
+              profile: {
+                defaultValue: {
+                  name: { first: 'Taylor', last: 'Smith' },
+                  preferences: { notifications: true },
+                },
+              },
+            },
+          },
+        },
+      }).configure();
+
+      createForm.createComponent({
+        stepData: 'all',
+        render({ defaultValues }) {
+          expectTypeOf(defaultValues.flat.profile).toEqualTypeOf<{
+            name: { first: string; last: string };
+            preferences: { notifications: boolean };
+          }>();
+
+          return null;
+        },
+      });
+    });
+
     it('preserves step helpers for a partial object step selector', async () => {
       const schema = defineMultiStepForm({
         steps: {
@@ -407,6 +437,59 @@ describe('creating components via "createComponent" fn', () => {
   });
 
   describe('using step specific "createComponent" fn', () => {
+    it('passes all resolved field metadata to Field children', async () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Contact',
+            fields: {
+              email: {
+                defaultValue: '',
+                placeholder: 'name@example.com',
+                isRequired: true,
+                errorMessage: 'Enter a valid email',
+                type: 'string.email',
+              },
+            },
+          },
+        },
+      }).configure()();
+      const fieldSpy = vi.fn();
+
+      expect(schema.stepSchema.original.step1.fields.email.type).toBe(
+        'string.email',
+      );
+      expect(schema.stepSchema.value.step1.fields.email).toMatchObject({
+        type: 'string.email',
+      });
+
+      const Step1 = schema.stepSchema.value.step1.createComponent({
+        render({ Field }) {
+          return (
+            <Field name='email'>
+              {(field) => {
+                expectTypeOf(field.type).toEqualTypeOf<'string.email'>();
+                fieldSpy(field);
+
+                return null;
+              }}
+            </Field>
+          );
+        },
+      });
+
+      await renderInJsdom(<Step1 />);
+
+      expect(fieldSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          placeholder: 'name@example.com',
+          isRequired: true,
+          errorMessage: 'Enter a valid email',
+          type: 'string.email',
+        }),
+      );
+    });
+
     it('should only use the default "ctx"', async () => {
       const schema = defineMultiStepForm({
         steps: {

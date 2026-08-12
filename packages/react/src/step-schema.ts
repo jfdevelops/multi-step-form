@@ -451,21 +451,16 @@ export class MultiStepFormStepSchema<
             const fieldName = String(name);
             const [parentFieldName] = fieldName.split('.');
             const fieldsRecord = currentStep.fields as Record<string, unknown>;
-            const { label, nameTransformCasing, type } = fieldsRecord[
-              parentFieldName
-            ] as {
-              label?: unknown;
-              nameTransformCasing?: unknown;
-              type?: unknown;
-            };
+            const fieldMetadata = fieldsRecord[parentFieldName] as Record<
+              string,
+              unknown
+            >;
 
             const targetFields = `fields.${builtValuePath}`;
 
             return {
+              ...fieldMetadata,
               defaultValue,
-              ...(label === undefined ? {} : { label }),
-              nameTransformCasing,
-              ...(type === undefined ? {} : { type }),
               name,
               onInputChange: <
                 strict extends boolean = true,

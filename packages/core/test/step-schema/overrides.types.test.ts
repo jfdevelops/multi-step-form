@@ -2,6 +2,56 @@ import { describe, expectTypeOf, it } from 'vitest';
 import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: overrides types', () => {
+  it('infers default override data from configure options', () => {
+    defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: { firstName: { defaultValue: '' } },
+        },
+      },
+    }).configure({
+      defaultOverrides: {
+        step1: ({ fields }) => {
+          expectTypeOf(fields.firstName.defaultValue).toEqualTypeOf<string>();
+
+          return { firstName: 'Default' };
+        },
+      },
+    });
+  });
+
+  it('infers createValueOverride data and return values from its target step', () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            profile: {
+              defaultValue: { name: 'Taylor', active: false },
+              type: 'object.profile',
+            },
+          },
+        },
+      },
+    }).configure();
+
+    const override = createForm.createValueOverride({
+      step: 'step1',
+      values: ({ fields }) => {
+        expectTypeOf(fields.profile.type).toEqualTypeOf<'object.profile'>();
+        expectTypeOf(fields.profile.defaultValue).toEqualTypeOf<{
+          name: string;
+          active: boolean;
+        }>();
+
+        return { profile: { name: 'Jordan', active: true } };
+      },
+    });
+
+    createForm().withOverrides({ step1: override });
+  });
+
   it('infers override data as the resolved current step', () => {
     const createForm = defineMultiStepForm({
       steps: {
