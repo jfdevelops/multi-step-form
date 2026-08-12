@@ -210,7 +210,7 @@ describe('creating components via "createComponent" fn', () => {
     });
 
     it('only groups duplicate flat keys under the steps that declare them', () => {
-      const schema = defineMultiStepForm({
+      const createForm = defineMultiStepForm({
         steps: {
           step1: {
             title: 'Contact',
@@ -235,9 +235,9 @@ describe('creating components via "createComponent" fn', () => {
             fields: { accepted: { defaultValue: true } },
           },
         },
-      }).configure()();
+      }).configure();
 
-      schema.createComponent({
+      createForm.createComponent({
         stepData: 'all',
         render({ defaultValues }) {
           expectTypeOf(defaultValues.flat).toEqualTypeOf<{
@@ -339,6 +339,36 @@ describe('creating components via "createComponent" fn', () => {
       });
 
       expect(field.textContent).toBe('step1.firstName:Jordan');
+    });
+
+    it('preserves nested object types in flat default values', () => {
+      const createForm = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Profile',
+            fields: {
+              profile: {
+                defaultValue: {
+                  name: { first: 'Taylor', last: 'Smith' },
+                  preferences: { notifications: true },
+                },
+              },
+            },
+          },
+        },
+      }).configure();
+
+      createForm.createComponent({
+        stepData: 'all',
+        render({ defaultValues }) {
+          expectTypeOf(defaultValues.flat.profile).toEqualTypeOf<{
+            name: { first: string; last: string };
+            preferences: { notifications: boolean };
+          }>();
+
+          return null;
+        },
+      });
     });
 
     it('preserves step helpers for a partial object step selector', async () => {

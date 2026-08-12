@@ -105,6 +105,13 @@ export namespace StepSpecificComponent {
     : groupedFieldValues<value, chosenSteps, field> extends infer values
       ? values[keyof values]
       : never;
+  type expandDefaultValues<value> = value extends Date | Function
+    ? value
+    : value extends Array<infer item>
+      ? Array<expandDefaultValues<item>>
+      : value extends object
+        ? { [key in keyof value]: expandDefaultValues<value[key]> }
+        : value;
 
   export type multiStepDefaultValues<
     value extends instantiateReactSteps,
@@ -117,7 +124,7 @@ export namespace StepSpecificComponent {
      * A field name declared by multiple selected steps is grouped under those step keys so no
      * value is overwritten.
      */
-    flat: Expand<{
+    flat: expandDefaultValues<{
       [field in selectedFieldNames<value, chosenSteps>]: flatFieldValue<
         value,
         chosenSteps,
