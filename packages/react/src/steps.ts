@@ -498,6 +498,8 @@ export namespace StepSpecificComponent {
     targetField extends getDeepFields<value, targetStep>,
     customProps extends object,
   > = {
+    /** Limits the fields accepted by the returned component and narrows `render` field data. */
+    fields?: readonly targetField[];
     render: CreateComponent<
       fieldInput<def, value, targetStep, targetField>,
       customProps
@@ -564,7 +566,11 @@ export interface StepSpecificCreateComponentFn<
     >,
   ): CreatedMultiStepFormComponent<props>;
 
-  /** Creates a reusable component bound to one field in this step. */
+  /**
+   * Creates a reusable component bound to one field in this step.
+   * Field metadata and current values are passed to `render`; remaining component props are
+   * forwarded as its optional custom props argument.
+   */
   forField<
     targetField extends getDeepFields<value, targetStep>,
     customProps extends object = {},
@@ -584,15 +590,41 @@ export interface StepSpecificCreateComponentFn<
     customProps
   >;
 
-  /** Creates a reusable component that selects one of this step's fields when rendered. */
-  forField<customProps extends object = {}>(
+  /**
+   * Creates a reusable component that selects one of this step's fields when rendered.
+   * The returned component requires `field`, while field metadata and current values are
+   * passed to `render`.
+   */
+  forField<
+    targetField extends getDeepFields<value, targetStep>,
+    customProps extends object = {},
+  >(
     config: StepSpecificComponent.selectableFieldConfig<
       def,
       value,
       targetStep,
-      getDeepFields<value, targetStep>,
+      targetField,
       customProps
-    >,
+    > & { fields: readonly targetField[] },
+  ): StepSpecificComponent.selectableFieldComponent<
+    def,
+    value,
+    targetStep,
+    targetField,
+    customProps
+  >;
+
+  forField<customProps extends object = {}>(
+    config: Omit<
+      StepSpecificComponent.selectableFieldConfig<
+        def,
+        value,
+        targetStep,
+        getDeepFields<value, targetStep>,
+        customProps
+      >,
+      'fields'
+    > & { fields?: undefined },
   ): StepSpecificComponent.selectableFieldComponent<
     def,
     value,

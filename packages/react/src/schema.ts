@@ -225,3 +225,10 @@ export class MultiStepFormSchema<
     return this.stepSchema.createComponent;
   }
 }
+
+/** A React multi-step form schema regardless of its concrete steps or configured features. */
+export type AnyMultiStepFormSchema = {
+  readonly stepSchema: {
+    readonly value: object;
+  };
+};

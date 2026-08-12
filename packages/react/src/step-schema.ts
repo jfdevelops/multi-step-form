@@ -59,7 +59,11 @@ export interface CreateComponentFn<
     },
   ): CreatedMultiStepFormComponent<props>;
 
-  /** Creates a reusable component bound to one field in one step. */
+  /**
+   * Creates a reusable component bound to one field in one step.
+   * Field metadata and current values are passed to `render`; remaining component props are
+   * forwarded as its optional custom props argument.
+   */
   forField<
     targetStep extends StepNumbers<value>,
     targetField extends getDeepFields<value, targetStep>,
@@ -80,18 +84,45 @@ export interface CreateComponentFn<
     customProps
   >;
 
-  /** Creates a reusable component that selects a field from one step when rendered. */
+  /**
+   * Creates a reusable component that selects a field from one step when rendered.
+   * The returned component requires `field`, while field metadata and current values are
+   * passed to `render`.
+   */
   forField<
     targetStep extends StepNumbers<value>,
+    targetField extends getDeepFields<value, targetStep>,
     customProps extends object = {},
   >(
     config: StepSpecificComponent.selectableFieldConfig<
       def,
       value,
       targetStep,
-      getDeepFields<value, targetStep>,
+      targetField,
       customProps
-    > & { step: targetStep },
+    > & { fields: readonly targetField[]; step: targetStep },
+  ): StepSpecificComponent.selectableFieldComponent<
+    def,
+    value,
+    targetStep,
+    targetField,
+    customProps
+  >;
+
+  forField<
+    targetStep extends StepNumbers<value>,
+    customProps extends object = {},
+  >(
+    config: Omit<
+      StepSpecificComponent.selectableFieldConfig<
+        def,
+        value,
+        targetStep,
+        getDeepFields<value, targetStep>,
+        customProps
+      >,
+      'fields'
+    > & { fields?: undefined; step: targetStep },
   ): StepSpecificComponent.selectableFieldComponent<
     def,
     value,
@@ -698,7 +729,9 @@ export class MultiStepFormStepSchema<
         },
       );
 
-      const { field: configuredField, render } = fieldConfig;
+      const { field: configuredField, fields, render } = fieldConfig as typeof fieldConfig & {
+        fields?: readonly targetField[];
+      };
 
       InvalidComponentError.invariant(typeof render === 'function', {
         reason: 'The "render" property must be a function',
@@ -737,6 +770,15 @@ export class MultiStepFormStepSchema<
               'The returned field component requires a "field" prop because its configuration did not provide one',
             targetStep,
           });
+
+          InvalidFieldError.invariant(
+            fields === undefined || fields.includes(targetField),
+            {
+              reason: 'The selected field is not included in the configured "fields" list',
+              targetStep,
+              targetField,
+            },
+          );
 
           return createElement(
             Field as never,
