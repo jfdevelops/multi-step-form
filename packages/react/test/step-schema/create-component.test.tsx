@@ -407,6 +407,59 @@ describe('creating components via "createComponent" fn', () => {
   });
 
   describe('using step specific "createComponent" fn', () => {
+    it('passes all resolved field metadata to Field children', async () => {
+      const schema = defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Contact',
+            fields: {
+              email: {
+                defaultValue: '',
+                placeholder: 'name@example.com',
+                isRequired: true,
+                errorMessage: 'Enter a valid email',
+                type: 'string.email',
+              },
+            },
+          },
+        },
+      }).configure()();
+      const fieldSpy = vi.fn();
+
+      expect(schema.stepSchema.original.step1.fields.email.type).toBe(
+        'string.email',
+      );
+      expect(schema.stepSchema.value.step1.fields.email).toMatchObject({
+        type: 'string.email',
+      });
+
+      const Step1 = schema.stepSchema.value.step1.createComponent({
+        render({ Field }) {
+          return (
+            <Field name='email'>
+              {(field) => {
+                expectTypeOf(field.type).toEqualTypeOf<'string.email'>();
+                fieldSpy(field);
+
+                return null;
+              }}
+            </Field>
+          );
+        },
+      });
+
+      await renderInJsdom(<Step1 />);
+
+      expect(fieldSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          placeholder: 'name@example.com',
+          isRequired: true,
+          errorMessage: 'Enter a valid email',
+          type: 'string.email',
+        }),
+      );
+    });
+
     it('should only use the default "ctx"', async () => {
       const schema = defineMultiStepForm({
         steps: {

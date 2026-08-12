@@ -93,6 +93,45 @@ describe('field metadata: placeholder, isRequired, errorMessage', () => {
     expectTypeOf(field.placeholder).toEqualTypeOf<string>();
     expectTypeOf(field.errorMessage).toEqualTypeOf<string>();
   });
+
+  it('makes all field metadata available to public helper callbacks', () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            email: {
+              defaultValue: '',
+              placeholder: 'name@example.com',
+              isRequired: true,
+              errorMessage: 'Enter a valid email',
+              type: 'string.email',
+            },
+          },
+        },
+      },
+    }).configure();
+    const instance = createForm();
+    const readMetadata = instance.stepSchema.value.step1.createHelperFn(
+      ({ ctx }) => {
+        const field = ctx.step1.fields.email;
+
+        expectTypeOf(field.placeholder).toEqualTypeOf<string>();
+        expectTypeOf(field.isRequired).toEqualTypeOf<true>();
+        expectTypeOf(field.errorMessage).toEqualTypeOf<string>();
+        expectTypeOf(field.type).toEqualTypeOf<'string.email'>();
+
+        return field;
+      },
+    );
+
+    expect(readMetadata()).toMatchObject({
+      placeholder: 'name@example.com',
+      isRequired: true,
+      errorMessage: 'Enter a valid email',
+      type: 'string.email',
+    });
+  });
 });
 
 describe('step isComplete', () => {
