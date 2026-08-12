@@ -23,6 +23,7 @@ import {
   type StepSchema,
 } from '@jfdevelops/multi-step-form-core/_internals';
 import { field } from './field';
+import { ForField, withReusableField } from './for-field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import { createUseSelector, deepEqual } from './hooks/use-selector';
 import { selector } from './selector';
@@ -59,77 +60,8 @@ export interface CreateComponentFn<
     },
   ): CreatedMultiStepFormComponent<props>;
 
-  /**
-   * Creates a reusable component bound to one field in one step.
-   * Field metadata and current values are passed to `render`; remaining component props are
-   * forwarded as its optional custom props argument.
-   */
-  forField<
-    targetStep extends StepNumbers<value>,
-    targetField extends getDeepFields<value, targetStep>,
-    customProps extends object = {},
-  >(
-    config: StepSpecificComponent.fieldConfig<
-      def,
-      value,
-      targetStep,
-      targetField,
-      customProps
-    > & { step: targetStep },
-  ): StepSpecificComponent.fieldComponent<
-    def,
-    value,
-    targetStep,
-    targetField,
-    customProps
-  >;
+  forField: ForField.createComponentFn<def, value>;
 
-  /**
-   * Creates a reusable component that selects a field from one step when rendered.
-   * The returned component requires `field`, while field metadata and current values are
-   * passed to `render`.
-   */
-  forField<
-    targetStep extends StepNumbers<value>,
-    targetField extends getDeepFields<value, targetStep>,
-    customProps extends object = {},
-  >(
-    config: StepSpecificComponent.selectableFieldConfig<
-      def,
-      value,
-      targetStep,
-      targetField,
-      customProps
-    > & { fields: readonly targetField[]; step: targetStep },
-  ): StepSpecificComponent.selectableFieldComponent<
-    def,
-    value,
-    targetStep,
-    targetField,
-    customProps
-  >;
-
-  forField<
-    targetStep extends StepNumbers<value>,
-    customProps extends object = {},
-  >(
-    config: Omit<
-      StepSpecificComponent.selectableFieldConfig<
-        def,
-        value,
-        targetStep,
-        getDeepFields<value, targetStep>,
-        customProps
-      >,
-      'fields'
-    > & { fields?: undefined; step: targetStep },
-  ): StepSpecificComponent.selectableFieldComponent<
-    def,
-    value,
-    targetStep,
-    getDeepFields<value, targetStep>,
-    customProps
-  >;
 }
 
 export interface HelperFunctions<
@@ -271,7 +203,7 @@ export class MultiStepFormStepSchema<
 
         return target.createComponent.forField(fieldConfig as never);
       },
-    }) as CreateComponentFn<def, value>;
+    }) as unknown as CreateComponentFn<def, value>;
   }
 
   private createResolvedCtx<
@@ -744,7 +676,7 @@ export class MultiStepFormStepSchema<
       // validation, deep-field support, and update/reset behavior. When the configuration omits
       // a field, ownership moves to the returned component so one implementation can serve every
       // compatible field in the step.
-      return impl({
+      const Component = impl({
         render: (
           { Field }: StepSpecificComponent.input<def, value, targetStep, {}>,
           componentProps: StepSpecificComponent.fieldComponentProps<
@@ -794,9 +726,11 @@ export class MultiStepFormStepSchema<
           );
         },
       } as never);
+
+      return withReusableField(Component as never);
     };
 
-    return Object.assign(impl, { forField }) as StepSpecificCreateComponentFn<
+    return Object.assign(impl, { forField }) as unknown as StepSpecificCreateComponentFn<
       def,
       value,
       targetStep

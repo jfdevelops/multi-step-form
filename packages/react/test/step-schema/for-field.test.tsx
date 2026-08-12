@@ -132,6 +132,29 @@ describe('createComponent.forField', () => {
 
       expect(screen.getByText('Client')).toBeDefined();
     });
+
+    it('binds a selectable implementation to a reusable target field', async () => {
+      const schema = fieldFormDefinition.configure()({ instance: 'client' });
+      const FieldValue = schema.createComponent.forField({
+        step: 'step1',
+        fields: ['firstName', 'email'],
+        render(field, props: { prefix: string }) {
+          return <p>{props.prefix}:{field.defaultValue}</p>;
+        },
+      });
+      const FirstName = FieldValue.asReusable('firstName');
+
+      type FirstNameProps = ComponentPropsWithRef<typeof FirstName>;
+      expectTypeOf<'field'>().not.toMatchTypeOf<keyof FirstNameProps>();
+      expectTypeOf<{ prefix: string }>().toMatchTypeOf<FirstNameProps>();
+
+      // @ts-expect-error The selector limits reusable targets to its configured fields.
+      FieldValue.asReusable('lastName');
+
+      const screen = await renderInJsdom(<FirstName prefix='Name' />);
+
+      expect(screen.getByText('Name:Taylor')).toBeDefined();
+    });
   });
 
   describe('configured step createComponent', () => {
@@ -261,6 +284,31 @@ describe('createComponent.forField', () => {
       );
 
       expect(screen.getByText('Client override')).toBeDefined();
+    });
+
+    it('binds a factory implementation while preserving the instance prop', async () => {
+      const createForm = fieldFormDefinition.configure();
+      const schema = createForm({ instance: 'client' });
+      const FieldValue = createForm.createComponent.forField({
+        step: 'step1',
+        render(field, props: { prefix: string }) {
+          return <p>{props.prefix}:{field.defaultValue}</p>;
+        },
+      });
+      const Email = FieldValue.asReusable('email');
+
+      type EmailProps = ComponentPropsWithRef<typeof Email>;
+      expectTypeOf<{
+        instance: typeof schema;
+        prefix: string;
+      }>().toMatchTypeOf<EmailProps>();
+      expectTypeOf<'field'>().not.toMatchTypeOf<keyof EmailProps>();
+
+      const screen = await renderInJsdom(
+        <Email instance={schema} prefix='Email' />,
+      );
+
+      expect(screen.getByText('Email:client@example.com')).toBeDefined();
     });
   });
 
