@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.6
+
+### Minor Changes
+
+- 000bd64: Keep unique multi-step default values flat while grouping only duplicate field names by step, and add `asReusable(field)` to selectable `createComponent.forField` components.
+
 ## 1.0.0-beta.5
 
 ### Minor Changes
