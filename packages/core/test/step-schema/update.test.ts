@@ -371,6 +371,48 @@ describe('multi step form step schema: update', () => {
     );
   });
 
+  it('preserves function-valued field metadata (e.g. a date field\'s transform) across a storage-backed update', () => {
+    const mockStorage = createMockStorage();
+    const transform = vi.fn((value: Date) => value.toISOString().slice(0, 10));
+
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          fields: {
+            birthDate: {
+              defaultValue: new Date('2024-01-01'),
+              type: 'string',
+              transform,
+            },
+          },
+          title: 'Step 1',
+        },
+      },
+    }).configure({
+      storage: {
+        key: `transform-storage-test-${Date.now()}`,
+        store: mockStorage,
+      },
+    })();
+
+    expect(schema.stepSchema.value.step1.fields.birthDate.transform).toBe(
+      transform
+    );
+
+    schema.stepSchema.update({
+      targetStep: 'step1',
+      fields: ['fields.birthDate.defaultValue'],
+      updater: JSON.stringify(new Date('2024-12-31')) as never,
+    });
+
+    expect(schema.stepSchema.value.step1.fields.birthDate.transform).toBe(
+      transform
+    );
+    expect(
+      typeof schema.stepSchema.value.step1.fields.birthDate.transform
+    ).toBe('function');
+  });
+
   describe('mode config (shallow)', () => {
     it('should another key', () => {
       const schema = defineMultiStepForm({

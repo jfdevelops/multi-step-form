@@ -258,6 +258,20 @@ describe('react defineMultiStepForm: withOverrides', () => {
       'ClientDefault',
     );
   });
+
+  it('throws when withOverrides is chained a second time on the same instance', () => {
+    const createForm = createBookingDefinition().configure();
+    const instance = createForm({ instance: 'client' }).withOverrides({
+      step1: async () => ({ firstName: 'ClientDefault' }),
+    });
+
+    expect(() => {
+      // @ts-expect-error withOverrides is not chainable once applied
+      instance.withOverrides({
+        step1: async () => ({ firstName: 'AnotherDefault' }),
+      });
+    }).toThrow(InvalidInstanceError);
+  });
 });
 
 describe('react defineMultiStepForm: shared createHelperFn', () => {

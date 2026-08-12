@@ -1,5 +1,6 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { defineMultiStepForm } from '../src';
+import { createMockStorage } from './utils/create-mock-storage';
 
 describe('field metadata: placeholder, isRequired, errorMessage', () => {
   it('resolves isRequired to false by default', () => {
@@ -131,6 +132,95 @@ describe('field metadata: placeholder, isRequired, errorMessage', () => {
       errorMessage: 'Enter a valid email',
       type: 'string.email',
     });
+  });
+
+  it('keeps every field metadata property intact after a storage-backed update round trip', () => {
+    const mockStorage = createMockStorage();
+    const transform = vi.fn((value: Date) => value.toISOString().slice(0, 10));
+
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: '',
+              placeholder: 'Jane',
+              label: 'Given name',
+              isRequired: true,
+              errorMessage: 'First name is required',
+              type: 'string.custom',
+              nameTransformCasing: 'camel',
+            },
+            birthDate: {
+              defaultValue: new Date('2024-01-01'),
+              type: 'string',
+              transform,
+            },
+          },
+        },
+      },
+    }).configure({
+      storage: {
+        key: `field-metadata-storage-test-${Date.now()}`,
+        store: mockStorage,
+      },
+    });
+    const instance = createForm();
+    const expectedMetadata = {
+      firstName: {
+        name: 'firstName',
+        placeholder: 'Jane',
+        label: 'Given name',
+        isRequired: true,
+        errorMessage: 'First name is required',
+        type: 'string.custom',
+        nameTransformCasing: 'camel',
+      },
+      birthDate: {
+        name: 'birthDate',
+        transform,
+        type: 'string',
+      },
+    };
+
+    // Sanity check: the metadata is present before anything touches storage.
+    expect(instance.stepSchema.value.step1.fields.firstName).toMatchObject(
+      expectedMetadata.firstName,
+    );
+    expect(instance.stepSchema.value.step1.fields.birthDate).toMatchObject(
+      expectedMetadata.birthDate,
+    );
+
+    // An update persists the step to storage and immediately syncs back from it —
+    // the exact path that used to drop metadata lost in the JSON round trip.
+    instance.stepSchema.update({
+      targetStep: 'step1',
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Taylor',
+    });
+
+    const firstName = instance.stepSchema.value.step1.fields.firstName;
+    const birthDate = instance.stepSchema.value.step1.fields.birthDate;
+
+    expect(firstName).toMatchObject(expectedMetadata.firstName);
+    expect(firstName.defaultValue).toBe('Taylor');
+    expect(birthDate).toMatchObject(expectedMetadata.birthDate);
+    expect(typeof birthDate.transform).toBe('function');
+    expect(birthDate.transform).toBe(transform);
+
+    // A fresh sync from storage (e.g. what "mount" triggers) must also preserve it.
+    instance.stepSchema.sync();
+
+    expect(
+      instance.stepSchema.value.step1.fields.firstName,
+    ).toMatchObject(expectedMetadata.firstName);
+    expect(instance.stepSchema.value.step1.fields.birthDate).toMatchObject(
+      expectedMetadata.birthDate,
+    );
+    expect(instance.stepSchema.value.step1.fields.birthDate.transform).toBe(
+      transform,
+    );
   });
 });
 

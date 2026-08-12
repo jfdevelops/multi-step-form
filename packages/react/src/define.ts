@@ -82,8 +82,17 @@ export interface MultiStepFormReactInstance<
    */
   withOverrides(
     overrides: WithOverridesMap<def['steps']>,
-  ): MultiStepFormReactInstance<def, value>;
+  ): MultiStepFormReactInstanceWithOverridesApplied<def, value>;
 }
+
+/**
+ * The shape of a {@linkcode MultiStepFormReactInstance} after `withOverrides` has been applied.
+ * `withOverrides` cannot be chained — it may only be called once per instance.
+ */
+export type MultiStepFormReactInstanceWithOverridesApplied<
+  def extends DefineConfig,
+  value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+> = Omit<MultiStepFormReactInstance<def, value>, 'withOverrides'>;
 
 function createNoopStorage(): Storage {
   return {
@@ -111,6 +120,7 @@ function attachInstance<
     storageConfig: BaseStorageConfig<string>;
     instanceName: TInstance;
     onRebuild: (next: MultiStepFormReactInstance<def>) => void;
+    overridesApplied?: boolean;
   },
 ): MultiStepFormReactInstance<def> {
   const {
@@ -119,11 +129,21 @@ function attachInstance<
     storageConfig,
     instanceName,
     onRebuild,
+    overridesApplied: initialOverridesApplied = false,
   } = options;
+  let overridesApplied = initialOverridesApplied;
 
   return Object.assign(instance, {
     instanceName,
     withOverrides(overrides: WithOverridesMap<def['steps']>) {
+      InvalidInstanceError.invariant(!overridesApplied, {
+        reason:
+          '"withOverrides" was already applied to this instance and cannot be chained again. Call "withOverrides" once, on the instance returned by the factory.',
+        instance: instanceName,
+      });
+
+      overridesApplied = true;
+
       const mergedSteps = mergeStepOverrides(rawSteps, overrides);
 
       const next = attachInstance<def, TInstance>(
@@ -138,6 +158,7 @@ function attachInstance<
           storageConfig,
           instanceName,
           onRebuild,
+          overridesApplied: true,
         },
       );
 

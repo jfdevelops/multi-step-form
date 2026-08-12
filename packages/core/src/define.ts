@@ -218,11 +218,23 @@ export interface MultiStepFormInstance<
    *
    * Overrides supplied here are **not** shared across instances created from the same
    * definition — attach different overrides to each instance independently.
+   *
+   * Can only be called once per instance — the returned instance no longer exposes
+   * `withOverrides`, and calling it again at runtime throws.
    */
   withOverrides(
     overrides: WithOverridesMap<def['steps']>,
-  ): MultiStepFormInstance<def, value>;
+  ): MultiStepFormInstanceWithOverridesApplied<def, value>;
 }
+
+/**
+ * The shape of a {@linkcode MultiStepFormInstance} after `withOverrides` has been applied.
+ * `withOverrides` cannot be chained — it may only be called once per instance.
+ */
+export type MultiStepFormInstanceWithOverridesApplied<
+  def extends DefineConfig,
+  value extends instantiateSteps<def> = instantiateSteps<def>,
+> = Omit<MultiStepFormInstance<def, value>, 'withOverrides'>;
 
 class MultiStepFormInstanceImpl<const def extends DefineConfig>
   extends MultiStepFormSchema<def>
@@ -232,6 +244,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
   readonly #rawSteps: def['steps'];
   readonly #storageConfig: BaseStorageConfig<string>;
   readonly #onRebuild: (next: MultiStepFormInstanceImpl<def>) => void;
+  #overridesApplied: boolean;
 
   constructor(options: {
     steps: def['steps'];
@@ -239,6 +252,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
     storageConfig: BaseStorageConfig<string>;
     instanceName: string;
     onRebuild: (next: MultiStepFormInstanceImpl<def>) => void;
+    overridesApplied?: boolean;
   }) {
     const {
       steps,
@@ -246,6 +260,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
       storageConfig,
       instanceName,
       onRebuild,
+      overridesApplied = false,
     } = options;
 
     super({
@@ -258,9 +273,18 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
     this.#rawSteps = steps;
     this.#storageConfig = storageConfig;
     this.#onRebuild = onRebuild;
+    this.#overridesApplied = overridesApplied;
   }
 
   withOverrides(overrides: WithOverridesMap<def['steps']>) {
+    InvalidInstanceError.invariant(!this.#overridesApplied, {
+      reason:
+        '"withOverrides" was already applied to this instance and cannot be chained again. Call "withOverrides" once, on the instance returned by the factory.',
+      instance: this.instanceName,
+    });
+
+    this.#overridesApplied = true;
+
     const mergedSteps = mergeStepOverrides(this.#rawSteps, overrides);
 
     const next = new MultiStepFormInstanceImpl<def>({
@@ -269,13 +293,14 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
       storageConfig: this.#storageConfig,
       instanceName: this.instanceName,
       onRebuild: this.#onRebuild,
+      overridesApplied: true,
     });
 
     this.#onRebuild(next);
 
     next.stepSchema.resolveOverrides();
 
-    return next as unknown as MultiStepFormInstance<def>;
+    return next as unknown as MultiStepFormInstanceWithOverridesApplied<def>;
   }
 }
 
