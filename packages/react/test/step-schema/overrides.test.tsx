@@ -706,7 +706,7 @@ describe('step overrides', () => {
           expectTypeOf(
             steps.step1.fields.firstName.defaultValue,
           ).toEqualTypeOf<string>();
-          expectTypeOf(steps.step1.isComplete).toEqualTypeOf<() => boolean>();
+          expectTypeOf(steps.step1.isComplete).toEqualTypeOf<boolean>();
           expectTypeOf(isStepComplete).parameter(0).toEqualTypeOf<'step1'>();
 
           return <form {...props} />;

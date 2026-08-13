@@ -37,7 +37,7 @@ export namespace MultiStepFormSchema {
   };
 
   type resolvedStepFunctionKey =
-    'createComponent' | 'createHelperFn' | 'isComplete' | 'reset' | 'update';
+    'createComponent' | 'createHelperFn' | 'reset' | 'update';
   type withoutResolvedStepFunctions<value extends instantiateReactSteps> = {
     [key in keyof value]: Expand<{
       [

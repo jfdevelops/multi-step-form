@@ -161,6 +161,8 @@ export namespace field {
   ) {
     const { propsCreator, subscribe, getValue, selectorCtx, suspendStep } =
       options;
+    const subscribeFn = subscribe || (() => () => {});
+    const Selector = selector.create<step>(selectorCtx, subscribeFn);
 
     function FieldResolutionGate({ children }: { children: ReactNode }) {
       suspendStep?.();
@@ -172,7 +174,6 @@ export namespace field {
       const { name, children, selectorFn } = props;
 
       // Always call the hook, but use no-op functions if subscribe/getValue aren't provided
-      const subscribeFn = subscribe || (() => () => {});
       const getValueFn = getValue || (() => undefined);
 
       // Subscribe to changes to trigger rerenders
@@ -194,8 +195,6 @@ export namespace field {
 
       const renderChildren = () => {
         if (selectorFn) {
-          const Selector = selector.create<step>(selectorCtx, subscribeFn);
-
           return (
             <Selector selector={selectorFn}>
               {(value) =>

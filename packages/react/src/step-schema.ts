@@ -358,10 +358,105 @@ export class MultiStepFormStepSchema<
     } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>,
   ) {
     const [step] = stepData;
-    return <props>(fn: Function) =>
-      ((props: props) => {
-        const ctxData = extraConfig?.ctxData;
-        const logger = extraConfig?.logger ?? new MultiStepFormLogger();
+    return <props>(fn: Function) => {
+      const ctxData = extraConfig?.ctxData;
+      const logger = extraConfig?.logger ?? new MultiStepFormLogger();
+      const getResolvedCtx = () =>
+        this.createResolvedCtx({ stepData, ctxData, logger });
+      const Field = field.create({
+        propsCreator: (name) => {
+          const currentStep = this.value[step] as {
+            fields: Record<string, unknown>;
+          };
+          const currentFields = Object.keys(currentStep.fields);
+
+          InvalidFieldError.invariant(typeof name === 'string', {
+            reason: `The "name" prop must be a string and a valid field for ${step}`,
+            targetStep: step,
+            field: name,
+            validFields: currentFields,
+          });
+
+          const allAvailableFields = path
+            .createDeep(currentStep.fields)
+            .map((value) => (value as string).replace('.defaultValue.', '.'));
+
+          InvalidFieldError.invariant(allAvailableFields.includes(name), {
+            reason: `The field "${name}" doesn't exist for ${step}`,
+            targetStep: step,
+            field: name,
+            validFields: allAvailableFields,
+          });
+          InvalidInternalStateError.invariant('update' in currentStep, {
+            reason: `No "update" function was found for ${step}`,
+            operation: 'Field',
+            value: currentStep,
+          });
+
+          const defaultValue = this.getValue(step as never, name);
+          const builtValuePath = buildValuePath(name);
+          const fieldName = String(name);
+          const [parentFieldName] = fieldName.split('.');
+          const fieldMetadata = currentStep.fields[parentFieldName] as Record<
+            string,
+            unknown
+          >;
+          const targetFields = `fields.${builtValuePath}`;
+
+          return {
+            ...fieldMetadata,
+            defaultValue,
+            name,
+            onInputChange: <
+              strict extends boolean = true,
+              partial extends boolean = false,
+            >(
+              value: unknown,
+              options?: field.onInputChangeOptions<strict, partial>,
+            ) => {
+              const resolvedValue =
+                typeof value === 'function'
+                  ? value(this.getValue(step as never, name))
+                  : value;
+
+              this.update({
+                partial: options?.partial ?? false,
+                strict: options?.strict ?? true,
+                debug: options?.debug,
+                silentErrors: options?.silentErrors,
+                targetStep: step as never,
+                updater: resolvedValue as never,
+                fields: [targetFields] as never,
+              });
+            },
+            reset: (options?: UpdateFn.DebugOptions) =>
+              this.reset({
+                fields: [targetFields] as never,
+                targetStep: step as never,
+                debug: options?.debug,
+                silentErrors: options?.silentErrors,
+              }),
+          } as never;
+        },
+        subscribe: this.subscribe,
+        getValue: (name) => this.getValue(step as never, name as never),
+        selectorCtx: () => getResolvedCtx() as never,
+        suspendStep: () => {
+          this.suspendStep(step as never);
+        },
+      });
+      const useSelector = createUseSelector(
+        () => getResolvedCtx() as never,
+        this.subscribe,
+      );
+      const Selector = selector.create(
+        () => getResolvedCtx() as never,
+        this.subscribe,
+      );
+      const useStep = this.createUseStep(step);
+      const SuspendStep = this.createStepSuspend(step);
+
+      return ((props: props) => {
         const resolvedCtx = this.createResolvedCtx({
           stepData,
           ctxData,
@@ -412,123 +507,6 @@ export class MultiStepFormStepSchema<
             value: current.fields,
           },
         );
-
-        // Memoize Field component to prevent remounting on every render
-        // This ensures input focus is maintained when ctx changes
-        const Field = field.create({
-          propsCreator: (name) => {
-            // Access current step data directly to avoid stale closure
-            const currentStep = this.value[step] as typeof current;
-            const currentFields = Object.keys(
-              currentStep.fields as Record<string, unknown>,
-            );
-            InvalidFieldError.invariant(typeof name === 'string', {
-              reason: `The "name" prop must be a string and a valid field for ${step}`,
-              targetStep: step,
-              field: name,
-              validFields: currentFields,
-            });
-            // TODO add support for deep keys (`name`)
-
-            const allAvailableFields = path
-              .createDeep(currentStep.fields)
-              .map((value) => (value as string).replace('.defaultValue.', '.'));
-
-            InvalidFieldError.invariant(allAvailableFields.includes(name), {
-              reason: `The field "${name}" doesn't exist for ${step}`,
-              targetStep: step,
-              field: name,
-              validFields: allAvailableFields,
-            });
-            InvalidInternalStateError.invariant('update' in currentStep, {
-              reason: `No "update" function was found for ${step}`,
-              operation: 'Field',
-              value: currentStep,
-            });
-
-            const defaultValue = this.getValue(step as never, name);
-            const builtValuePath = buildValuePath(name);
-            const fieldName = String(name);
-            const [parentFieldName] = fieldName.split('.');
-            const fieldsRecord = currentStep.fields as Record<string, unknown>;
-            const fieldMetadata = fieldsRecord[parentFieldName] as Record<
-              string,
-              unknown
-            >;
-
-            const targetFields = `fields.${builtValuePath}`;
-
-            return {
-              ...fieldMetadata,
-              defaultValue,
-              name,
-              onInputChange: <
-                strict extends boolean = true,
-                partial extends boolean = false,
-              >(
-                value: unknown,
-                options?: field.onInputChangeOptions<strict, partial>,
-              ) => {
-                // Handle Updater pattern: if value is a function, call it with the current field value
-                let resolvedValue;
-
-                if (typeof value === 'function') {
-                  const defaultValue = this.getValue(step as never, name);
-
-                  resolvedValue = value(defaultValue);
-                } else {
-                  resolvedValue = value;
-                }
-
-                this.update({
-                  partial: options?.partial ?? false,
-                  strict: options?.strict ?? true,
-                  debug: options?.debug,
-                  silentErrors: options?.silentErrors,
-                  targetStep: step,
-                  updater: resolvedValue as never,
-                  fields: [targetFields] as never,
-                });
-              },
-              reset: (options?: UpdateFn.DebugOptions) =>
-                this.reset({
-                  fields: [targetFields] as never,
-                  targetStep: step,
-                  debug: options?.debug,
-                  silentErrors: options?.silentErrors,
-                }),
-            } as never;
-          },
-          subscribe: this.subscribe,
-          getValue: (name) => this.getValue(step as never, name as never),
-          selectorCtx: () =>
-            this.createResolvedCtx({
-              stepData,
-              ctxData,
-              logger,
-            }) as never,
-          suspendStep: () => {
-            this.suspendStep(step as never);
-          },
-        });
-
-        // Create useSelector hook for reactive value access via selector
-        // This allows getting values from ctx reactively without causing re-renders
-        // Pass a function that creates fresh ctx on each call to avoid stale closures
-        const useSelector = createUseSelector(
-          () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
-          this.subscribe,
-        );
-
-        // Create Selector component that uses useSelector internally
-        // This allows parts of the UI to subscribe to specific values without
-        // causing the parent component to re-render
-        const Selector = selector.create(
-          () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
-          this.subscribe,
-        );
-        const useStep = this.createUseStep(step);
-        const SuspendStep = this.createStepSuspend(step);
 
         let fnInput = {
           ctx: resolvedCtx,
@@ -582,6 +560,7 @@ export class MultiStepFormStepSchema<
 
         return fn(fnInput, props);
       }) as CreatedMultiStepFormComponent<props>;
+    };
   }
 
   private createStepSpecificComponentFactory<

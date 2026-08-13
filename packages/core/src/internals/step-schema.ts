@@ -34,7 +34,9 @@ import {
 } from '@/utils/helpers';
 import { path } from '@/utils/path';
 import {
+  allowsStandardValidation,
   runStandardValidation,
+  validateStandardSchema,
   type StandardSchemaValidator,
 } from '@/utils/validator';
 
@@ -761,18 +763,46 @@ export class MultiStepFormStepSchemaInternal<
     return match<value, chosenSteps>(chosenSteps);
   }
 
-  private createStepIsCompleteFn<targetStep extends StepNumbers<value>>(
+  private resolveStepIsComplete<targetStep extends StepNumbers<value>>(
+    targetStep: targetStep,
+    stepValue: unknown
+  ) {
+    const original = (this.#originalValue as Record<string, unknown>)[
+      targetStep as string
+    ] as
+      | {
+          isComplete?: (data: Record<string, unknown>) => boolean;
+          validateFields?: StandardSchemaValidator;
+        }
+      | undefined;
+    const currentStep = stepValue as {
+      fields: Record<string, { defaultValue: unknown }>;
+    };
+    const data = Object.fromEntries(
+      Object.entries(currentStep.fields).map(([name, field]) => [
+        name,
+        field.defaultValue,
+      ])
+    );
+
+    if (original && typeof original.isComplete === 'function') {
+      return Boolean(original.isComplete(data));
+    }
+
+    if (original?.validateFields) {
+      return allowsStandardValidation(original.validateFields, data);
+    }
+
+    return true;
+  }
+
+  private createStepValidateFn<targetStep extends StepNumbers<value>>(
     targetStep: targetStep
   ) {
     return () => {
       const original = (this.#originalValue as Record<string, unknown>)[
         targetStep as string
-      ] as { isComplete?: (data: Record<string, unknown>) => boolean } | undefined;
-
-      if (!original || typeof original.isComplete !== 'function') {
-        return true;
-      }
-
+      ] as { validateFields: StandardSchemaValidator };
       const stepValue = this.value[targetStep] as {
         fields: Record<string, { defaultValue: unknown }>;
       };
@@ -783,7 +813,7 @@ export class MultiStepFormStepSchemaInternal<
         ])
       );
 
-      return Boolean(original.isComplete(data));
+      return validateStandardSchema(original.validateFields, data);
     };
   }
 
@@ -995,6 +1025,14 @@ export class MultiStepFormStepSchemaInternal<
     for (const [key, stepValue] of Object.entries(enriched)) {
       const targetStep = key as StepNumbers<value>;
       const step = Number.parseInt(targetStep.replace('step', ''));
+      const originalStep = (this.#originalValue as Record<string, unknown>)[
+        targetStep as string
+      ];
+      const hasValidateFields =
+        typeof originalStep === 'object' &&
+        originalStep !== null &&
+        'validateFields' in originalStep &&
+        originalStep.validateFields !== undefined;
 
       InvalidInternalStateError.invariant(
         typeof stepValue === 'object' && stepValue !== null,
@@ -1010,7 +1048,10 @@ export class MultiStepFormStepSchemaInternal<
         update: this.createStepUpdaterFn(targetStep),
         reset: this.createStepResetterFn(targetStep),
         createHelperFn: this.createStepHelperFn([targetStep]),
-        isComplete: this.createStepIsCompleteFn(targetStep),
+        isComplete: this.resolveStepIsComplete(targetStep, stepValue),
+        ...(hasValidateFields
+          ? { validate: this.createStepValidateFn(targetStep) }
+          : {}),
         ...additionalProps?.(step),
       } as never;
     }

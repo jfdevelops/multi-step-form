@@ -99,7 +99,7 @@ describe('createMultiStepFormContext', () => {
       expectTypeOf<HasWidenedStepIndex>().toEqualTypeOf<false>();
       expectTypeOf(
         wholeSchema.stepSchema.value.step1.isComplete,
-      ).toEqualTypeOf<() => boolean>();
+      ).toEqualTypeOf<boolean>();
 
       const { data, hasData, NoCurrentData } = useCurrentStepData({
         targetStep: 'step1',
@@ -112,7 +112,7 @@ describe('createMultiStepFormContext', () => {
         return <NoCurrentData />;
       }
 
-      expectTypeOf(data.isComplete).toEqualTypeOf<() => boolean>();
+      expectTypeOf(data.isComplete).toEqualTypeOf<boolean>();
 
       return (
         <>
@@ -123,7 +123,7 @@ describe('createMultiStepFormContext', () => {
             Whole schema:{' '}
             {wholeSchema.stepSchema.value.step1.fields.firstName.defaultValue}
           </p>
-          <p>Complete: {String(data.isComplete())}</p>
+          <p>Complete: {String(data.isComplete)}</p>
         </>
       );
     }

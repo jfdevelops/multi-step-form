@@ -108,11 +108,10 @@ export type ResolvedCurrentStepData<
   targetStep extends schemaStepNumbers<def, value>,
 > = Expand<
   {
-    [key in keyof getCurrentStep<value, targetStep> | 'isComplete']: key extends 'isComplete'
-      ? () => boolean
-      : key extends keyof getCurrentStep<value, targetStep>
-        ? getCurrentStep<value, targetStep>[key]
-        : never;
+    [key in keyof getCurrentStep<value, targetStep>]: getCurrentStep<
+      value,
+      targetStep
+    >[key];
   }
 >;
 export type UseCurrentStepResult<

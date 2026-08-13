@@ -28,6 +28,7 @@ describe('createStep', () => {
           },
         },
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'title',
       },
     });
@@ -62,6 +63,7 @@ describe('createStep', () => {
           },
         },
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'title',
       },
     });

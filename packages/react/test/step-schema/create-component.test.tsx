@@ -933,9 +933,9 @@ describe('creating components via "createComponent" fn', () => {
             expectTypeOf(
               context.steps.step1.fields.firstName.label,
             ).toEqualTypeOf<'First Name'>();
-            expectTypeOf(context.steps.step1.isComplete).toEqualTypeOf<
-              () => boolean
-            >();
+            expectTypeOf(
+              context.steps.step1.isComplete,
+            ).toEqualTypeOf<boolean>();
             expectTypeOf(context.isStepComplete)
               .parameter(0)
               .toEqualTypeOf<'step1' | 'step2'>();

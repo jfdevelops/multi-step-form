@@ -16,12 +16,7 @@ import {
   type SetDefaultString,
   type Split,
 } from '@/utils';
-import {
-  runStandardValidation,
-  type AnyValidator,
-  type DefaultValidator,
-  type StandardSchemaValidator,
-} from '@/utils/validator';
+import type { AnyValidator, DefaultValidator } from '@/utils/validator';
 import type { instantiateSteps, StepNumbers } from './steps';
 
 type GetDeepFields<TFields> = [keyof TFields] extends [never]
@@ -476,7 +471,7 @@ export function instantiateFields<
   const def extends instantiateConfig,
   inst = instantiateFields<def>,
 >(def: def) {
-  const { fields, defaultCasing, validateFields } = def;
+  const { fields, defaultCasing } = def;
   if (defaultCasing) {
     InvalidFieldConfigError.invariant(
       typeof defaultCasing === 'string',
@@ -587,20 +582,6 @@ export function instantiateFields<
         defaultValue,
       };
     }
-  }
-
-  if (validateFields) {
-    const defaultValues = Object.fromEntries(
-      Object.entries(resolvedFields).map(([name, value]) => [
-        name,
-        (value as Record<string, unknown>).defaultValue,
-      ])
-    );
-
-    runStandardValidation(
-      validateFields as StandardSchemaValidator,
-      defaultValues
-    );
   }
 
   return resolvedFields as inst;

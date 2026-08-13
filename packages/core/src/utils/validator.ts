@@ -103,6 +103,48 @@ export type ResolveValidatorOutput<TValidator> = unknown extends TValidator
   ? ResolveValidatorOutputFn<TValidator['parse']>
   : ResolveValidatorOutputFn<TValidator>;
 
+export type StepValidateResult<Output> =
+  | { success: true; value: Output }
+  | { success: false; issues: ReadonlyArray<StandardSchemaV1.Issue> };
+
+export function validateStandardSchema<Schema extends StandardSchemaValidator>(
+  schema: Schema,
+  input: StandardSchemaV1.InferInput<Schema>
+): StepValidateResult<StandardSchemaV1.InferOutput<Schema>> {
+  try {
+    const result = schema['~standard'].validate(input);
+
+    if (result instanceof Promise) {
+      return {
+        success: false,
+        issues: [{ message: 'Schema validation must be synchronous' }],
+      };
+    }
+
+    if (result.issues) {
+      return { success: false, issues: result.issues };
+    }
+
+    return { success: true, value: result.value };
+  } catch (error) {
+    return {
+      success: false,
+      issues: [
+        {
+          message:
+            error instanceof Error ? error.message : 'Schema validation failed',
+        },
+      ],
+    };
+  }
+}
+
+export function allowsStandardValidation<
+  Schema extends StandardSchemaValidator,
+>(schema: Schema, input: StandardSchemaV1.InferInput<Schema>) {
+  return validateStandardSchema(schema, input).success;
+}
+
 export function runStandardValidation<Schema extends StandardSchemaValidator>(
   schema: Schema,
   input: StandardSchemaV1.InferInput<Schema>
