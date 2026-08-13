@@ -44,7 +44,7 @@ describe('multi step form step schema: field validation', () => {
     });
   });
 
-  it('should error if validated fields differ from config fields', () => {
+  it('does not validate field values while instantiating the form', () => {
     expect(
       // This function is needed so that vitest can intercept the value
       () =>
@@ -56,17 +56,13 @@ describe('multi step form step schema: field validation', () => {
                 firstName: {
                   defaultValue: '',
                 },
-                lastName: {
-                  defaultValue: '',
-                },
               },
               validateFields: type({
-                fName: 'string',
-                lName: 'string',
+                firstName: 'string > 0',
               }),
             },
           },
         }).configure()()
-    ).toThrowError(Error);
+    ).not.toThrow();
   });
 });

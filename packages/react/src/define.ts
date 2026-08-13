@@ -412,7 +412,11 @@ export type MultiStepFormReactFactory<
 > = MultiStepFormReactFactoryBase<TSteps, TInstances, TCasing> &
   (<TInstance extends InstanceName<TInstances>>(
     ...args: MultiStepFormReactFactoryCallOptions<TInstances, TInstance>
-  ) => MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>);
+  ) =>
+    MultiStepFormReactInstance<
+      DefineConfig<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing>
+    >);
 
 function createReactFactory<
   const TSteps extends StepConfig,

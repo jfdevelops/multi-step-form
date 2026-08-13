@@ -500,10 +500,10 @@ export namespace MultiStepFormSchemaConfig {
           });
 
           const step = steps[targetStep as keyof typeof steps] as unknown as {
-            isComplete: () => boolean;
+            isComplete: boolean;
           };
 
-          return step.isComplete();
+          return step.isComplete;
         }
 
         function getCurrentStepData(options: {

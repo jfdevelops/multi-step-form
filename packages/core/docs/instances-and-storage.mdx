@@ -173,7 +173,7 @@ Read it back via the bound per-step method or the schema-level helper (both refl
 field values, live):
 
 ```ts
-instance.stepSchema.value.step1.isComplete(); // bound, no args
+instance.stepSchema.value.step1.isComplete; // live boolean
 instance.stepSchema.isStepComplete("step1"); // equivalent
 ```
 

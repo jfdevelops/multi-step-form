@@ -155,13 +155,13 @@ describe('createFields', () => {
       });
     });
 
-    it('should error if the fields are invalid', () => {
+    it('does not validate initial field values', () => {
       expect(() =>
         instantiateFields({
           fields: { firstName: { defaultValue: '' } },
           validateFields: type({ firstName: 'number' }),
         })
-      ).toThrowError(Error);
+      ).not.toThrow();
     });
   });
 });

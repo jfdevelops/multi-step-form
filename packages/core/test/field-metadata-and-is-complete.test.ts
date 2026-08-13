@@ -238,7 +238,7 @@ describe('step isComplete', () => {
     const instance = createForm();
 
     expect(instance.stepSchema.isStepComplete('step1')).toBe(true);
-    expect(instance.stepSchema.value.step1.isComplete()).toBe(true);
+    expect(instance.stepSchema.value.step1.isComplete).toBe(true);
   });
 
   it('evaluates "isComplete" against the step current field values', () => {
@@ -263,6 +263,6 @@ describe('step isComplete', () => {
     });
 
     expect(instance.stepSchema.isStepComplete('step1')).toBe(true);
-    expect(instance.stepSchema.value.step1.isComplete()).toBe(true);
+    expect(instance.stepSchema.value.step1.isComplete).toBe(true);
   });
 });

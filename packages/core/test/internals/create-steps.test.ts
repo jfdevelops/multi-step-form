@@ -29,6 +29,7 @@ describe('instantiateSteps', () => {
     expect(steps).toStrictEqual({
       step1: {
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'title',
         fields: {
           firstName: {
@@ -42,6 +43,7 @@ describe('instantiateSteps', () => {
       },
       step2: {
         title: 'Step 2',
+        isComplete: true,
         nameTransformCasing: 'title',
         fields: {
           lastName: {
@@ -83,6 +85,7 @@ describe('instantiateSteps', () => {
     expect(steps).toStrictEqual({
       step1: {
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'kebab',
         fields: {
           firstName: {
@@ -96,6 +99,7 @@ describe('instantiateSteps', () => {
       },
       step2: {
         title: 'Step 2',
+        isComplete: true,
         nameTransformCasing: 'pascal',
         fields: {
           lastName: {
@@ -136,6 +140,7 @@ describe('instantiateSteps', () => {
     expect(steps).toStrictEqual({
       step1: {
         title: 'Step 1',
+        isComplete: true,
         description: 'This is step 1',
         nameTransformCasing: 'title',
         fields: {
@@ -150,6 +155,7 @@ describe('instantiateSteps', () => {
       },
       step2: {
         title: 'Step 2',
+        isComplete: true,
         nameTransformCasing: 'title',
         fields: {
           lastName: {
@@ -181,6 +187,7 @@ describe('instantiateSteps', () => {
     expect(steps.step1).not.toHaveProperty('description');
     expect(steps.step1).toStrictEqual({
       title: 'Step 1',
+      isComplete: true,
       nameTransformCasing: 'title',
       fields: {
         firstName: {
@@ -213,6 +220,7 @@ describe('instantiateSteps', () => {
       expect(steps).toStrictEqual({
         step1: {
           title: 'Step 1',
+          isComplete: true,
           nameTransformCasing: 'title',
           fields: {
             firstName: {
@@ -227,7 +235,7 @@ describe('instantiateSteps', () => {
       });
     });
 
-    it('should error if the fields are invalid', () => {
+    it('does not validate initial field values', () => {
       expect(() =>
         instantiateSteps({
           steps: {
@@ -242,7 +250,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(Error);
+      ).not.toThrow();
     });
   });
 

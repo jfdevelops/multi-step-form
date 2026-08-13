@@ -10,7 +10,14 @@ import {
   type Expand,
   type Show,
 } from '@/utils';
-import type { AnyValidator, DefaultValidator } from '@/utils/validator';
+import type {
+  AnyValidator,
+  DefaultValidator,
+  ResolveValidatorOutput,
+  StandardSchemaValidator,
+  StepValidateResult,
+} from '@/utils/validator';
+import { allowsStandardValidation } from '@/utils/validator';
 import {
   inferDefaultValue,
   instantiateFields,
@@ -59,6 +66,7 @@ export type StepResolvedData<TConfig extends AnyConfig> = Expand<
   {
     title: string;
     nameTransformCasing: inferNameTransformCasing<TConfig, DefaultCasing>;
+    isComplete: boolean;
     fields: StripStringIndex<
       instantiateFields<TConfig, inferNameTransformCasing<TConfig, DefaultCasing>>
     >;
@@ -144,7 +152,8 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
       /**
        * Determines whether this step is complete, based on that step's current field values.
        *
-       * If omitted, the step is always considered complete.
+       * If omitted, completeness uses `validateFields` when provided; otherwise,
+       * the step is always considered complete.
        */
       isComplete?: StepIsCompleteFn<OverrideStepConfig<TMap[key]>>;
     };
@@ -187,6 +196,7 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
               T['steps'][key],
               inferSchemaDefaultCasing<T>
             >;
+            isComplete: boolean;
             fields: StripStringIndex<
               instantiateFields<
                 T['steps'][key],
@@ -202,6 +212,22 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
       }>
     : {}
   : {};
+type StepValidator<def, key> = def extends { steps: infer steps }
+  ? key extends keyof steps
+    ? 'validateFields' extends keyof steps[key]
+      ? steps[key] extends { validateFields?: infer validator }
+        ? Exclude<validator, undefined>
+        : never
+      : never
+    : never
+  : never;
+type StepValidateFunction<def, key> = [StepValidator<def, key>] extends [never]
+  ? {}
+  : {
+      validate: () => StepValidateResult<
+        ResolveValidatorOutput<StepValidator<def, key>>
+      >;
+    };
 export type BaseStepFunctions<
   def,
   value extends _instantiateSteps<def>,
@@ -217,11 +243,7 @@ export type BaseStepFunctions<
               update: UpdateFn.stepSpecific<value, key>;
               reset: ResetFn.stepSpecific<value, key>;
               createHelperFn: StepSpecificHelperFn<value, key>;
-              /**
-               * Checks whether this step is complete, based on that step's current field values.
-               */
-              isComplete: () => boolean;
-            }
+            } & StepValidateFunction<def, key>
           : {}
         : {}
       : {})
@@ -293,6 +315,7 @@ export function instantiateSteps<
       title,
       description,
       validateFields,
+      isComplete: isCompleteConfig,
       nameTransformCasing = schemaDefaultCasing,
     } = stepValue;
 
@@ -350,6 +373,23 @@ export function instantiateSteps<
       defaultCasing: nameTransformCasing,
       validateFields,
     });
+    const fieldValues = Object.fromEntries(
+      Object.entries(instantiatedFields as Record<string, unknown>).map(
+        ([name, field]) => [
+          name,
+          (field as Record<string, unknown>).defaultValue,
+        ],
+      ),
+    );
+    const isComplete =
+      typeof isCompleteConfig === 'function'
+        ? Boolean(isCompleteConfig(fieldValues as never))
+        : validateFields
+          ? allowsStandardValidation(
+              validateFields as StandardSchemaValidator,
+              fieldValues as never,
+            )
+          : true;
 
     resolvedSteps[stepKey] = {
       ...(resolvedSteps[stepKey] as Record<string, unknown>),
@@ -357,6 +397,7 @@ export function instantiateSteps<
       // Only add the description if it's defined
       ...(typeof description === 'string' ? { description } : {}),
       nameTransformCasing,
+      isComplete,
       fields: instantiatedFields,
     };
   }
