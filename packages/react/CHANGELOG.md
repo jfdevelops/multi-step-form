@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.9
+
+### Patch Changes
+
+- 9778039: Keep generated Field and Selector component identities stable across renders so selected inputs retain their DOM node and focus.
+- Updated dependencies [9778039]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.6
+
 ## 1.0.0-beta.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-beta.6
+
+### Patch Changes
+
+- 9778039: Use `validateFields` for default step completeness without validating initial values, expose step completeness as a live boolean and non-throwing `validate()` results, and preserve declared keys for `isStepComplete` on named instances.
+
 ## 1.0.0-beta.5
 
 ### Patch Changes
