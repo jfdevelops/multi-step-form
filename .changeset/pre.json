@@ -85,6 +85,7 @@
     "sparkly-stamps-feel",
     "stable-react-tests",
     "static-custom-error-invariants",
+    "steady-selectors-focus",
     "steady-suspended-fields",
     "swift-snakes-call",
     "tender-dates-compare",
@@ -96,6 +97,7 @@
     "update-mismatch-error",
     "wacky-pans-sniff",
     "warm-fields-compose",
+    "warm-steps-validate",
     "yummy-numbers-stare",
     "yummy-pans-crash"
   ]
