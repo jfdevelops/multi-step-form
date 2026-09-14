@@ -409,6 +409,12 @@ export namespace ForField {
 
 type SelectableComponent = (props: Record<string, unknown>) => ReactNode;
 
+/** Which of `field`/`instance` a wrapper has already fixed — see {@linkcode withReusableField}. */
+interface BoundSlots {
+  field?: boolean;
+  instance?: boolean;
+}
+
 /**
  * Wraps a field component with `bindToField`/`bindToInstance`, the runtime side of
  * {@linkcode ForField.boundComponent}, {@linkcode ForField.selectableComponent}, and
@@ -416,33 +422,62 @@ type SelectableComponent = (props: Record<string, unknown>) => ReactNode;
  * this — including the ones `bindToField`/`bindToInstance` themselves return, so binding
  * stays available at every step of narrowing, in whichever order a caller chains them.
  *
- * Untyped by design: `ForField`'s exported types are what give callers the real,
- * narrowed signatures (including which methods are — and aren't — present after
- * binding); this function only needs to know it's wrapping *some* component.
+ * `bound` tracks which slots this particular wrapper has already fixed, so a slot that's
+ * already bound doesn't get its binding method attached again. Without this, calling
+ * `bindToField`/`bindToInstance` a second time on an already-bound wrapper doesn't fail —
+ * it builds a wrapper whose *inner* `Component` still injects the original value last (via
+ * `{...props, field}`/`{...props, instance}`), silently discarding whatever the second call
+ * tried to rebind, no error either way. `ForField`'s exported types already stop this at the
+ * type level (`boundComponent`/`selectableComponent` and their instance-bound forms simply
+ * don't have the method once a slot is bound), but nothing stopped a caller who bypasses
+ * those types (plain JS, `as any`, a type-erasing HOC) from hitting it silently. Untracked
+ * slots are still untyped by design: `ForField`'s exported types are what give callers the
+ * real, narrowed signatures; this function only needs to know which slots are open.
  *
  * @param Component The field component to add `bindToField`/`bindToInstance` to.
- * @returns `Component`, with `bindToField` and `bindToInstance` attached.
+ * @param bound Which slots `Component` has already had fixed. Omitted (or `false`) means
+ * still open — pass this only when calling from a context that already knows the field
+ * and/or instance are fixed for a reason other than a `bindToField`/`bindToInstance` call
+ * (e.g. `field` was fixed via a config, not by binding).
+ * @returns `Component`, with a `bindToField` and/or `bindToInstance` attached for each
+ * slot in `bound` that isn't already `true`.
  */
 export function withReusableField<Component extends SelectableComponent>(
   Component: Component,
+  bound: BoundSlots = {},
 ) {
-  /** Fixes `field` on every render, so callers no longer pass it as a prop. */
-  function bindToField(field: string) {
-    return withReusableField(function BoundField(
-      props: Record<string, unknown> = {},
-    ) {
-      return createElement(Component as never, { ...props, field } as never);
-    });
+  const methods: {
+    bindToField?: (field: string) => unknown;
+    bindToInstance?: (instance: unknown) => unknown;
+  } = {};
+
+  if (!bound.field) {
+    /** Fixes `field` on every render, so callers no longer pass it as a prop. */
+    methods.bindToField = (field: string) =>
+      withReusableField(
+        function BoundField(props: Record<string, unknown> = {}) {
+          return createElement(
+            Component as never,
+            { ...props, field } as never,
+          );
+        },
+        { ...bound, field: true },
+      );
   }
 
-  /** Fixes `instance` on every render, so callers no longer pass it as a prop. */
-  function bindToInstance(instance: unknown) {
-    return withReusableField(function InstanceBoundField(
-      props: Record<string, unknown> = {},
-    ) {
-      return createElement(Component as never, { ...props, instance } as never);
-    });
+  if (!bound.instance) {
+    /** Fixes `instance` on every render, so callers no longer pass it as a prop. */
+    methods.bindToInstance = (instance: unknown) =>
+      withReusableField(
+        function InstanceBoundField(props: Record<string, unknown> = {}) {
+          return createElement(
+            Component as never,
+            { ...props, instance } as never,
+          );
+        },
+        { ...bound, instance: true },
+      );
   }
 
-  return Object.assign(Component, { bindToField, bindToInstance });
+  return Object.assign(Component, methods);
 }

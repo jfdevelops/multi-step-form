@@ -782,7 +782,12 @@ export class MultiStepFormStepSchema<
         },
       } as never);
 
-      return withReusableField(Component as never);
+      // A `field` fixed here came from config, not from `bindToField` — either way it's
+      // already fixed, so the wrapper shouldn't expose a `bindToField` that would
+      // silently do nothing (`configuredField` always wins over a `field` prop above).
+      return withReusableField(Component as never, {
+        field: configuredField !== undefined,
+      });
     };
 
     return Object.assign(impl, { forField }) as unknown as StepSpecificCreateComponentFn<

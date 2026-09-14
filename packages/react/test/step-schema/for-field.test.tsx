@@ -467,14 +467,52 @@ describe('createComponent.forField', () => {
       expectTypeOf<'bindToInstance'>().not.toMatchTypeOf<
         keyof typeof SchemaTextField
       >();
-      // @ts-expect-error Already instance-bound — rebinding isn't a real operation.
-      SchemaTextField.bindToInstance(otherSchema);
+      expect(() => {
+        // @ts-expect-error Already instance-bound — rebinding isn't a real operation.
+        SchemaTextField.bindToInstance(otherSchema);
+      }).toThrow(TypeError);
 
       // A fully-bound component (both instance and field) has no methods left at all.
       const FirstName = SchemaTextField.bindToField('firstName');
       expectTypeOf<keyof typeof FirstName>().toEqualTypeOf<never>();
-      // @ts-expect-error No instance left to bind on a fully-bound component either.
-      FirstName.bindToInstance(otherSchema);
+      expect(() => {
+        // @ts-expect-error No instance left to bind on a fully-bound component either.
+        FirstName.bindToInstance(otherSchema);
+      }).toThrow(TypeError);
+    });
+
+    it('has no bindToInstance/bindToField at runtime either, once bound — not just at the type level', async () => {
+      // A caller who bypasses the types entirely (plain JS, `as any`, a type-erasing
+      // HOC) must not be able to silently "rebind" an already-bound slot: the inner
+      // wrapper always injects its originally-bound value last, so a second bind would
+      // build a component that looks rebound but keeps reading/writing the original
+      // value — no error either way. The fix is to not expose the method at runtime
+      // once a slot is bound, so calling it throws instead of silently doing nothing.
+      const createForm = fieldFormDefinition.configure();
+      const schema = createForm({ instance: 'client' });
+      const otherSchema = createForm({ instance: 'admin' });
+      const TextField = createForm.stepSchema.value.step1.createComponent.forField(
+        { fields: ['firstName', 'lastName'], render: (field) => <p>{field.defaultValue}</p> },
+      );
+
+      const SchemaTextField = TextField.bindToInstance(schema) as unknown as Record<
+        string,
+        unknown
+      >;
+      expect(SchemaTextField.bindToInstance).toBeUndefined();
+      expect(typeof SchemaTextField.bindToField).toBe('function');
+
+      const FirstName = (
+        SchemaTextField.bindToField as (field: string) => unknown
+      )('firstName') as Record<string, unknown>;
+      expect(FirstName.bindToInstance).toBeUndefined();
+      expect(FirstName.bindToField).toBeUndefined();
+
+      // Confirms it's still bound to the original instance — an admin-instance render
+      // never shows up here, since there's no way left to rebind it.
+      const screen = await renderInJsdom(createElement(FirstName as never));
+      expect(screen.getByText('Taylor')).toBeDefined();
+      void otherSchema;
     });
 
     it('composes with bindToField so the resulting component needs no props at all', async () => {

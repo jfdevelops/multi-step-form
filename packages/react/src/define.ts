@@ -623,7 +623,12 @@ function createReactFactory<
         return createElement(Component as never, componentProps as never);
       }
 
-      return withReusableField(SharedField as never);
+      // A `field` fixed in `componentConfig` came from config, not from `bindToField` —
+      // either way it's already fixed, so the wrapper shouldn't expose a `bindToField`
+      // that would silently do nothing.
+      return withReusableField(SharedField as never, {
+        field: componentConfig.field !== undefined,
+      });
     },
   };
 
