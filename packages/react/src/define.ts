@@ -250,6 +250,13 @@ export interface MultiStepFormReactFactoryStepFunctions<
 interface MultiStepFormReactFactoryCreateComponentFn<
   TSteps extends StepConfig,
   TCasing extends CasingType,
+  // The type a `forField`/`forInstance` component's `instance` prop accepts. Defaults to
+  // the deliberately loose `AnyMultiStepFormSchema` — every instance produced by any
+  // definition's factory (at any point in its `withOverrides`/`withForm`/`withContext`
+  // chain) is assignable to it — but callers who want a specific instance's own type to
+  // flow through instead (e.g. so it's preserved by `forInstance` rather than widened)
+  // can narrow it explicitly via {@linkcode MultiStepFormReactDefinition.configure}.
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > {
   <
     chosenSteps extends HelperFnChosenSteps.main<
@@ -276,7 +283,7 @@ interface MultiStepFormReactFactoryCreateComponentFn<
   forField: ForField.createComponentFn<
     DefineConfig<TSteps, TCasing>,
     DefineReactValue<TSteps, TCasing>,
-    { instance: AnyMultiStepFormSchema }
+    { instance: TInstanceSchema }
   >;
 
 }
@@ -285,6 +292,7 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
   TSteps extends StepConfig,
   TCasing extends CasingType,
   targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > {
   <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
     config: StepSpecificComponent.config<
@@ -300,7 +308,7 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
     DefineConfig<TSteps, TCasing>,
     DefineReactValue<TSteps, TCasing>,
     targetStep,
-    { instance: AnyMultiStepFormSchema }
+    { instance: TInstanceSchema }
   >;
 
 }
@@ -308,6 +316,7 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
 type MultiStepFormReactFactoryStepSchema<
   TSteps extends StepConfig,
   TCasing extends CasingType,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > = Omit<
   MultiStepFormSchema<DefineConfig<TSteps, TCasing>>['stepSchema'],
   'value'
@@ -320,7 +329,8 @@ type MultiStepFormReactFactoryStepSchema<
       createComponent: MultiStepFormReactFactoryStepCreateComponentFn<
         TSteps,
         TCasing,
-        targetStep
+        targetStep,
+        TInstanceSchema
       >;
     };
   };
@@ -337,18 +347,27 @@ export type MultiStepFormReactFactoryBase<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > = Omit<
   MultiStepFormSchema<DefineConfig<TSteps, TCasing>>,
   'createComponent' | 'stepSchema'
 > &
   MultiStepFormReactFactoryStepProperties<TSteps> & {
-  createComponent: MultiStepFormReactFactoryCreateComponentFn<TSteps, TCasing>;
+  createComponent: MultiStepFormReactFactoryCreateComponentFn<
+    TSteps,
+    TCasing,
+    TInstanceSchema
+  >;
   /**
    * Creates a typed value override resolver for one step that can be passed to
    * {@linkcode MultiStepFormReactInstance.withOverrides}.
    */
   createValueOverride: MultiStepFormFactoryCreateValueOverrideFn<TSteps>;
-  stepSchema: MultiStepFormReactFactoryStepSchema<TSteps, TCasing>;
+  stepSchema: MultiStepFormReactFactoryStepSchema<
+    TSteps,
+    TCasing,
+    TInstanceSchema
+  >;
   /**
    * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
    *
@@ -409,7 +428,13 @@ export type MultiStepFormReactFactory<
   TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType = CasingType,
-> = MultiStepFormReactFactoryBase<TSteps, TInstances, TCasing> &
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+> = MultiStepFormReactFactoryBase<
+  TSteps,
+  TInstances,
+  TCasing,
+  TInstanceSchema
+> &
   (<TInstance extends InstanceName<TInstances>>(
     ...args: MultiStepFormReactFactoryCallOptions<TInstances, TInstance>
   ) =>
@@ -422,10 +447,11 @@ function createReactFactory<
   const TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   const TCasing extends CasingType,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 >(
   config: DefineMultiStepFormOptions<TSteps, TInstances>,
   configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
-): MultiStepFormReactFactory<TSteps, TInstances, TCasing> {
+): MultiStepFormReactFactory<TSteps, TInstances, TCasing, TInstanceSchema> {
   const { steps, instances: declaredInstances } = config;
   const { defaultOverrides, nameTransformCasing } = configureOptions;
   const configuredSteps = mergeStepOverrides(steps as TSteps, defaultOverrides);
@@ -631,7 +657,8 @@ function createReactFactory<
     sharedFieldComponent,
   ) as unknown as MultiStepFormReactFactoryCreateComponentFn<
     TSteps,
-    TCasing
+    TCasing,
+    TInstanceSchema
   >;
 
   return Object.assign(
@@ -651,7 +678,12 @@ function createReactFactory<
         return activeInstance;
       },
     },
-  ) as unknown as MultiStepFormReactFactory<TSteps, TInstances, TCasing>;
+  ) as unknown as MultiStepFormReactFactory<
+    TSteps,
+    TInstances,
+    TCasing,
+    TInstanceSchema
+  >;
 }
 
 export class MultiStepFormReactDefinition<
@@ -672,16 +704,26 @@ export class MultiStepFormReactDefinition<
    * Also accepts {@linkcode ConfigureOptions} `nameTransformCasing` — the schema-wide default
    * casing used to derive field labels. When omitted, defaults to `'title'`.
    *
+   * `TInstanceSchema` types every `instance` prop the resulting factory's `forField`/
+   * `forInstance` components accept. It defaults to the permissive
+   * {@linkcode AnyMultiStepFormSchema} — every instance this factory can produce, at any
+   * point in its `withOverrides`/`withForm`/`withContext` chain, is assignable to it —
+   * but narrowing it (e.g. to a specific `withForm`/`withContext` result type) lets that
+   * type flow through `forInstance` instead of being widened away.
+   *
    * @returns A callable factory used to create/retrieve named instances.
    */
-  configure<const TCasing extends CasingType = DefaultCasing>(
+  configure<
+    const TCasing extends CasingType = DefaultCasing,
+    TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  >(
     configureOptions: ConfigureOptions<
       TInstances,
       TCasing,
       TSteps
     > = {} as ConfigureOptions<TInstances, TCasing, TSteps>,
-  ): MultiStepFormReactFactory<TSteps, TInstances, TCasing> {
-    return createReactFactory<TSteps, TInstances, TCasing>(
+  ): MultiStepFormReactFactory<TSteps, TInstances, TCasing, TInstanceSchema> {
+    return createReactFactory<TSteps, TInstances, TCasing, TInstanceSchema>(
       this.config,
       configureOptions,
     );

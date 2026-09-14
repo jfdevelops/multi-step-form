@@ -106,6 +106,19 @@ export namespace MultiStepFormStepSchema {
   };
 }
 
+// The base class's own constructor calls `this.sync()` before a subclass's `#private`
+// instance fields exist yet — an overridden `sync()` touching one at that point throws
+// ("Receiver must be an instance of class ..."), since the private-field brand for this
+// class isn't installed on `this` until its own field initializers run, which only
+// happens *after* `super()` returns. A module-level WeakMap sidesteps that entirely:
+// keying by `this` needs no brand on the instance, so it's safe to read however early
+// `sync()` fires, and simply returns `undefined` before the constructor has built
+// anything to re-attach yet.
+const stepComponentFactoriesByInstance = new WeakMap<
+  MultiStepFormStepSchema<StepSchema.Config, never>,
+  Map<string, StepSpecificCreateComponentFn<StepSchema.Config, never, never>>
+>();
+
 export class MultiStepFormStepSchema<
   const def extends StepSchema.Config,
   value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
@@ -146,19 +159,34 @@ export class MultiStepFormStepSchema<
       this.subscribe,
       Object.keys(this.value) as StepNumbers<value>[],
     );
-    this.value = this.#internal.enrichValues(this.value, (step) => {
-      const targetStep = `step${step}` as StepNumbers<value>;
 
+    // Each step's `createComponent` factory only needs building once — it closes over
+    // `this` and reads `this.value[step]` fresh whenever it's actually invoked, so the
+    // same factory instance stays valid across every later `value` reassignment.
+    const stepComponentFactories = new Map<
+      StepNumbers<value>,
+      StepSpecificCreateComponentFn<def, value, StepNumbers<value>>
+    >();
+
+    for (const key of Object.keys(this.value)) {
+      const targetStep = key as StepNumbers<value>;
       const id = form?.id ?? targetStep;
       const instantiatedForm = createFormConfig(form as never, id);
 
-      return {
-        createComponent: this.createStepSpecificComponentFactory(targetStep, {
+      stepComponentFactories.set(
+        targetStep,
+        this.createStepSpecificComponentFactory(targetStep, {
           isStepSpecific: true,
           form: instantiatedForm,
         }),
-      };
-    });
+      );
+    }
+
+    stepComponentFactoriesByInstance.set(
+      this as never,
+      stepComponentFactories as never,
+    );
+    this.applyStepComponentFactories();
 
     // A function object preserves the callable factory while grouping the field-specific
     // variant under the API it specializes.
@@ -204,6 +232,59 @@ export class MultiStepFormStepSchema<
         return target.createComponent.forField(fieldConfig as never);
       },
     }) as unknown as CreateComponentFn<def, value>;
+  }
+
+  /**
+   * Re-attaches each step's cached `createComponent` (built once in the constructor)
+   * onto {@linkcode value}.
+   *
+   * The base class's `sync()` rebuilds `value` from only its own core-level enrichment
+   * (`update`/`reset`/`createHelperFn`/…), which has no notion of `createComponent` —
+   * so without this, every `value` reassignment (every field update routes through
+   * `sync()` via `handlePostUpdate`) would silently drop it, and any component that
+   * looks it up lazily (e.g. a `forField` component resolving which instance to bind
+   * to at render time) would crash on the next reassignment after it was built.
+   *
+   * A TypeScript `private` (not a `#private` field) deliberately — the base class's own
+   * constructor invokes `this.sync()`, which dispatches to our override, *before*
+   * `super()` returns and this class's `#private` elements are installed on `this`; a
+   * real `#private` method call at that point throws ("Receiver must be an instance of
+   * class ..."), brand check and all, before its body ever runs. An ordinary method
+   * carries no such brand, so it's safe to call that early as long as its body doesn't
+   * touch `#private` state until *after* the early-return below, which the WeakMap read
+   * (itself brand-free) guarantees.
+   */
+  private applyStepComponentFactories() {
+    const factories = stepComponentFactoriesByInstance.get(this as never);
+
+    if (!factories) {
+      // Not built yet — this runs once before the constructor's own initial `sync()`,
+      // before there's anything to re-attach.
+      return;
+    }
+
+    this.value = this.#internal.enrichValues(this.value, (step) => {
+      const targetStep = `step${step}` as StepNumbers<value>;
+      const factory = factories.get(targetStep);
+
+      InvalidInternalStateError.invariant(factory !== undefined, {
+        reason: `No cached "createComponent" factory was found for ${targetStep}`,
+        operation: 'sync',
+        value: targetStep,
+      });
+
+      return { createComponent: factory };
+    });
+  }
+
+  /**
+   * Syncs `value` from storage, then re-attaches the per-step `createComponent`
+   * factories the base class's own sync has no knowledge of. See
+   * {@linkcode MultiStepFormStepSchema.applyStepComponentFactories}.
+   */
+  override sync() {
+    super.sync();
+    this.applyStepComponentFactories();
   }
 
   private createResolvedCtx<
