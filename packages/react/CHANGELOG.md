@@ -1,5 +1,34 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.11
+
+### Patch Changes
+
+- a51ec1f: fix: keep `forField` components working after an instance's first field update, and add `bindToInstance`/`bindToField` to bind instance and field separately
+
+  A `forField`/`stepCreateComponentFn` component built from a definition's factory would throw resolving `.forField` on `undefined` the next time a new field type rendered, once the bound instance had persisted at least one field update through storage — `value[step].createComponent` was only ever attached once, in the constructor, and every update replaced `value` without it.
+
+  Selectable and single-field components built this way can now also bind their `instance` and their `field` independently and in either order via `bindToInstance`/`bindToField` (renamed from `asReusable`), instead of requiring an `instance` prop on every render:
+
+  ```tsx
+  const TextField = createForm.stepSchema.value.step1.createComponent.forField({
+    fields: ["firstName", "lastName"],
+    render: (field) => <p>{field.defaultValue}</p>,
+  });
+
+  const SchemaTextField = TextField.bindToInstance(schema);
+  const FirstName = SchemaTextField.bindToField("firstName");
+  <FirstName />;
+  ```
+
+  `instance` is also generic per call/per `bindToInstance` binding now, rather than fixed to one type for every component built from a definition — narrow it further via `configure<TCasing, TInstanceSchema>()`.
+
+- 648984e: fix: stop exposing `bindToField`/`bindToInstance` at runtime once that slot is already bound
+
+  Every wrapper produced by `withReusableField` exposed both `bindToField` and `bindToInstance` regardless of whether a slot was already fixed — an instance-bound, field-bound, or fully bound component still had both methods at runtime even though its type no longer does. Calling one of those "rebound" a component without error, but the inner wrapper injects its originally-bound value last, so the component silently kept reading and writing the original instance/field instead. A caller relying only on the types never hit this, but plain JS, `as any`, or a type-erasing HOC could.
+
+  `bindToField`/`bindToInstance` are now only attached for slots that aren't already bound, so calling either on an already-bound component throws instead of silently doing nothing.
+
 ## 1.0.0-beta.10
 
 ### Patch Changes
