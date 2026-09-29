@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.12
+
+### Minor Changes
+
+- fb8f86f: Add reusable conditional update and reset APIs, typed step and field scopes, a generic condition-tree engine, and React `createHook` scheduling for component helper functions.
+
+### Patch Changes
+
+- Updated dependencies [fb8f86f]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.8
+
 ## 1.0.0-beta.11
 
 ### Patch Changes
