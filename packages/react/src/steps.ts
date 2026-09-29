@@ -1,6 +1,7 @@
 import type {
   _instantiateSteps,
   BaseStepFunctions,
+  ConditionExpression,
   Expand,
   getDeepFields,
   getDefaultValues,
@@ -11,6 +12,7 @@ import type {
   ResetFn,
   StepNumbers,
   UpdateFn,
+  Update,
 } from '@jfdevelops/multi-step-form-core';
 import { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ReactNode } from 'react';
@@ -568,6 +570,63 @@ export interface StepSpecificCreateComponentFn<
   >;
 }
 
+type HookFunction = (...arguments_: any[]) => unknown;
+type HookFunctionKey<input> = {
+  [key in keyof input]: input[key] extends HookFunction ? key : never;
+}[keyof input];
+type HookConditionContext<fn extends HookFunction> =
+  fn extends Update.Callable<infer context, infer _arguments> ? context : unknown;
+
+/** A render-safe scheduler for a function selected by `createHook`. */
+export type HookRunner<fn extends HookFunction> = fn & {
+  /** Registers a post-commit invocation guarded by recursive conditions. */
+  forConditions(
+    conditions: ConditionExpression<HookConditionContext<fn>>,
+    ...arguments_: Parameters<fn>
+  ): void;
+};
+
+type CreatedHook<props, result> = [props] extends [undefined]
+  ? () => result
+  : (props: props) => result;
+
+export interface StepSpecificCreateHookFn<
+  def extends StepSchema.Config,
+  value extends instantiateReactSteps<def>,
+  targetStep extends StepNumbers<value>,
+> {
+  /**
+   * Creates a hook that schedules one named `createComponent` function after
+   * React commits. Calls registered during `render` never mutate form state
+   * during React's render phase.
+   */
+  <
+    input extends StepSpecificComponent.input<def, value, targetStep, {}>,
+    functionKey extends HookFunctionKey<input>,
+    props = undefined,
+    result = void,
+  >(config: {
+    function: functionKey;
+    render: (
+      input: input & {
+        run: HookRunner<Extract<input[functionKey], HookFunction>>;
+      },
+      props: props,
+    ) => result;
+  }): CreatedHook<props, result>;
+
+  /** Creates a hook that schedules a prepared update callable after commit. */
+  <fn extends HookFunction, props = undefined, result = void>(config: {
+    function: fn;
+    render: (
+      input: StepSpecificComponent.input<def, value, targetStep, {}> & {
+        run: HookRunner<fn>;
+      },
+      props: props,
+    ) => result;
+  }): CreatedHook<props, result>;
+}
+
 /**
  * The callback type for step-specific `createComponent` functions.
  * Type parameters after `chosenSteps` are retained for backwards compatibility
@@ -605,6 +664,8 @@ export type instantiateReactSteps<
     BaseStepFunctions<def, value & _instantiateSteps<def>, key> & {
       // @ts-expect-error -
       createComponent: StepSpecificCreateComponentFn<def, value, key>;
+      // @ts-expect-error -
+      createHook: StepSpecificCreateHookFn<def, value, key>;
     }
   >;
 }>;

@@ -604,8 +604,17 @@ export class MultiStepFormStepSchema<
       update?: unknown;
       reset?: unknown;
       createHelperFn?: unknown;
+      createReset?: unknown;
+      createUpdate?: unknown;
     };
-    const { update, reset, createHelperFn, ...resolvedStep } = currentStep;
+    const {
+      update,
+      reset,
+      createHelperFn,
+      createReset,
+      createUpdate,
+      ...resolvedStep
+    } = currentStep;
 
     return resolvedStep as unknown as def['steps'][Extract<
       targetStep,

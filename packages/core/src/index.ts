@@ -1,5 +1,9 @@
 export * from './schema.js';
 export * from './define.js';
+export * from './conditions.js';
+export * from './update.js';
+export * from './field-function.js';
+export * from './reset.js';
 export {
   InvalidInstanceError,
   type InvalidInstanceContext,
