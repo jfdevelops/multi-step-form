@@ -189,7 +189,7 @@ export type inferSchemaDefaultCasing<T> = T extends {
   : DefaultCasing;
 
 export type _instantiateSteps<T = unknown> = [T] extends [object]
-  ? T extends instantiateStepsConfig
+  ? T extends { steps: object }
     ? StripWidenedStepIndex<{
         -readonly [key in keyof T['steps']]: Expand<
           {
@@ -202,7 +202,10 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
             fields: StripStringIndex<
               instantiateFields<
                 T['steps'][key],
-                inferNameTransformCasing<T['steps'][key], inferSchemaDefaultCasing<T>>
+                inferNameTransformCasing<
+                  T['steps'][key],
+                  inferSchemaDefaultCasing<T>
+                >
               >
             >;
           } & (T['steps'][key] extends {

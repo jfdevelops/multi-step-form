@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { createUpdate, defineMultiStepForm, update } from '../../src';
 
 function createSchema() {
@@ -85,6 +85,8 @@ describe('createUpdate', () => {
       conditions: [isSettled, isUnresolved],
       patch: ({ input }) => input.patch,
     });
+    const listener = vi.fn();
+    const unsubscribe = schema.stepSchema.subscribe(listener);
 
     expectTypeOf(isSettled).parameter(0).toMatchTypeOf<{
       input: {
@@ -107,6 +109,7 @@ describe('createUpdate', () => {
     expect(
       schema.stepSchema.value.step1.fields.consent.defaultValue.promptOpen,
     ).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
 
     expect(
       reconcileConsent({
@@ -118,6 +121,8 @@ describe('createUpdate', () => {
     expect(
       schema.stepSchema.value.step1.fields.consent.defaultValue.promptOpen,
     ).toBe(true);
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
   });
 
   it('accepts recursive invocation conditions without returning a thunk', () => {

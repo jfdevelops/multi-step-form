@@ -1,5 +1,11 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0-beta.7
+
+### Patch Changes
+
+- 292732c: Keep concrete step keys in `_instantiateSteps` when step configs declare typed `isComplete` predicates, so `steps.as('string.keys')` no longer collapses to `never`.
+
 ## 1.0.0-beta.6
 
 ### Patch Changes

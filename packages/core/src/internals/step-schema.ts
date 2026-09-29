@@ -344,7 +344,13 @@ export class MultiStepFormStepSchemaInternal<
         },
       );
 
-      const functionKeys = new Set(['update', 'reset', 'createHelperFn']);
+      const functionKeys = new Set([
+        'update',
+        'reset',
+        'createHelperFn',
+        'createReset',
+        'createUpdate',
+      ]);
       const currentStepEntries = Object.entries(
         currentStep as Record<string, unknown>
       );
@@ -1066,7 +1072,10 @@ export class MultiStepFormStepSchemaInternal<
           getContext: () => createCtx(this.value, [targetStep]) as never,
           reset: this.createStepResetterFn(targetStep) as never,
         }),
-        createUpdate: createStepUpdate<value, StepNumbers<value>>(enrichedStep),
+        createUpdate: createStepUpdate<value, StepNumbers<value>>({
+          getContext: () => createCtx(this.value, [targetStep]) as never,
+          step: enrichedStep,
+        }),
       });
     }
 

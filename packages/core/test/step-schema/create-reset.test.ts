@@ -99,4 +99,24 @@ describe('createReset', () => {
       ),
     ).toEqual({ executed: true });
   });
+
+  it('preserves inherited conditions when changing field scopes', () => {
+    const schema = createSchema();
+    const step = schema.stepSchema.value.step1;
+    const conditionalReset = step.createReset
+      .withConditions([false])
+      .forFields(['fields.email.defaultValue']);
+
+    step.createUpdate.patch({
+      fields: ['fields.email.defaultValue'],
+    })('test@example.com');
+
+    expect(conditionalReset()).toEqual({
+      executed: false,
+      reason: 'condition-failed',
+    });
+    expect(schema.stepSchema.value.step1.fields.email.defaultValue).toBe(
+      'test@example.com',
+    );
+  });
 });

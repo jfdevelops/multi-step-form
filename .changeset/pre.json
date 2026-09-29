@@ -8,6 +8,7 @@
   "changesets": [
     "beta-tooling-validation",
     "big-bags-hunt",
+    "bind-field-instance-api",
     "bright-beta-api-fixes",
     "bright-fields-select",
     "bright-forms-update",
@@ -32,6 +33,7 @@
     "fair-baths-wave",
     "few-bushes-talk",
     "fix-custom-form-type-in-create-component",
+    "fix-instantiate-steps-as-keys",
     "flat-flies-divide",
     "flat-queens-jog",
     "flat-sheep-tan",
@@ -75,6 +77,7 @@
     "real-poets-film",
     "remove-use-form-instance",
     "restore-missing-types",
+    "reusable-field-rebind-guard",
     "selective-step-state",
     "seven-buttons-hunt",
     "sharp-fields-select",

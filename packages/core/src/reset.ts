@@ -203,7 +203,12 @@ function createScopedReset<
       >,
     >(
       nextFields: nextFields,
-    ) => createScopedReset<value, targetStep, nextFields>(config, nextFields),
+    ) =>
+      createScopedReset<value, targetStep, nextFields>(
+        config,
+        nextFields,
+        inheritedConditions as never,
+      ),
   });
   const withConditions = scopedReset.registerFunction({
     type: 'assigned',

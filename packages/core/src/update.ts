@@ -231,6 +231,11 @@ type RuntimeStep = {
   createUpdate?: unknown;
 };
 
+type RuntimeUpdateConfig = {
+  getContext(): Record<string, unknown>;
+  step: RuntimeStep;
+};
+
 type RuntimeScopeOptions = {
   fields?: unknown;
 };
@@ -290,7 +295,7 @@ function createScopedUpdate<
     UpdateFn.resolvedStep<value, targetStep>
   > = 'all',
   input = never,
->(step: RuntimeStep, scopeOptions: RuntimeScopeOptions = {}) {
+>(config: RuntimeUpdateConfig, scopeOptions: RuntimeScopeOptions = {}) {
   type chosenFields = UpdateFn.chosenFields<
     UpdateFn.resolvedStep<value, targetStep>
   >;
@@ -321,34 +326,30 @@ function createScopedUpdate<
     >;
     const selectedFields = options.fields ?? scopeOptions.fields ?? 'all';
     const conditionTools = createConditions<executionContext>();
-    let executed = false;
+    const ctx = config.getContext();
+    const updateContext = {
+      ctx,
+      current: getCurrentValue(ctx, selectedFields),
+      input: inputValue,
+    } as executionContext;
 
-    step.update({
+    if (
+      options.conditions &&
+      !conditionTools.evaluate(options.conditions, updateContext)
+    ) {
+      return { executed: false, reason: 'condition-failed' };
+    }
+
+    const updatedValue = options.updater(updateContext);
+
+    config.step.update({
       debug: options.debug,
       fields: selectedFields,
       silentErrors: options.silentErrors,
-      updater: ({ ctx }: { ctx: Record<string, unknown> }) => {
-        const updateContext = {
-          ctx,
-          current: getCurrentValue(ctx, selectedFields),
-          input: inputValue,
-        } as executionContext;
-
-        if (
-          options.conditions &&
-          !conditionTools.evaluate(options.conditions, updateContext)
-        ) {
-          return updateContext.current;
-        }
-
-        executed = true;
-        return options.updater(updateContext);
-      },
+      updater: () => updatedValue,
     });
 
-    return executed
-      ? { executed: true }
-      : { executed: false, reason: 'condition-failed' };
+    return { executed: true };
   }
 
   function scopedUpdate<
@@ -563,7 +564,7 @@ function createScopedUpdate<
   function createForFields<const nextFields extends chosenFields>(
     nextFields: nextFields,
   ) {
-    return createScopedUpdate<value, targetStep, nextFields, input>(step, {
+    return createScopedUpdate<value, targetStep, nextFields, input>(config, {
       ...scopeOptions,
       fields: nextFields,
     });
@@ -571,7 +572,7 @@ function createScopedUpdate<
 
   function createWithInput<nextInput>() {
     return createScopedUpdate<value, targetStep, fields, nextInput>(
-      step,
+      config,
       scopeOptions,
     );
   }
@@ -818,6 +819,12 @@ export const update = createUpdate;
 export function createStepUpdate<
   value extends instantiateSteps,
   targetStep extends StepNumbers<value>,
->(step: value[targetStep]) {
-  return createScopedUpdate<value, targetStep>(step as RuntimeStep);
+>(config: {
+  getContext(): Record<string, unknown>;
+  step: value[targetStep];
+}) {
+  return createScopedUpdate<value, targetStep>({
+    getContext: config.getContext,
+    step: config.step as RuntimeStep,
+  });
 }

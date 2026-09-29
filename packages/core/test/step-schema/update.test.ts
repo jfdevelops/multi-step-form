@@ -24,6 +24,8 @@ describe('multi step form step schema: update', () => {
       update: _update,
       reset: _reset,
       createHelperFn: _createHelperFn,
+      createReset: _createReset,
+      createUpdate: _createUpdate,
       ...step3
     } = schema.stepSchema.value.step3;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
