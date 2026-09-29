@@ -28,7 +28,9 @@ import {
 } from './fields';
 import type { StepSpecificHelperFn } from './fn-utils/helper-fn/utils';
 import type { ResetFn } from './fn-utils/reset-fn';
+import type { Reset } from '../reset';
 import type { UpdateFn } from './fn-utils/update-fn';
+import type { Update } from '../update';
 
 export const VALIDATED_STEP_REGEX = /^step\d+$/i;
 
@@ -244,7 +246,11 @@ export type BaseStepFunctions<
               // The entire step value is passed into the step specific functions
               // because of the `ctxData` property.
               update: UpdateFn.stepSpecific<value, key>;
+              /** Creates reusable, conditional updates scoped to this step. */
+              createUpdate: Update.Scope<value, key>;
               reset: ResetFn.stepSpecific<value, key>;
+              /** Creates reusable, conditional resets scoped to this step. */
+              createReset: Reset.Scope<value, key>;
               createHelperFn: StepSpecificHelperFn<value, key>;
             } & StepValidateFunction<def, key>
           : {}

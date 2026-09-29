@@ -1,5 +1,6 @@
 import {
   buildValuePath,
+  createConditions,
   createCtx,
   instantiateSteps as instantiateStepsCore,
   type Expand,
@@ -28,9 +29,11 @@ import { MultiStepFormSchemaConfig } from './form-config';
 import { createUseSelector, deepEqual } from './hooks/use-selector';
 import { selector } from './selector';
 import {
+  type HookRunner,
   type instantiateReactSteps,
   StepSpecificComponent,
   type StepSpecificCreateComponentFn,
+  type StepSpecificCreateHookFn,
 } from './steps';
 import {
   type CreateComponent,
@@ -38,7 +41,13 @@ import {
   getValidatedCustomInputHooks,
   resolvedCtxCreator,
 } from './utils';
-import { Suspense, createElement, useEffect, type ReactNode } from 'react';
+import {
+  Suspense,
+  createElement,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
 
 export interface CreateComponentFn<
@@ -116,7 +125,17 @@ export namespace MultiStepFormStepSchema {
 // anything to re-attach yet.
 const stepComponentFactoriesByInstance = new WeakMap<
   MultiStepFormStepSchema<StepSchema.Config, never>,
-  Map<string, StepSpecificCreateComponentFn<StepSchema.Config, never, never>>
+  Map<
+    string,
+    {
+      createComponent: StepSpecificCreateComponentFn<
+        StepSchema.Config,
+        never,
+        never
+      >;
+      createHook: StepSpecificCreateHookFn<StepSchema.Config, never, never>;
+    }
+  >
 >();
 
 export class MultiStepFormStepSchema<
@@ -165,7 +184,14 @@ export class MultiStepFormStepSchema<
     // same factory instance stays valid across every later `value` reassignment.
     const stepComponentFactories = new Map<
       StepNumbers<value>,
-      StepSpecificCreateComponentFn<def, value, StepNumbers<value>>
+      {
+        createComponent: StepSpecificCreateComponentFn<
+          def,
+          value,
+          StepNumbers<value>
+        >;
+        createHook: StepSpecificCreateHookFn<def, value, StepNumbers<value>>;
+      }
     >();
 
     for (const key of Object.keys(this.value)) {
@@ -175,10 +201,16 @@ export class MultiStepFormStepSchema<
 
       stepComponentFactories.set(
         targetStep,
-        this.createStepSpecificComponentFactory(targetStep, {
-          isStepSpecific: true,
-          form: instantiatedForm,
-        }),
+        {
+          createComponent: this.createStepSpecificComponentFactory(targetStep, {
+            isStepSpecific: true,
+            form: instantiatedForm,
+          }),
+          createHook: this.createStepSpecificHookFactory(targetStep, {
+            isStepSpecific: true,
+            form: instantiatedForm,
+          }),
+        },
       );
     }
 
@@ -273,7 +305,7 @@ export class MultiStepFormStepSchema<
         value: targetStep,
       });
 
-      return { createComponent: factory };
+      return factory;
     });
   }
 
@@ -795,6 +827,98 @@ export class MultiStepFormStepSchema<
       value,
       targetStep
     >;
+  }
+
+  private createStepSpecificHookFactory<
+    targetStep extends StepNumbers<value>,
+  >(
+    targetStep: targetStep,
+    config: CreateComponentImplConfig.stepSpecificConfig<def, value>,
+  ): StepSpecificCreateHookFn<def, value, targetStep> {
+    type HookFunction = (...arguments_: unknown[]) => unknown;
+    type Registration = {
+      arguments: unknown[];
+      conditions?: import('@jfdevelops/multi-step-form-core').ConditionExpression<unknown>;
+    };
+
+    return ((hookConfig: {
+      function: string | HookFunction;
+      render: (
+        input: Record<string, unknown> & { run: HookRunner<HookFunction> },
+        props: unknown,
+      ) => unknown;
+    }) => {
+      const HookInput = this.createStepSpecificComponentFactory(
+        targetStep,
+        config,
+      )({
+        render: (input, props) => {
+          const registrations: Registration[] = [];
+          const previousRegistrations = useRef<Registration[]>([]);
+          const selectedFunction =
+            typeof hookConfig.function === 'string'
+              ? (input[hookConfig.function as keyof typeof input] as HookFunction)
+              : hookConfig.function;
+          const run = ((...arguments_: unknown[]) => {
+            registrations.push({ arguments: arguments_ });
+          }) as HookRunner<HookFunction>;
+
+          run.forConditions = (conditions, ...arguments_) => {
+            registrations.push({
+              arguments: arguments_,
+              conditions,
+            });
+          };
+
+          const result = hookConfig.render(
+            { ...input, run } as never,
+            props,
+          );
+
+          useEffect(() => {
+            const priorRegistrations = previousRegistrations.current;
+
+            registrations.forEach((registration, index) => {
+              if (deepEqual(registration, priorRegistrations[index])) {
+                return;
+              }
+
+              if (registration.conditions) {
+                if ('forConditions' in selectedFunction) {
+                  const conditionalFunction = selectedFunction as HookFunction & {
+                    forConditions(
+                      conditions: import('@jfdevelops/multi-step-form-core').ConditionExpression<unknown>,
+                      ...arguments_: unknown[]
+                    ): unknown;
+                  };
+
+                  conditionalFunction.forConditions(
+                    registration.conditions,
+                    ...registration.arguments,
+                  );
+                  return;
+                }
+
+                const conditionTools = createConditions<unknown>();
+
+                if (!conditionTools.evaluate(registration.conditions, undefined)) {
+                  return;
+                }
+              }
+
+              selectedFunction(...registration.arguments);
+            });
+
+            previousRegistrations.current = registrations;
+          });
+
+          return result as ReactNode;
+        },
+      });
+
+      return (props?: unknown) =>
+        (HookInput as (props?: unknown) => unknown)(props);
+    }) as StepSpecificCreateHookFn<def, value, targetStep>;
   }
 
   /**

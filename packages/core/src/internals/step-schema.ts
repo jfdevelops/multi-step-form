@@ -22,6 +22,8 @@ import {
   type StepNumbers,
 } from '@/steps/steps';
 import { functionalUpdate, omit } from '@/steps/utils';
+import { createStepUpdate } from '@/update';
+import { createStepReset } from '@/reset';
 import type { BaseStorageConfig, DefaultStorageKey } from '@/storage';
 import {
   MultiStepFormLogger,
@@ -342,7 +344,13 @@ export class MultiStepFormStepSchemaInternal<
         },
       );
 
-      const functionKeys = new Set(['update', 'reset', 'createHelperFn']);
+      const functionKeys = new Set([
+        'update',
+        'reset',
+        'createHelperFn',
+        'createReset',
+        'createUpdate',
+      ]);
       const currentStepEntries = Object.entries(
         currentStep as Record<string, unknown>
       );
@@ -1054,6 +1062,21 @@ export class MultiStepFormStepSchemaInternal<
           : {}),
         ...additionalProps?.(step),
       } as never;
+
+      const enrichedStep = enriched[targetStep as keyof values] as unknown as value[
+        StepNumbers<value>
+      ];
+
+      Object.assign(enrichedStep as object, {
+        createReset: createStepReset<value, StepNumbers<value>>({
+          getContext: () => createCtx(this.value, [targetStep]) as never,
+          reset: this.createStepResetterFn(targetStep) as never,
+        }),
+        createUpdate: createStepUpdate<value, StepNumbers<value>>({
+          getContext: () => createCtx(this.value, [targetStep]) as never,
+          step: enrichedStep,
+        }),
+      });
     }
 
     return enriched;
