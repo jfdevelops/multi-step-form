@@ -10,6 +10,7 @@ import {
   type DefaultCasing,
   type DefineConfig,
   type DefineMultiStepFormOptions,
+  type DefineSteps,
   type HelperFn,
   type HelperFnChosenSteps,
   InvalidComponentError,
@@ -81,7 +82,7 @@ export interface MultiStepFormReactInstance<
    * Chain order: `createForm({ instance }).withOverrides(...).withForm(...).withContext()`.
    */
   withOverrides(
-    overrides: WithOverridesMap<def['steps']>,
+    overrides: WithOverridesMap<DefineSteps<def>>,
   ): MultiStepFormReactInstanceWithOverridesApplied<def, value>;
 }
 
@@ -135,7 +136,7 @@ function attachInstance<
 
   return Object.assign(instance, {
     instanceName,
-    withOverrides(overrides: WithOverridesMap<def['steps']>) {
+    withOverrides(overrides: WithOverridesMap<DefineSteps<def>>) {
       InvalidInstanceError.invariant(!overridesApplied, {
         reason:
           '"withOverrides" was already applied to this instance and cannot be chained again. Call "withOverrides" once, on the instance returned by the factory.',
@@ -144,7 +145,10 @@ function attachInstance<
 
       overridesApplied = true;
 
-      const mergedSteps = mergeStepOverrides(rawSteps, overrides);
+      const mergedSteps = mergeStepOverrides(
+        rawSteps,
+        overrides as WithOverridesMap<def['steps']>,
+      );
 
       const next = attachInstance<def, TInstance>(
         new MultiStepFormSchema<def>({

@@ -8,6 +8,7 @@ import type {
 import type { StepSpecificHelperFn } from '@/steps/fn-utils/helper-fn/utils';
 import {
   instantiateSteps,
+  type ContextualInstantiateStepsConfig,
   type AnyConfig,
   type instantiateStepsConfig,
   type StepConfig,
@@ -46,7 +47,7 @@ export type DefineConfig<
 export type DefineMultiStepFormOptions<
   TSteps extends StepConfig = StepConfig,
   TInstances extends readonly string[] | undefined = undefined,
-> = instantiateStepsConfig<TSteps> & {
+> = ContextualInstantiateStepsConfig<TSteps> & {
   /**
    * The named instances this form definition can be created for (e.g. `['admin', 'client']`).
    *
@@ -118,6 +119,12 @@ export type WithOverridesMap<TSteps extends StepConfig> = Partial<{
     key in keyof TSteps as string extends key ? never : key
   ]: TSteps[key] extends AnyConfig ? StepOverrides<TSteps[key]> : never;
 }>;
+
+export type DefineSteps<TDef extends DefineConfig> = TDef extends {
+  readonly __stepConfig?: infer steps extends StepConfig;
+}
+  ? steps
+  : TDef['steps'];
 
 export function mergeStepOverrides<TSteps extends StepConfig>(
   steps: TSteps,
@@ -223,7 +230,7 @@ export interface MultiStepFormInstance<
    * `withOverrides`, and calling it again at runtime throws.
    */
   withOverrides(
-    overrides: WithOverridesMap<def['steps']>,
+    overrides: WithOverridesMap<DefineSteps<def>>,
   ): MultiStepFormInstanceWithOverridesApplied<def, value>;
 }
 
@@ -276,7 +283,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
     this.#overridesApplied = overridesApplied;
   }
 
-  withOverrides(overrides: WithOverridesMap<def['steps']>) {
+  withOverrides(overrides: WithOverridesMap<DefineSteps<def>>) {
     InvalidInstanceError.invariant(!this.#overridesApplied, {
       reason:
         '"withOverrides" was already applied to this instance and cannot be chained again. Call "withOverrides" once, on the instance returned by the factory.',
@@ -285,7 +292,10 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
 
     this.#overridesApplied = true;
 
-    const mergedSteps = mergeStepOverrides(this.#rawSteps, overrides);
+    const mergedSteps = mergeStepOverrides(
+      this.#rawSteps,
+      overrides as WithOverridesMap<def['steps']>,
+    );
 
     const next = new MultiStepFormInstanceImpl<def>({
       steps: mergedSteps,

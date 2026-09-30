@@ -32,17 +32,25 @@ describe('multi step form step schema: overrides types', () => {
               type: 'object.profile',
             },
           },
+          state: {
+            preferences: {
+              value: { mode: 'compact' },
+            },
+          },
         },
       },
     }).configure();
 
     const override = createForm.createValueOverride({
       step: 'step1',
-      values: ({ fields }) => {
+      values: ({ fields, state }) => {
         expectTypeOf(fields.profile.type).toEqualTypeOf<'object.profile'>();
         expectTypeOf(fields.profile.defaultValue).toEqualTypeOf<{
           name: string;
           active: boolean;
+        }>();
+        expectTypeOf(state.preferences.value).toEqualTypeOf<{
+          mode: string;
         }>();
 
         return { profile: { name: 'Jordan', active: true } };

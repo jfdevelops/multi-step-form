@@ -736,7 +736,10 @@ export class MultiStepFormStepSchema<
 
     if (storageValues) {
       const restoredValues = this.restoreFieldMetadata(storageValues);
-      const enrichedValues = this.#internal.enrichValues(restoredValues);
+      const resolvedStateValues = this.#internal.resolveStateValues(
+        restoredValues,
+      );
+      const enrichedValues = this.#internal.enrichValues(resolvedStateValues);
 
       this.value = { ...enrichedValues };
     }
@@ -911,7 +914,10 @@ export class MultiStepFormStepSchema<
   }
 
   protected handlePostUpdate(next: value) {
-    this.value = { ...next };
+    this.value = this.#internal.resolveStateValues(next, {
+      previousValues: this.value,
+      resetSelectedLiterals: true,
+    });
 
     this.__getStorage().add(this.value);
     this.sync();
