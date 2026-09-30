@@ -204,10 +204,22 @@ export function createUseSelector<steps extends instantiateSteps>(
   subscribe: (listener: () => void) => () => void
 ) {
   return <selected>(
-    selectorFn: SelectorFn<steps, selected>,
-    logger?: MultiStepFormLogger,
-    debugOptions?: DebugOptions<selected>
+    selectorOrOptions:
+      | SelectorFn<steps, selected>
+      | UseSelectorOptions<steps, selected>,
+    deprecatedLogger?: MultiStepFormLogger,
+    deprecatedDebugOptions?: DebugOptions<selected>
   ) => {
+    const isDeprecatedSignature = typeof selectorOrOptions === 'function';
+    const selectorFn = isDeprecatedSignature
+      ? selectorOrOptions
+      : selectorOrOptions.selectorFn;
+    const logger = isDeprecatedSignature
+      ? deprecatedLogger
+      : selectorOrOptions.logger;
+    const debugOptions = isDeprecatedSignature
+      ? deprecatedDebugOptions
+      : selectorOrOptions.debugOptions;
     const snapshotCacheRef = useRef<{ value: selected } | null>(null);
     const selectorRef = useRef(selectorFn);
 
