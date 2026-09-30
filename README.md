@@ -1,355 +1,141 @@
 # Multi-Step Form
 
-A type-safe, framework-agnostic multi-step form solution with React bindings.
+Type-safe primitives for building multi-step forms in TypeScript. The project provides a
+framework-agnostic core package and React bindings, with typed fields, validation, independent
+form instances, optional browser persistence, and per-step state.
 
-## Features
-
-- 🎯 **Type-Safe**: Full TypeScript support with intelligent type inference
-- 🔄 **Framework Agnostic Core**: Core package works with any JavaScript framework
-- ⚛️ **React Integration**: First-class React support with hooks and context
-- 💾 **Persistent Storage**: Automatic localStorage persistence to save form progress
-- ✅ **Validation**: Built-in validation using [Standard Schema](https://standardschema.dev/)
-- 🎨 **Customizable**: Flexible schema configuration with custom form rendering
-- 📦 **Monorepo**: Organized as a monorepo with separate core and React packages
-
-## Installation
-
-```bash
-pnpm install @jfdevelops/multi-step-form @jfdevelops/react-multi-step-form
-```
-
-Or using npm:
-
-```bash
-npm install @jfdevelops/multi-step-form @jfdevelops/react-multi-step-form
-```
-
-## Quick Start
-
-### 1. Create a Form Schema
-
-```tsx
-import { defineMultiStepForm } from "@jfdevelops/react-multi-step-form";
-
-const definedForm = defineMultiStepForm({
-  steps: {
-    step1: {
-      title: "Personal Information",
-      fields: {
-        firstName: {
-          defaultValue: "",
-        },
-        lastName: {
-          defaultValue: "",
-        },
-        email: {
-          defaultValue: "",
-          type: "string.email",
-        },
-      },
-    },
-    step2: {
-      title: "Account/Preferences",
-      fields: {
-        username: {
-          defaultValue: "",
-        },
-        password: {
-          defaultValue: "",
-        },
-        language: {
-          defaultValue: "en",
-          label: "Preferred Language",
-        },
-      },
-    },
-    step3: {
-      title: "Confirmation",
-      fields: {
-        newsLetterOptIn: {
-          defaultValue: false,
-          type: "boolean.switch",
-        },
-      },
-    },
-  },
-});
-
-export type StepNumber = typeof definedForm.stepNumbers;
-
-const createForm = definedForm.configure({
-  storage: {
-    key: "MultiStepFormBasicExample",
-  },
-});
-
-export const schema = createForm()
-  .withForm({
-    alias: "MyCoolCustomForm",
-    enabledForSteps: ["step1", "step2"],
-    render(
-      { id },
-      {
-        title,
-        description,
-        ...props
-      }: ComponentPropsWithRef<"form"> & {
-        title: string;
-        description?: string;
-      },
-    ) {
-      return (
-        <div className="flex flex-col gap-y-4">
-          <div className="flex flex-col gap-y-2">
-            <h1 className="font-bold text-xl">{title}</h1>
-            {description && <p>{description}</p>}
-          </div>
-          <form id={id} {...props} />
-        </div>
-      );
-    },
-  })
-  .withContext();
-
-export const {
-  useMultiStepFormData,
-  useCurrentStepData,
-  useProgress,
-  useCanRestartForm,
-} = schema.context;
-```
-
-The value returned by `defineMultiStepForm({ steps })` is a complete schema, including
-`stepSchema`, `withForm`, and (in React) `createComponent`. Calling `.configure({ storage })`
-adds a factory for independent instances that share its shape but not its state. See
-the [beta docs](#beta-instances--storage) below for named instances (e.g. a persisted public form
-alongside a memory-only admin form) sharing this same definition. The pre-beta
-`createMultiStepFormSchema` factory has been removed; see the migration guides below for moving
-its configuration into `defineMultiStepForm(...).configure(...)`.
-
-### 2. Create step specific components
-
-```tsx
-import { schema } from "./schema";
-
-export const Step1 = schema.stepSchema.value.step1.createComponent({
-  render: function Step1({ ctx, MyCoolCustomForm, Field: FieldComponent }) {
-    const { title } = ctx.step1;
-
-    return (
-      <MyCoolCustomForm title={title}>
-        <FieldSet>
-          <FieldComponent name="firstName">
-            {({ defaultValue, label, onInputChange }) => (
-              <Field>
-                <FieldLabel htmlFor={label}>{label}</FieldLabel>
-                <Input
-                  id={label}
-                  defaultValue={defaultValue}
-                  placeholder="John"
-                  onChange={(e) => onInputChange(e.target.value)}
-                />
-              </Field>
-            )}
-          </FieldComponent>
-          <FieldComponent name="lastName">
-            {({ defaultValue, label, onInputChange }) => (
-              <Field>
-                <FieldLabel htmlFor={label}>{label}</FieldLabel>
-                <Input
-                  id={label}
-                  defaultValue={defaultValue}
-                  placeholder="Smith"
-                  onChange={(e) => onInputChange(e.target.value)}
-                />
-              </Field>
-            )}
-          </FieldComponent>
-          <FieldComponent name="email">
-            {({ defaultValue, label, onInputChange }) => (
-              <Field>
-                <FieldLabel htmlFor={label}>{label}</FieldLabel>
-                <Input
-                  id={label}
-                  defaultValue={defaultValue}
-                  placeholder="johnsmith@gmail.com"
-                  type="email"
-                  onChange={(e) => onInputChange(e.target.value)}
-                />
-              </Field>
-            )}
-          </FieldComponent>
-        </FieldSet>
-      </MyCoolCustomForm>
-    );
-  },
-});
-
-// more step components
-```
-
-Create reusable field components directly from a schema or a specific step. The render callback
-receives the resolved field value, metadata, and update/reset helpers. Custom props remain typed
-on the returned component:
-
-```tsx
-export const FirstName = schema.createComponent.forField({
-  step: "step1",
-  field: "firstName",
-  render(field, props: { placeholder?: string }) {
-    return (
-      <Input
-        value={field.defaultValue}
-        placeholder={props.placeholder}
-        onChange={(event) => field.onInputChange(event.target.value)}
-      />
-    );
-  },
-});
-
-export const StepFirstName =
-  schema.stepSchema.value.step1.createComponent.forField({
-    field: "firstName",
-    render: (field) => <Input value={field.defaultValue} />,
-  });
-
-// `name` and `children` are owned by forField. Remaining Field props and custom props
-// are accepted by the generated component.
-<FirstName placeholder="Your name" suspend={false} />;
-```
-
-### 3. Create a "Step Layout"
-
-```tsx
-import { useCurrentStepData, type StepNumber } from "./schema";
-import { Step1, Step2 } from "./steps";
-
-export function StepLayout({
-  currentStep: stepNumber,
-}: {
-  currentStep: StepNumber;
-}) {
-  const { NoCurrentData, hasData } = useCurrentStepData({
-    targetStep: stepNumber,
-  });
-
-  if (!hasData) {
-    return <NoCurrentData />;
-  }
-
-  const steps = {
-    step1: <Step1 />,
-    step2: <Step2 />,
-    step3: <Step3 />,
-  };
-
-  return steps[currentStep];
-}
-```
-
-## Beta: instances & storage
-
-Starting with the `beta` pre-releases, `defineMultiStepForm` lets one form definition power
-several independent, named instances — e.g. a persisted public/client form and a memory-only
-internal/admin form that share the same steps and helper functions:
-
-```ts
-const createBookingForm = defineMultiStepForm({
-  steps: {/* ... */},
-  instances: ["admin", "client"],
-}).configure({
-  storage: {
-    key: { client: "booking:client", admin: "booking:admin" },
-    configure: { instances: ["client"] },
-  },
-});
-
-const clientForm = createBookingForm({ instance: "client" }); // persists to storage
-const adminForm = createBookingForm({ instance: "admin" }); // memory-only
-```
-
-See the per-package docs for the full guide — instances, per-instance storage, shared
-`createHelperFn`, `withOverrides`, field metadata (`isRequired`/`placeholder`/`errorMessage`),
-step `isComplete`, and a type cookbook. Migrating from alpha has its own doc, separate from the
-feature guide:
-
-- [`packages/core/docs`](./packages/core/docs) — the framework-agnostic API
-  ([migration](./packages/core/docs/migration.mdx), [instances & storage](./packages/core/docs/instances-and-storage.mdx))
-- [`packages/react/docs`](./packages/react/docs) — the React builder order & provider wiring
-  ([migration](./packages/react/docs/migration.mdx), [instances & storage](./packages/react/docs/instances-and-storage.mdx))
+> The current releases are beta versions. Review the migration guides before upgrading from an
+> alpha release.
 
 ## Packages
 
-### `@jfdevelops/multi-step-form` (Core)
+| Package | Purpose |
+| --- | --- |
+| [`@jfdevelops/multi-step-form-core`](./packages/core/README.md) | Framework-agnostic schema, state, validation, and storage APIs |
+| [`@jfdevelops/react-multi-step-form`](./packages/react/README.md) | React components, hooks, context, and selectors built on the core package |
 
-The framework-agnostic core package that provides:
+Install the React package for a React application:
 
-- Schema definition and validation
-- Step management
-- Storage abstraction
-- Observable patterns
+```bash
+pnpm add @jfdevelops/react-multi-step-form
+```
 
-### `@jfdevelops/react-multi-step-form` (React)
+Install the core package directly when you do not need React:
 
-React-specific bindings that provide:
+```bash
+pnpm add @jfdevelops/multi-step-form-core
+```
 
-- React hooks (`useMultiStepFormData`, `useCurrentStepData`, etc.)
-- Context API integration
-- Form component configuration
+The same packages can be installed with npm, Yarn, or another compatible package manager.
+
+## Quick start
+
+Define the steps, configure an instance, and create a component for a step:
+
+```tsx
+import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
+
+const form = defineMultiStepForm({
+  steps: {
+    contact: {
+      title: 'Contact details',
+      fields: {
+        email: {
+          defaultValue: '',
+          type: 'string.email',
+          isRequired: true,
+          placeholder: 'name@example.com',
+          errorMessage: 'Enter a valid email address',
+        },
+      },
+      isComplete: ({ email }) => email.includes('@'),
+    },
+  },
+})
+  .configure({
+    storage: { key: 'registration-form' },
+  })();
+
+export const ContactStep = form.stepSchema.value.contact.createComponent({
+  render: ({ Field }) => (
+    <Field name='email'>
+      {({ defaultValue, label, onInputChange, placeholder }) => (
+        <label>
+          {label}
+          <input
+            type='email'
+            value={defaultValue}
+            placeholder={placeholder}
+            onChange={(event) => onInputChange(event.target.value)}
+          />
+        </label>
+      )}
+    </Field>
+  ),
+});
+```
+
+Calling `.configure()` returns a factory. With no `instances` option, calling that factory with no
+arguments creates or retrieves the default instance. Storage is optional; when a storage key is
+configured in a browser, the default backend is `localStorage`. Without storage configuration,
+the instance remains in memory.
+
+## Capabilities
+
+- Field and step types inferred from a single form definition
+- Standard Schema-compatible validation
+- Reactive field components, hooks, and selectors for React
+- Named, isolated instances created from one shared definition
+- Optional per-instance storage with server-rendering-safe behavior
+- Async field overrides and reusable typed helper functions
+- Field metadata including labels, placeholders, required state, and error messages
+- Step completion predicates and typed per-step state, including derived state
+
+## Documentation
+
+- [Core documentation](./packages/core/docs/README.md)
+  - [Instances, storage, field metadata, and completion](./packages/core/docs/instances-and-storage.mdx)
+  - [Step state](./packages/core/docs/step-state.mdx)
+  - [Migrating from alpha](./packages/core/docs/migration.mdx)
+- [React documentation](./packages/react/docs/README.md)
+  - [Builder order and React integration](./packages/react/docs/instances-and-storage.mdx)
+  - [Migrating from alpha](./packages/react/docs/migration.mdx)
+- [React example](./examples/react-basic)
 
 ## Development
 
-This project uses pnpm workspaces. To get started:
+This repository is a pnpm workspace. Development currently targets Node.js 24 and pnpm 10.
 
 ```bash
-# Install all dependencies
+# Install workspace dependencies
 pnpm install
 
-# Build all packages
+# Build every workspace package and example
 pnpm build
 
-# Run in watch mode
+# Run the package test suites
+pnpm test:packages
+
+# Type-check the published packages
+pnpm typecheck:packages
+
+# Start package builds in watch mode
 pnpm watch
 
-# Run the example app
+# Run the React example at http://localhost:3000
 pnpm --filter react-basic dev
-
-# Run tests
-pnpm test
 ```
 
-### Project Structure
+The repository is organized as follows:
 
-```
-multi-step-form/
-├── packages/
-│   ├── core/          # Framework-agnostic core package
-│   └── react/          # React-specific bindings
-├── examples/
-│   └── react-basic/    # Example React application
-└── package.json        # Root package configuration
-```
-
-## Storage
-
-Form data is persisted to localStorage using the key specified in `.configure({ storage })`. The
-storage is reactive and updates automatically when form data changes. With `defineMultiStepForm`,
-storage is opt-in per instance (see the [beta docs](#beta-instances--storage)) — a form with no
-`storage` configured is memory-only.
-
-## TypeScript Support
-
-The library provides full TypeScript support with type inference:
-
-```tsx
-type StepNumber = keyof MultiStepFormSchema.resolvedStep<typeof schema>;
-type Step1Data = MultiStepFormSchema.getData<typeof schema, "step1">;
+```text
+packages/
+  core/          Framework-agnostic package
+  react/         React bindings
+examples/
+  react-basic/   Vite example application
 ```
 
 ## License
 
 MIT
-
-## Author
-
-Joey Finkel
