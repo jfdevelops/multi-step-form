@@ -17,7 +17,7 @@ pnpm add @jfdevelops/react-multi-step-form
 ```tsx
 import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
 
-const form = defineMultiStepForm({
+const createForm = defineMultiStepForm({
   steps: {
     contact: {
       title: 'Contact details',
@@ -33,10 +33,11 @@ const form = defineMultiStepForm({
       isComplete: ({ email }) => email.includes('@'),
     },
   },
-})
-  .configure({
-    storage: { key: 'registration-form' },
-  })();
+}).configure({
+  storage: { key: 'registration-form' },
+});
+
+const form = createForm();
 
 export const ContactStep = form.stepSchema.value.contact.createComponent({
   render: ({ Field }) => (
@@ -67,7 +68,7 @@ A configured instance can be extended with optional overrides, a shared form com
 React context. The supported order is:
 
 ```tsx
-const form = createForm()
+const contextForm = createForm()
   .withOverrides({
     contact: async () => ({ email: 'name@example.com' }),
   })
@@ -77,7 +78,7 @@ const form = createForm()
   .withContext();
 
 export const { useCurrentStepData, useMultiStepFormData, useProgress } =
-  form.context;
+  contextForm.context;
 ```
 
 Each builder is optional. Use only the layers required by the application.
