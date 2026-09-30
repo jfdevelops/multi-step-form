@@ -17,6 +17,7 @@ import type { ResetFn } from '@/steps/fn-utils/reset-fn';
 import type { UpdateFn } from '@/steps/fn-utils/update-fn';
 import {
   instantiateSteps,
+  resolveStepState,
   type instantiateStepsConfig,
   type StepConfig,
   type StepNumbers,
@@ -172,6 +173,27 @@ export class MultiStepFormStepSchemaInternal<
     return this.#getValue();
   }
 
+  private getFieldValues(stepValue: unknown) {
+    if (
+      typeof stepValue !== 'object' ||
+      stepValue === null ||
+      !('fields' in stepValue) ||
+      typeof stepValue.fields !== 'object' ||
+      stepValue.fields === null
+    ) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(stepValue.fields).map(([fieldName, field]) => [
+        fieldName,
+        typeof field === 'object' && field !== null && 'defaultValue' in field
+          ? field.defaultValue
+          : undefined,
+      ]),
+    );
+  }
+
   constructor(
     options: MultiStepFormStepSchemaInternal.Options<
       def,
@@ -192,6 +214,59 @@ export class MultiStepFormStepSchemaInternal<
     this.#getValue = getValue;
     this.#setValue = setValue;
     this.#additionalEnrichedProps = additionalEnrichedProps;
+  }
+
+  resolveStateValues(
+    values: value,
+    options: {
+      previousValues?: value;
+      resetSelectedLiterals?: boolean;
+    } = {},
+  ) {
+    const { previousValues, resetSelectedLiterals = false } = options;
+    const resolvedValues = { ...values } as Record<string, unknown>;
+
+    for (const [stepKey, originalStep] of Object.entries(
+      this.#originalValue,
+    )) {
+      if (
+        typeof originalStep !== 'object' ||
+        originalStep === null ||
+        !('state' in originalStep) ||
+        typeof originalStep.state !== 'object' ||
+        originalStep.state === null
+      ) {
+        continue;
+      }
+
+      const nextStep = resolvedValues[stepKey];
+
+      if (typeof nextStep !== 'object' || nextStep === null) {
+        continue;
+      }
+
+      const previousStep = previousValues?.[
+        stepKey as StepNumbers<value>
+      ] as unknown;
+      const resolvedStep = nextStep as Record<string, unknown>;
+
+      resolvedValues[stepKey] = {
+        ...resolvedStep,
+        state: resolveStepState({
+          fields: this.getFieldValues(resolvedStep),
+          previousFields: this.getFieldValues(previousStep),
+          resolvedState:
+            typeof resolvedStep.state === 'object' &&
+            resolvedStep.state !== null
+              ? (resolvedStep.state as Record<string, unknown>)
+              : undefined,
+          resetSelectedLiterals,
+          state: originalStep.state as Record<string, unknown>,
+        }),
+      };
+    }
+
+    return resolvedValues as value;
   }
 
   private handlePostUpdate(value: value) {

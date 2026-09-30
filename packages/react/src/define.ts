@@ -772,6 +772,8 @@ export function defineMultiStepForm<
     steps: steps;
     instances?: instances;
   } & DefineMultiStepFormOptions<contextualSteps, instances>,
-): MultiStepFormReactDefinition<steps, instances> {
-  return new MultiStepFormReactDefinition<steps, instances>(options as never);
+): MultiStepFormReactDefinition<steps & contextualSteps, instances> {
+  return new MultiStepFormReactDefinition<steps & contextualSteps, instances>(
+    options as never,
+  );
 }

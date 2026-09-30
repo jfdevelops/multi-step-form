@@ -87,6 +87,73 @@ describe('react defineMultiStepForm: definition schema surface', () => {
       'Client',
     );
   });
+
+  it('exposes typed state independently for each instance', () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: { firstName: { defaultValue: '' } },
+          state: {
+            greeting: {
+              select: 'firstName',
+              value: (firstName) => {
+                expectTypeOf(firstName).toEqualTypeOf<string>();
+
+                return `Hello ${firstName}`;
+              },
+            },
+            isOpen: { value: false },
+          },
+        },
+      },
+      instances: ['admin', 'client'],
+    }).configure();
+    const admin = createForm({ instance: 'admin' });
+    const client = createForm({ instance: 'client' });
+
+    expectTypeOf(
+      client.stepSchema.value.step1.state.greeting.value,
+    ).toEqualTypeOf<string>();
+
+    client.stepSchema.value.step1.update({
+      fields: ['fields.firstName.defaultValue'],
+      updater: 'Arielle',
+    });
+    client.stepSchema.value.step1.update({
+      fields: ['state.isOpen.value'],
+      updater: true,
+    });
+
+    expect(client.stepSchema.value.step1.state.greeting.value).toBe(
+      'Hello Arielle',
+    );
+    expect(client.stepSchema.value.step1.state.isOpen.value).toBe(true);
+    expect(admin.stepSchema.value.step1.state.greeting.value).toBe('Hello ');
+    expect(admin.stepSchema.value.step1.state.isOpen.value).toBe(false);
+  });
+
+  it('restricts state selectors to fields on their step', () => {
+    function defineInvalidSelector() {
+      return defineMultiStepForm({
+        steps: {
+          step1: {
+            title: 'Step 1',
+            fields: { firstName: { defaultValue: '' } },
+            // @ts-expect-error State selectors must reference a field on this step.
+            state: {
+              greeting: {
+                select: 'lastName',
+                value: '',
+              },
+            },
+          },
+        },
+      });
+    }
+
+    expectTypeOf(defineInvalidSelector).toBeFunction();
+  });
 });
 
 describe('react defineMultiStepForm: nameTransformCasing', () => {

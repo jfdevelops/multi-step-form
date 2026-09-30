@@ -61,7 +61,9 @@ export type AnyConfig = BaseConfig<
   FieldConfig<CasingType>,
   CasingType,
   AnyValidator
->;
+> & {
+  state?: Record<string, { select?: string; value: unknown }>;
+};
 export type StepResolvedData<TConfig extends AnyConfig> = Expand<
   {
     title: string;
@@ -74,7 +76,10 @@ export type StepResolvedData<TConfig extends AnyConfig> = Expand<
     description: infer description extends string;
   }
     ? { description: description }
-    : {})
+    : {}) &
+    (TConfig extends { state: infer state }
+      ? { state: InstantiateStepState<state> }
+      : {})
 >;
 export type StepOverridePatch<TConfig extends AnyConfig> = Partial<
   StepDefaultValues<TConfig['fields']>
@@ -104,13 +109,162 @@ export type StepConfig<
   TCasing extends CasingType = CasingType,
   TFields extends FieldConfig<TCasing> = FieldConfig<TCasing>,
   TValidator = unknown,
-> = Record<ValidStepKey, Config<TFields, TCasing, TValidator>>;
+> = Record<
+  ValidStepKey,
+  Config<TFields, TCasing, TValidator> & {
+    state?: Record<string, { select?: string; value: unknown }>;
+  }
+>;
 
 export type StepDefaultValues<TFields extends FieldConfig<CasingType>> = {
   [key in keyof TFields as string extends key ? never : key]: inferDefaultValue<
     TFields[key]
   >;
 };
+
+export type StepStateLiteral =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Date
+  | readonly unknown[]
+  | { [key: string]: unknown };
+
+type StepStateWithoutSelector<TFields extends FieldConfig<CasingType>> = {
+  select?: never;
+  value:
+    | StepStateLiteral
+    | ((fields: StepDefaultValues<TFields>) => StepStateLiteral);
+};
+
+type StepStateWithSelector<TFields extends FieldConfig<CasingType>> = {
+  [key in Extract<keyof TFields, string>]: {
+    select: key;
+    value:
+      | StepStateLiteral
+      | ((selected: inferDefaultValue<TFields[key]>) => StepStateLiteral);
+  };
+}[Extract<keyof TFields, string>];
+
+export type StepStateItem<TFields extends FieldConfig<CasingType>> =
+  | StepStateWithoutSelector<TFields>
+  | StepStateWithSelector<TFields>;
+
+export type StepStateConfig<TFields extends FieldConfig<CasingType>> = Record<
+  string,
+  StepStateItem<TFields>
+>;
+
+type WidenStepStateValue<TValue> = TValue extends string
+  ? string
+  : TValue extends number
+    ? number
+    : TValue extends boolean
+      ? boolean
+      : TValue;
+
+type ResolveStepStateItem<TItem> = TItem extends {
+  value: infer stateValue;
+}
+  ? Expand<
+      Omit<TItem, 'value'> & {
+        value: stateValue extends (...args: never[]) => infer result
+          ? result
+          : WidenStepStateValue<stateValue>;
+      }
+    >
+  : never;
+
+export type InstantiateStepState<TState> = TState extends object
+  ? {
+      -readonly [key in keyof TState]: ResolveStepStateItem<TState[key]>;
+    }
+  : never;
+
+function getStateValue(stateItem: Record<string, unknown> | undefined) {
+  return stateItem && 'value' in stateItem ? stateItem.value : undefined;
+}
+
+export function resolveStepState(options: {
+  fields: Record<string, unknown>;
+  previousFields?: Record<string, unknown>;
+  resolvedState?: Record<string, unknown>;
+  resetSelectedLiterals?: boolean;
+  state: Record<string, unknown>;
+}) {
+  const {
+    fields,
+    previousFields,
+    resolvedState,
+    resetSelectedLiterals = false,
+    state,
+  } = options;
+
+  return Object.fromEntries(
+    Object.entries(state).map(([stateKey, stateConfig]) => {
+      InvalidStepConfigError.invariant(
+        typeof stateConfig === 'object' && stateConfig !== null,
+        {
+          reason: `State "${stateKey}" must be an object.`,
+          key: stateKey,
+          value: stateConfig,
+          expected: 'object',
+        },
+      );
+
+      const config = stateConfig as Record<string, unknown>;
+
+      InvalidStepConfigError.invariant('value' in config, {
+        reason: `State "${stateKey}" must define a "value" property.`,
+        key: stateKey,
+        value: stateConfig,
+        expected: 'value property',
+      });
+
+      const select = config.select;
+
+      if (select !== undefined) {
+        InvalidStepConfigError.invariant(
+          typeof select === 'string' && select in fields,
+          {
+            reason: `State "${stateKey}" selects an invalid field.`,
+            key: stateKey,
+            value: select,
+            expected: Object.keys(fields),
+          },
+        );
+      }
+
+      const configuredValue = config.value;
+      const previousResolvedItem = resolvedState?.[stateKey] as
+        | Record<string, unknown>
+        | undefined;
+      const selectedFieldChanged =
+        resetSelectedLiterals &&
+        typeof select === 'string' &&
+        previousFields !== undefined &&
+        !Object.is(previousFields[select], fields[select]);
+      const value =
+        typeof configuredValue === 'function'
+          ? configuredValue(
+              typeof select === 'string' ? fields[select] : fields,
+            )
+          : previousResolvedItem && !selectedFieldChanged
+            ? getStateValue(previousResolvedItem)
+            : configuredValue;
+
+      return [
+        stateKey,
+        {
+          ...(typeof select === 'string' ? { select } : {}),
+          value,
+        },
+      ];
+    }),
+  );
+}
 
 type JustStepConfig<T> = Pick<T, keyof T & keyof Config>;
 type OverrideStepConfig<T> = T extends Config<
@@ -122,6 +276,8 @@ type OverrideStepConfig<T> = T extends Config<
   : never;
 
 export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
+  /** @internal Retains the declared config for conditional resolved properties. */
+  readonly __stepConfig?: TMap;
   /**
    * The steps that this multi step form will include.
    * @example
@@ -148,7 +304,13 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
    * ```
    */
   steps: {
-    [key in keyof TMap]: JustStepConfig<TMap[key]> & {
+    [key in keyof TMap]: JustStepConfig<TMap[key]> &
+      (TMap[key] extends {
+        fields: infer fields extends FieldConfig<CasingType>;
+        state: unknown;
+      }
+        ? { state: StepStateConfig<fields> }
+        : {}) & {
       /**
        * Determines whether this step is complete, based on that step's current field values.
        *
@@ -159,6 +321,35 @@ export type instantiateStepsConfig<TMap extends StepConfig = StepConfig> = {
     };
   };
 };
+
+export type ContextualInstantiateStepsConfig<
+  TMap extends StepConfig = StepConfig,
+> = {
+  steps: {
+    [key in keyof TMap]: JustStepConfig<TMap[key]> & {
+      state?: TMap[key] extends {
+        fields: infer fields extends FieldConfig<CasingType>;
+      }
+        ? StepStateConfig<fields>
+        : never;
+      /**
+       * Determines whether this step is complete, based on that step's current field values.
+       *
+       * If omitted, completeness uses `validateFields` when provided; otherwise,
+       * the step is always considered complete.
+       */
+      isComplete?: StepIsCompleteFn<OverrideStepConfig<TMap[key]>>;
+    };
+  };
+};
+
+type StepDefinition<T, key extends PropertyKey> = T extends {
+  readonly __stepConfig?: infer stepConfig;
+}
+  ? key extends keyof stepConfig
+    ? stepConfig[key]
+    : never
+  : never;
 /**
  * Extended step specific properties for the step.
  */
@@ -206,7 +397,11 @@ export type _instantiateSteps<T = unknown> = [T] extends [object]
                 >
               >
             >;
-          } & (T['steps'][key] extends {
+          } & (StepDefinition<T, key> extends {
+            state: infer state;
+          }
+            ? { state: InstantiateStepState<state> }
+            : {}) & (T['steps'][key] extends {
             description: infer description extends string;
           }
             ? { description: description }
@@ -321,6 +516,8 @@ export function instantiateSteps<
       isComplete: isCompleteConfig,
       nameTransformCasing = schemaDefaultCasing,
     } = stepValue;
+    const stateConfig = (stepValue as { state?: Record<string, unknown> })
+      .state;
 
     // title validation
     InvalidStepConfigError.invariant(title, {
@@ -402,6 +599,14 @@ export function instantiateSteps<
       nameTransformCasing,
       isComplete,
       fields: instantiatedFields,
+      ...(stateConfig
+        ? {
+            state: resolveStepState({
+              fields: fieldValues,
+              state: stateConfig as Record<string, unknown>,
+            }),
+          }
+        : {}),
     };
   }
 

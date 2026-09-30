@@ -8,6 +8,7 @@ import type {
 import type { StepSpecificHelperFn } from '@/steps/fn-utils/helper-fn/utils';
 import {
   instantiateSteps,
+  type ContextualInstantiateStepsConfig,
   type AnyConfig,
   type instantiateStepsConfig,
   type StepConfig,
@@ -46,7 +47,7 @@ export type DefineConfig<
 export type DefineMultiStepFormOptions<
   TSteps extends StepConfig = StepConfig,
   TInstances extends readonly string[] | undefined = undefined,
-> = instantiateStepsConfig<TSteps> & {
+> = ContextualInstantiateStepsConfig<TSteps> & {
   /**
    * The named instances this form definition can be created for (e.g. `['admin', 'client']`).
    *
@@ -627,6 +628,8 @@ export function defineMultiStepForm<
     steps: steps;
     instances?: instances;
   } & DefineMultiStepFormOptions<contextualSteps, instances>,
-): MultiStepFormDefinition<steps, instances> {
-  return new MultiStepFormDefinition<steps, instances>(options as never);
+): MultiStepFormDefinition<steps & contextualSteps, instances> {
+  return new MultiStepFormDefinition<steps & contextualSteps, instances>(
+    options as never,
+  );
 }

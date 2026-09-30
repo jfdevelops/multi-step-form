@@ -1,0 +1,62 @@
+# Step state
+
+A step can own state that is not itself a form field. Each state entry is an object with a
+`value` and an optional `select`:
+
+```ts
+const createForm = defineMultiStepForm({
+  steps: {
+    step1: {
+      title: 'Appointment',
+      fields: {
+        serviceId: { defaultValue: '' },
+        date: { defaultValue: '' },
+      },
+      state: {
+        isCalendarOpen: {
+          value: false,
+        },
+        summary: {
+          value: (fields) => `${fields.serviceId}:${fields.date}`,
+        },
+        availableTimes: {
+          select: 'date',
+          value: (date) => (date ? getAvailableTimes(date) : []),
+        },
+        selectedTime: {
+          select: 'date',
+          value: '',
+        },
+      },
+    },
+  },
+}).configure();
+```
+
+Without `select`, a value function receives all raw field values for the step. With `select`,
+the selector is type-checked against that step's fields and the function receives only the
+selected field's raw value. A non-function value is used directly.
+
+Resolved state remains in the same entry shape:
+
+```ts
+const form = createForm();
+
+form.stepSchema.value.step1.state.availableTimes;
+// { select: 'date', value: string[] }
+
+form.stepSchema.value.step1.update({
+  fields: ['state.isCalendarOpen.value'],
+  updater: true,
+});
+```
+
+Derived values are recomputed after field updates and when persisted data is restored. Mutable
+literal values are retained across unrelated updates. If a literal entry has `select`, it resets
+to its configured value when the selected field changes. Resetting the step restores all literal
+state and recomputes all derived state.
+
+State participates in the same storage lifecycle as its step. Each configured form instance owns
+its own resolved state, so updating one named or unnamed instance does not affect another.
+
+Steps that omit `state` do not expose a `state` property in their resolved type or runtime value.
