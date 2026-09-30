@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.13
+
+### Minor Changes
+
+- 3a3386d: Add optional, instance-isolated step state with literal or field-derived values, typed single-field selectors, dependency-aware resets, storage reconciliation, and resolved state access in core and React forms.
+
+### Patch Changes
+
+- Updated dependencies [3a3386d]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.9
+
 ## 1.0.0-beta.12
 
 ### Minor Changes
