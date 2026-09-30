@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { defineMultiStepForm } from '../../src';
 
 function createAppointmentForm() {
@@ -139,5 +139,56 @@ describe('multi step form step schema: state', () => {
       schema.stepSchema.value.step1.state.availableTimes.value,
     ).toEqual([]);
     expect(schema.stepSchema.value.step1.state.selectedTime.value).toBe('');
+  });
+
+  it('widens mutable array and object state', () => {
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Preferences',
+          fields: {
+            name: { defaultValue: '' },
+          },
+          state: {
+            tags: { value: ['initial'] },
+            preferences: {
+              value: {
+                mode: 'compact',
+                nested: { enabled: false },
+              },
+            },
+            empty: { value: [] },
+          },
+        },
+      },
+    }).configure()();
+    const { state } = schema.stepSchema.value.step1;
+
+    expectTypeOf(state.tags.value).toEqualTypeOf<string[]>();
+    expectTypeOf(state.preferences.value).toEqualTypeOf<{
+      mode: string;
+      nested: { enabled: boolean };
+    }>();
+    expectTypeOf(state.empty.value).toEqualTypeOf<unknown[]>();
+
+    schema.stepSchema.value.step1.update({
+      fields: ['state.tags.value'],
+      updater: ['updated'],
+    });
+    schema.stepSchema.value.step1.update({
+      fields: ['state.preferences.value'],
+      updater: {
+        mode: 'expanded',
+        nested: { enabled: true },
+      },
+    });
+
+    expect(schema.stepSchema.value.step1.state.tags.value).toEqual([
+      'updated',
+    ]);
+    expect(schema.stepSchema.value.step1.state.preferences.value).toEqual({
+      mode: 'expanded',
+      nested: { enabled: true },
+    });
   });
 });

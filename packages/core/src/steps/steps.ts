@@ -163,7 +163,19 @@ type WidenStepStateValue<TValue> = TValue extends string
     ? number
     : TValue extends boolean
       ? boolean
-      : TValue;
+      : TValue extends Date
+        ? Date
+        : TValue extends readonly []
+          ? unknown[]
+          : TValue extends readonly (infer item)[]
+            ? WidenStepStateValue<item>[]
+            : TValue extends object
+              ? {
+                  -readonly [key in keyof TValue]: WidenStepStateValue<
+                    TValue[key]
+                  >;
+                }
+              : TValue;
 
 type ResolveStepStateItem<TItem> = TItem extends {
   value: infer stateValue;
@@ -344,11 +356,17 @@ export type ContextualInstantiateStepsConfig<
 };
 
 type StepDefinition<T, key extends PropertyKey> = T extends {
-  readonly __stepConfig?: infer stepConfig;
+  steps: infer steps;
 }
-  ? key extends keyof stepConfig
-    ? stepConfig[key]
-    : never
+  ? '__stepConfig' extends keyof T
+    ? T extends { readonly __stepConfig?: infer stepConfig }
+      ? key extends keyof stepConfig
+        ? stepConfig[key]
+        : never
+      : never
+    : key extends keyof steps
+      ? steps[key]
+      : never
   : never;
 /**
  * Extended step specific properties for the step.

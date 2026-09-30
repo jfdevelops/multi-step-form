@@ -120,6 +120,12 @@ export type WithOverridesMap<TSteps extends StepConfig> = Partial<{
   ]: TSteps[key] extends AnyConfig ? StepOverrides<TSteps[key]> : never;
 }>;
 
+export type DefineSteps<TDef extends DefineConfig> = TDef extends {
+  readonly __stepConfig?: infer steps extends StepConfig;
+}
+  ? steps
+  : TDef['steps'];
+
 export function mergeStepOverrides<TSteps extends StepConfig>(
   steps: TSteps,
   overrides: WithOverridesMap<TSteps> | undefined,
@@ -224,7 +230,7 @@ export interface MultiStepFormInstance<
    * `withOverrides`, and calling it again at runtime throws.
    */
   withOverrides(
-    overrides: WithOverridesMap<def['steps']>,
+    overrides: WithOverridesMap<DefineSteps<def>>,
   ): MultiStepFormInstanceWithOverridesApplied<def, value>;
 }
 
@@ -277,7 +283,7 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
     this.#overridesApplied = overridesApplied;
   }
 
-  withOverrides(overrides: WithOverridesMap<def['steps']>) {
+  withOverrides(overrides: WithOverridesMap<DefineSteps<def>>) {
     InvalidInstanceError.invariant(!this.#overridesApplied, {
       reason:
         '"withOverrides" was already applied to this instance and cannot be chained again. Call "withOverrides" once, on the instance returned by the factory.',
@@ -286,7 +292,10 @@ class MultiStepFormInstanceImpl<const def extends DefineConfig>
 
     this.#overridesApplied = true;
 
-    const mergedSteps = mergeStepOverrides(this.#rawSteps, overrides);
+    const mergedSteps = mergeStepOverrides(
+      this.#rawSteps,
+      overrides as WithOverridesMap<def['steps']>,
+    );
 
     const next = new MultiStepFormInstanceImpl<def>({
       steps: mergedSteps,
@@ -628,8 +637,6 @@ export function defineMultiStepForm<
     steps: steps;
     instances?: instances;
   } & DefineMultiStepFormOptions<contextualSteps, instances>,
-): MultiStepFormDefinition<steps & contextualSteps, instances> {
-  return new MultiStepFormDefinition<steps & contextualSteps, instances>(
-    options as never,
-  );
+): MultiStepFormDefinition<steps, instances> {
+  return new MultiStepFormDefinition<steps, instances>(options as never);
 }
