@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { type } from 'arktype';
 import { createUpdate, defineMultiStepForm, update } from '../../src';
 
 function createSchema() {
@@ -67,14 +68,16 @@ describe('createUpdate', () => {
     const schema = createSchema();
     const consentUpdate = schema.stepSchema.value.step1.createUpdate
       .forFields(['fields.consent.defaultValue'])
-      .withInput<{
-        checkedKey: string;
-        isSettled: boolean;
-        patch: Partial<{
-          promptOpen: boolean;
-          resolvedFor: string;
-        }>;
-      }>();
+      .withInput(
+        type({
+          checkedKey: 'string',
+          isSettled: 'boolean',
+          patch: {
+            'promptOpen?': 'boolean',
+            'resolvedFor?': 'string',
+          },
+        }),
+      );
     const isSettled = consentUpdate.createCondition(
       ({ input }) => input.isSettled,
     );
@@ -122,6 +125,17 @@ describe('createUpdate', () => {
       schema.stepSchema.value.step1.fields.consent.defaultValue.promptOpen,
     ).toBe(true);
     expect(listener).toHaveBeenCalledOnce();
+
+    expect(() =>
+      reconcileConsent({
+        checkedKey: 'email:test@example.com',
+        isSettled: 'yes' as never,
+        patch: { promptOpen: false },
+      }),
+    ).toThrow();
+    expect(
+      schema.stepSchema.value.step1.fields.consent.defaultValue.promptOpen,
+    ).toBe(true);
     unsubscribe();
   });
 
@@ -144,5 +158,51 @@ describe('createUpdate', () => {
         { promptOpen: true },
       ),
     ).toEqual({ executed: true });
+  });
+
+  it('defers an update until the prepared callback is invoked', () => {
+    const schema = createSchema();
+    const patchConsent = schema.stepSchema.value.step1.createUpdate.patch({
+      fields: ['fields.consent.defaultValue'],
+    });
+    const openPrompt = patchConsent.deferExecution({ promptOpen: true });
+
+    expectTypeOf(openPrompt).toEqualTypeOf<
+      () => ReturnType<typeof patchConsent>
+    >();
+    expect(
+      schema.stepSchema.value.step1.fields.consent.defaultValue.promptOpen,
+    ).toBe(false);
+
+    patchConsent({ resolvedFor: 'latest' });
+
+    expect(openPrompt()).toEqual({ executed: true });
+    expect(
+      schema.stepSchema.value.step1.fields.consent.defaultValue,
+    ).toEqual({ promptOpen: true, resolvedFor: 'latest' });
+  });
+
+  it('accepts a custom input validator function', () => {
+    const schema = createSchema();
+    const validateInput = vi.fn((input: { promptOpen: boolean }) => {
+      if (typeof input.promptOpen !== 'boolean') {
+        throw new TypeError('promptOpen must be a boolean');
+      }
+
+      return input;
+    });
+    const patchConsent = schema.stepSchema.value.step1.createUpdate
+      .forFields(['fields.consent.defaultValue'])
+      .withInput(validateInput)
+      .patch();
+
+    expect(patchConsent({ promptOpen: true })).toEqual({ executed: true });
+    expect(validateInput).toHaveBeenCalledWith({ promptOpen: true });
+    expect(
+      schema.stepSchema.value.step1.fields.consent.defaultValue.promptOpen,
+    ).toBe(true);
+    expect(() => patchConsent({ promptOpen: 'yes' as never })).toThrow(
+      'promptOpen must be a boolean',
+    );
   });
 });
