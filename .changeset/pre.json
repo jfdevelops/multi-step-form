@@ -34,6 +34,7 @@
     "few-bushes-talk",
     "fix-custom-form-type-in-create-component",
     "fix-instantiate-steps-as-keys",
+    "fix-use-selector-options-runtime",
     "flat-flies-divide",
     "flat-queens-jog",
     "flat-sheep-tan",
