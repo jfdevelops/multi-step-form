@@ -1,5 +1,11 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.14
+
+### Patch Changes
+
+- 7fcf3d7: Fix the non-deprecated `useSelector` options signature at runtime.
+
 ## 1.0.0-beta.13
 
 ### Minor Changes
