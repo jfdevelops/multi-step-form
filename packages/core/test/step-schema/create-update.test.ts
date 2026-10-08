@@ -205,4 +205,21 @@ describe('createUpdate', () => {
       'promptOpen must be a boolean',
     );
   });
+
+  it('accepts validator input while exposing transformed output', () => {
+    const schema = createSchema();
+    const updateEmail = schema.stepSchema.value.step1.createUpdate
+      .forFields(['fields.email.defaultValue'])
+      .withInput((input: string) => input.length)
+      .bind({
+        updater: ({ input }) => {
+          expectTypeOf(input).toEqualTypeOf<number>();
+          return String(input);
+        },
+      });
+
+    expectTypeOf(updateEmail).parameter(0).toEqualTypeOf<string>();
+    expect(updateEmail('validated input')).toEqual({ executed: true });
+    expect(schema.stepSchema.value.step1.fields.email.defaultValue).toBe('15');
+  });
 });
