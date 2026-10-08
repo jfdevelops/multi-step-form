@@ -10,6 +10,12 @@ import type { instantiateSteps, StepNumbers } from './steps/steps';
 import { path } from './utils/path';
 import type { DeepPartial, Expand } from './utils/types';
 import {
+  runStandardValidation,
+  type AnyValidator,
+  type ResolveValidatorInput,
+  type ResolveValidatorOutput,
+} from './utils/validator';
+import {
   combineFieldFunctionConditions,
   sharedFieldFunction,
 } from './field-function';
@@ -100,6 +106,10 @@ export namespace Update {
     (...arguments_: arguments_): UpdateResult;
     /** The immutable conditions configured on this callable. */
     readonly conditions: ConditionExpression<context> | undefined;
+
+    /** Captures an invocation for explicit execution at a later time. */
+    deferExecution(...arguments_: arguments_): () => UpdateResult;
+
     /** Executes this call with additional conditions. */
     forConditions(
       conditions: ConditionExpression<context>,
@@ -132,7 +142,8 @@ export namespace Update {
       UpdateFn.resolvedStep<value, targetStep>
     >,
     input,
-  > = Callable<Context<value, targetStep, fields, input>, [input]>;
+    argument = input,
+  > = Callable<Context<value, targetStep, fields, input>, [argument]>;
 
   export interface Scope<
     value extends instantiateSteps,
@@ -141,6 +152,7 @@ export namespace Update {
       UpdateFn.resolvedStep<value, targetStep>
     > = 'all',
     scopedInput = never,
+    scopedArgument = scopedInput,
   > {
     /** Immediately executes an update using the existing step update contract. */
     <
@@ -163,9 +175,10 @@ export namespace Update {
         UpdateFn.resolvedStep<value, targetStep>
       > = scopedFields,
       input = scopedInput,
+      argument = [scopedInput] extends [never] ? input : scopedArgument,
     >(
       options: BindOptions<value, targetStep, fields, input>,
-    ): Bound<value, targetStep, fields, input>;
+    ): Bound<value, targetStep, fields, input, argument>;
 
     /** Creates a reusable shallow patch updater. */
     patch<
@@ -175,9 +188,10 @@ export namespace Update {
       input = [scopedInput] extends [never]
         ? DeepPartial<Current<value, targetStep, fields>>
         : scopedInput,
+      argument = [scopedInput] extends [never] ? input : scopedArgument,
     >(
       options?: PatchOptions<value, targetStep, fields, input>,
-    ): Bound<value, targetStep, fields, input>;
+    ): Bound<value, targetStep, fields, input, argument>;
 
     /** Creates a reusable, strongly typed condition. */
     createCondition<
@@ -202,10 +216,20 @@ export namespace Update {
       const fields extends UpdateFn.chosenFields<
         UpdateFn.resolvedStep<value, targetStep>
       >,
-    >(fields: fields): Scope<value, targetStep, fields, scopedInput>;
+    >(
+      fields: fields,
+    ): Scope<value, targetStep, fields, scopedInput, scopedArgument>;
 
-    /** Creates a child scope with a fixed reusable-function input type. */
-    withInput<input>(): Scope<value, targetStep, scopedFields, input>;
+    /** Creates a child scope with validated reusable-function input. */
+    withInput<const validator extends AnyValidator>(
+      validator: validator,
+    ): Scope<
+      value,
+      targetStep,
+      scopedFields,
+      ResolveValidatorOutput<validator>,
+      ResolveValidatorInput<validator>
+    >;
   }
 
   /** A field-scoped update API. */
@@ -216,7 +240,14 @@ export namespace Update {
       UpdateFn.resolvedStep<value, targetStep>
     > = 'all',
     scopedInput = never,
-  > = Scope<value, targetStep, scopedFields, scopedInput>;
+    scopedArgument = scopedInput,
+  > = Scope<
+    value,
+    targetStep,
+    scopedFields,
+    scopedInput,
+    scopedArgument
+  >;
 
   export type StepWithScope<
     value extends instantiateSteps,
@@ -238,6 +269,7 @@ type RuntimeUpdateConfig = {
 
 type RuntimeScopeOptions = {
   fields?: unknown;
+  inputValidator?: AnyValidator;
 };
 
 function getObjectPath(config: Record<string, unknown>, prefix = ''): string[] {
@@ -295,6 +327,7 @@ function createScopedUpdate<
     UpdateFn.resolvedStep<value, targetStep>
   > = 'all',
   input = never,
+  argument = input,
 >(config: RuntimeUpdateConfig, scopeOptions: RuntimeScopeOptions = {}) {
   type chosenFields = UpdateFn.chosenFields<
     UpdateFn.resolvedStep<value, targetStep>
@@ -379,6 +412,7 @@ function createScopedUpdate<
   function createCallable<
     callableFields extends chosenFields,
     callableInput,
+    callableArgument = callableInput,
   >(
     options: Update.SharedOptions<
       value,
@@ -408,22 +442,42 @@ function createScopedUpdate<
       scopeOptions.fields ??
       'all') as callableFields;
 
-    function updateFunction(inputValue: callableInput) {
+    function validateInput(inputValue: callableArgument): callableInput {
+      if (!scopeOptions.inputValidator) {
+        return inputValue as unknown as callableInput;
+      }
+
+      if ('~standard' in scopeOptions.inputValidator) {
+        return runStandardValidation(
+          scopeOptions.inputValidator,
+          inputValue,
+        ) as callableInput;
+      }
+
+      return scopeOptions.inputValidator(inputValue) as callableInput;
+    }
+
+    function updateFunction(inputValue: callableArgument) {
+      const validatedInput = validateInput(inputValue);
+
       return execute(
         {
           ...options,
           conditions: inheritedConditions,
           fields: selectedFields,
-          updater: (context: callableContext) => updater(context, inputValue),
+          updater: (context: callableContext) =>
+            updater(context, validatedInput),
         },
-        inputValue,
+        validatedInput,
       );
     }
 
     function executeForConditions(
       conditions: ConditionExpression<callableContext>,
-      inputValue: callableInput,
+      inputValue: callableArgument,
     ) {
+      const validatedInput = validateInput(inputValue);
+
       return execute(
         {
           ...options,
@@ -432,16 +486,21 @@ function createScopedUpdate<
             conditions,
           ),
           fields: selectedFields,
-          updater: (context: callableContext) => updater(context, inputValue),
+          updater: (context: callableContext) =>
+            updater(context, validatedInput),
         },
-        inputValue,
+        validatedInput,
       );
     }
 
     function createWithConditions(
       conditions: ConditionExpression<callableContext>,
     ) {
-      return createCallable(
+      return createCallable<
+        callableFields,
+        callableInput,
+        callableArgument
+      >(
         {
           ...options,
           conditions: combineFieldFunctionConditions(
@@ -462,6 +521,10 @@ function createScopedUpdate<
       type: 'assigned',
       value: conditionTools.createCondition,
     });
+    const deferExecution = registeredUpdate.registerFunction({
+      type: 'assigned',
+      value: (inputValue: callableArgument) => () => updateFunction(inputValue),
+    });
     const forConditions = registeredUpdate.registerFunction({
       type: 'assigned',
       value: executeForConditions,
@@ -474,11 +537,13 @@ function createScopedUpdate<
       value,
       targetStep,
       callableFields,
-      callableInput
+      callableInput,
+      callableArgument
     > = sharedFieldFunction({
       base: registeredUpdate,
       assignedFunctions: {
         createCondition,
+        deferExecution,
         forConditions,
         withConditions,
       },
@@ -491,6 +556,7 @@ function createScopedUpdate<
   function createBoundUpdate<
     selectedFields extends chosenFields = fields,
     selectedInput = input,
+    selectedArgument = [input] extends [never] ? selectedInput : argument,
   >(
     options: Update.BindOptions<
       value,
@@ -499,7 +565,10 @@ function createScopedUpdate<
       selectedInput
     >,
   ) {
-    return createCallable(options, options.updater);
+    return createCallable<selectedFields, selectedInput, selectedArgument>(
+      options,
+      options.updater,
+    );
   }
 
   function createPatchUpdate<
@@ -507,6 +576,7 @@ function createScopedUpdate<
     selectedInput = [input] extends [never]
       ? DeepPartial<Update.Current<value, targetStep, selectedFields>>
       : input,
+    selectedArgument = [input] extends [never] ? selectedInput : argument,
   >(
     options: Update.PatchOptions<
       value,
@@ -515,11 +585,13 @@ function createScopedUpdate<
       selectedInput
     > = {},
   ) {
-    return createCallable(options, (context, inputValue) =>
-      mergePatch(
-        context.current,
-        options.patch ? options.patch(context) : inputValue,
-      ) as Update.Current<value, targetStep, selectedFields>,
+    return createCallable<selectedFields, selectedInput, selectedArgument>(
+      options,
+      (context, inputValue) =>
+        mergePatch(
+          context.current,
+          options.patch ? options.patch(context) : inputValue,
+        ) as Update.Current<value, targetStep, selectedFields>,
     );
   }
 
@@ -564,17 +636,28 @@ function createScopedUpdate<
   function createForFields<const nextFields extends chosenFields>(
     nextFields: nextFields,
   ) {
-    return createScopedUpdate<value, targetStep, nextFields, input>(config, {
-      ...scopeOptions,
-      fields: nextFields,
-    });
+    return createScopedUpdate<value, targetStep, nextFields, input, argument>(
+      config,
+      {
+        ...scopeOptions,
+        fields: nextFields,
+      },
+    );
   }
 
-  function createWithInput<nextInput>() {
-    return createScopedUpdate<value, targetStep, fields, nextInput>(
-      config,
-      scopeOptions,
-    );
+  function createWithInput<const validator extends AnyValidator>(
+    inputValidator: validator,
+  ) {
+    return createScopedUpdate<
+      value,
+      targetStep,
+      fields,
+      ResolveValidatorOutput<validator>,
+      ResolveValidatorInput<validator>
+    >(config, {
+      ...scopeOptions,
+      inputValidator,
+    });
   }
 
   const registeredUpdate = sharedFieldFunction.registerFunction({
@@ -601,7 +684,7 @@ function createScopedUpdate<
     type: 'assigned',
     value: createWithInput,
   });
-  const update: Update.Scoped<value, targetStep, fields, input> =
+  const update: Update.Scoped<value, targetStep, fields, input, argument> =
     sharedFieldFunction({
       base: registeredUpdate,
       assignedFunctions: {
