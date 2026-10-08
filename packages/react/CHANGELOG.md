@@ -1,5 +1,13 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.15
+
+### Patch Changes
+
+- 5fb1988: Accept Standard Schema and custom function validators in `createUpdate.withInput`, validate reusable update inputs at runtime, allow update execution to be deferred, and add a React hook for stable deferred callbacks.
+- Updated dependencies [5fb1988]
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.10
+
 ## 1.0.0-beta.14
 
 ### Patch Changes
