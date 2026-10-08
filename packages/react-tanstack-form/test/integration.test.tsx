@@ -41,6 +41,28 @@ async function renderInJsdom(ui: ReactElement) {
 }
 
 describe('TanStack Form integration', () => {
+  it('rejects form-library opt-in when no adapter is configured', () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Contact',
+          fields: { firstName: { defaultValue: '' } },
+        },
+      },
+    }).configure();
+
+    function createInvalidComponent() {
+      createForm.createComponent({
+        stepData: ['step1'],
+        // @ts-expect-error An adapter is required before form-library opt-in.
+        formLibrary: true,
+        render: () => null,
+      });
+    }
+
+    expectTypeOf(createInvalidComponent).toBeFunction();
+  });
+
   it('keeps native and multi-step fields synchronized in both directions', async () => {
     const formOptions = vi.fn(({ validation }) => ({
       validators: validation ? { onChange: validation } : undefined,
@@ -124,6 +146,76 @@ describe('TanStack Form integration', () => {
       defaultValues: { firstName: '' },
       validation: undefined,
     });
+  });
+
+  it('synchronizes Date values in both directions', async () => {
+    const initialDate = new Date('2026-01-01T00:00:00.000Z');
+    const nativeDate = new Date('2026-02-01T00:00:00.000Z');
+    const multiStepDate = new Date('2026-03-01T00:00:00.000Z');
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Schedule',
+          fields: { startsAt: { defaultValue: initialDate } },
+        },
+      },
+    }).configure({ formLibrary: tanstackForm() });
+    const formSchema = createForm();
+    const Schedule = formSchema.stepSchema.value.step1.createComponent({
+      render({ Field, Selector, form }) {
+        return (
+          <>
+            <form.Field name="startsAt">
+              {(field) => (
+                <button
+                  data-testid="native-date"
+                  onClick={() => field.handleChange(nativeDate)}
+                >
+                  Set native date
+                </button>
+              )}
+            </form.Field>
+            <Field name="startsAt">
+              {({ onInputChange }) => (
+                <button
+                  data-testid="multi-step-date"
+                  onClick={() => onInputChange(multiStepDate)}
+                >
+                  Set multi-step date
+                </button>
+              )}
+            </Field>
+            <Selector
+              selector={(context) =>
+                context.step1.fields.startsAt.defaultValue
+              }
+            >
+              {(value) => (
+                <output data-testid="multi-date">{value.toISOString()}</output>
+              )}
+            </Selector>
+            <form.Subscribe selector={(state) => state.values.startsAt}>
+              {(value) => (
+                <output data-testid="native-date-value">
+                  {value.toISOString()}
+                </output>
+              )}
+            </form.Subscribe>
+          </>
+        );
+      },
+    });
+    const screen = await renderInJsdom(<Schedule />);
+
+    await act(async () => screen.getByTestId('native-date').click());
+    expect(screen.getByTestId('multi-date').textContent).toBe(
+      nativeDate.toISOString(),
+    );
+
+    await act(async () => screen.getByTestId('multi-step-date').click());
+    expect(screen.getByTestId('native-date-value').textContent).toBe(
+      multiStepDate.toISOString(),
+    );
   });
 
   it('does not create a native form when the component opts out', async () => {

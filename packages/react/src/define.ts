@@ -289,6 +289,9 @@ interface MultiStepFormReactFactoryCreateComponentFn<
       DefineReactValue<TSteps, TCasing, TFormLibrary>,
       [targetStep]
     > &
+      ([TFormLibrary] extends [undefined]
+        ? { formLibrary?: never }
+        : {}) &
       StepSpecificComponent.instanceFormLibraryOption<
         DefineReactConfig<TSteps, TCasing, TFormLibrary>,
         DefineReactValue<TSteps, TCasing, TFormLibrary>,
@@ -355,7 +358,10 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
       props,
       additionalCtx,
       true
-    >,
+    > &
+      ([TFormLibrary] extends [undefined]
+        ? { formLibrary?: never }
+        : {}),
   ): CreatedMultiStepFormComponent<props>;
 
   <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
@@ -832,16 +838,10 @@ export class MultiStepFormReactDefinition<
   configure<
     const TCasing extends CasingType = DefaultCasing,
     TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
-    const TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+    const TFormLibrary extends AnyFormLibraryAdapter = AnyFormLibraryAdapter,
   >(
-    configureOptions: ConfigureOptions<
-      TInstances,
-      TCasing,
-      TSteps
-    > & {
-      formLibrary?: TFormLibrary;
-    } = {} as ConfigureOptions<TInstances, TCasing, TSteps> & {
-      formLibrary?: TFormLibrary;
+    configureOptions: ConfigureOptions<TInstances, TCasing, TSteps> & {
+      formLibrary: TFormLibrary;
     },
   ): MultiStepFormReactFactory<
     TSteps,
@@ -849,17 +849,42 @@ export class MultiStepFormReactDefinition<
     TCasing,
     TInstanceSchema,
     TFormLibrary
-  > {
+  >;
+
+  configure<
+    const TCasing extends CasingType = DefaultCasing,
+    TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  >(
+    configureOptions?: ConfigureOptions<TInstances, TCasing, TSteps> & {
+      formLibrary?: undefined;
+    },
+  ): MultiStepFormReactFactory<
+    TSteps,
+    TInstances,
+    TCasing,
+    TInstanceSchema,
+    undefined
+  >;
+
+  configure(configureOptions: unknown = {}) {
+    const options = configureOptions as ConfigureOptions<
+      TInstances,
+      CasingType,
+      TSteps
+    > & {
+      formLibrary?: AnyFormLibraryAdapter;
+    };
+
     return createReactFactory<
       TSteps,
       TInstances,
-      TCasing,
-      TFormLibrary,
-      TInstanceSchema
+      CasingType,
+      AnyFormLibraryAdapter | undefined,
+      AnyMultiStepFormSchema
     >(
       this.config,
-      configureOptions,
-    );
+      options,
+    ) as unknown;
   }
 }
 

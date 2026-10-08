@@ -19,6 +19,7 @@ import type { ReactNode } from 'react';
 import type * as FieldTypes from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
 import type {
+  AnyFormLibraryAdapter,
   ConfiguredFormLibrary,
   FormLibraryRenderInput,
 } from './form-library';
@@ -31,6 +32,10 @@ import {
 } from './utils';
 
 export namespace StepSpecificComponent {
+  type concreteFormLibrary<def> = '__formLibrary' extends keyof def
+    ? Exclude<def['__formLibrary'], undefined>
+    : AnyFormLibraryAdapter;
+
   type validation<
     def extends StepSchema.Config,
     targetStep extends PropertyKey,
@@ -43,7 +48,7 @@ export namespace StepSpecificComponent {
   type formLibraryOption<
     def extends StepSchema.Config,
     enabled extends boolean,
-  > = [ConfiguredFormLibrary<def>] extends [never]
+  > = [concreteFormLibrary<def>] extends [never]
     ? { formLibrary?: never }
     : enabled extends true
       ? { formLibrary?: true }

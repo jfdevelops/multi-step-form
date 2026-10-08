@@ -100,6 +100,14 @@ function valuesEqual(left: unknown, right: unknown): boolean {
     return false;
   }
 
+  if (left instanceof Date || right instanceof Date) {
+    return (
+      left instanceof Date &&
+      right instanceof Date &&
+      Object.is(left.getTime(), right.getTime())
+    );
+  }
+
   const leftEntries = Object.entries(left);
   const rightEntries = Object.entries(right);
 
