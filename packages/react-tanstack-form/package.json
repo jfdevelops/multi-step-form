@@ -1,0 +1,56 @@
+{
+  "name": "@jfdevelops/react-multi-step-form-tanstack",
+  "version": "1.0.0-beta.0",
+  "description": "TanStack Form integration for @jfdevelops/react-multi-step-form",
+  "repository": "https://github.com/jfdevelops/multi-step-form",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "watch": "tsdown --watch"
+  },
+  "keywords": [
+    "react",
+    "forms",
+    "tanstack-form",
+    "multi-step-form"
+  ],
+  "author": "Joey Finkel",
+  "license": "MIT",
+  "packageManager": "pnpm@10.18.2",
+  "dependencies": {
+    "@jfdevelops/react-multi-step-form": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-form": "^1.33.5",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-form": "^1.33.5",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "vite": "^7.1.11",
+    "vitest": "^4.0.8"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

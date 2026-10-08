@@ -3,6 +3,16 @@ export * from './step-schema';
 export * from './steps';
 export * from './create-context';
 export * from './define';
+export type {
+  AnyFormLibraryAdapter,
+  ConfiguredFormLibrary,
+  FormLibraryAdapter,
+  FormLibraryBinding,
+  FormLibraryBoundaryProps,
+  FormLibraryRenderInput,
+  FormLibraryTypeRegistry,
+  FormLibraryValues,
+} from './form-library';
 // Public component signatures reference these types, so the declaration build must preserve
 // the namespace even though consumers do not need the Field runtime implementation directly.
 export type { field } from './field';

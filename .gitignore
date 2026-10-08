@@ -1,3 +1,4 @@
 node_modules
 packages/*/dist
+examples/*/dist
 packages/*/test/*/__screenshots__

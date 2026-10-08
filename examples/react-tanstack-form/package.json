@@ -1,0 +1,23 @@
+{
+  "name": "react-tanstack-form-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3001",
+    "build": "vite build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@jfdevelops/react-multi-step-form": "workspace:*",
+    "@jfdevelops/react-multi-step-form-tanstack": "workspace:*",
+    "@tanstack/react-form": "^1.33.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.11"
+  }
+}

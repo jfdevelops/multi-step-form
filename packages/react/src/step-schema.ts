@@ -26,6 +26,11 @@ import {
 import { field } from './field';
 import { ForField, withReusableField } from './for-field';
 import { MultiStepFormSchemaConfig } from './form-config';
+import type {
+  AnyFormLibraryAdapter,
+  FormLibraryBinding,
+  FormLibraryValues,
+} from './form-library';
 import { createUseSelector, deepEqual } from './hooks/use-selector';
 import { selector } from './selector';
 import {
@@ -54,6 +59,26 @@ export interface CreateComponentFn<
   def extends StepSchema.Config,
   value extends instantiateReactSteps<def>,
 > {
+  <targetStep extends StepNumbers<value>, props = undefined>(
+    config: HelperFn.BaseOptions<value, [targetStep]> &
+      StepSpecificComponent.instanceFormLibraryOption<
+        def,
+        value,
+        [targetStep],
+        true
+      > & {
+        render: CreateComponent<
+          StepSpecificComponent.instanceInput<
+            def,
+            value,
+            [targetStep],
+            true
+          >,
+          props
+        >;
+      },
+  ): CreatedMultiStepFormComponent<props>;
+
   <
     chosenSteps extends HelperFnChosenSteps.main<
       value,
@@ -62,6 +87,7 @@ export interface CreateComponentFn<
     props = undefined,
   >(
     config: HelperFn.BaseOptions<value, chosenSteps> & {
+      formLibrary?: false;
       render: CreateComponent<
         StepSpecificComponent.instanceInput<def, value, chosenSteps>,
         props
@@ -86,6 +112,7 @@ namespace CreateComponentImplConfig {
   > = {
     isStepSpecific: true;
     form?: Record<string, unknown>;
+    formLibrary?: AnyFormLibraryAdapter;
   };
 
   export type nonStepSpecific = {
@@ -112,6 +139,7 @@ export namespace MultiStepFormStepSchema {
      * @internal
      */
     form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
+    formLibrary?: AnyFormLibraryAdapter;
   };
 }
 
@@ -153,7 +181,7 @@ export class MultiStepFormStepSchema<
   readonly createComponent: CreateComponentFn<def, value>;
 
   constructor(config: MultiStepFormStepSchema.config<def, value>) {
-    const { form, ...rest } = config;
+    const { form, formLibrary, ...rest } = config;
 
     super(rest as never);
 
@@ -205,10 +233,12 @@ export class MultiStepFormStepSchema<
           createComponent: this.createStepSpecificComponentFactory(targetStep, {
             isStepSpecific: true,
             form: instantiatedForm,
+            formLibrary,
           }),
           createHook: this.createStepSpecificHookFactory(targetStep, {
             isStepSpecific: true,
             form: instantiatedForm,
+            formLibrary,
           }),
         },
       );
@@ -465,6 +495,7 @@ export class MultiStepFormStepSchema<
     config: CreateComponentImplConfig.stepSpecificConfig<def, value>,
     extraConfig?: {
       logger?: MultiStepFormLogger;
+      formLibrary?: boolean;
       input?: (
         ctx: Expand<HelperFn.buildCtx<value, chosenStep>>,
       ) => Record<string, unknown>;
@@ -568,6 +599,45 @@ export class MultiStepFormStepSchema<
       );
       const useStep = this.createUseStep(step);
       const SuspendStep = this.createStepSuspend(step);
+      const formLibraryBinding: FormLibraryBinding = {
+        defaultValues: this.createDefaultValues(
+          step as never,
+        ) as FormLibraryValues,
+        validation: (
+          this.original[step] as { validateFields?: unknown } | undefined
+        )?.validateFields,
+        getValues: () =>
+          this.createDefaultValues(step as never) as FormLibraryValues,
+        setValues: (values) => {
+          const currentValues = this.createDefaultValues(
+            step as never,
+          ) as FormLibraryValues;
+
+          if (deepEqual(currentValues, values)) {
+            return;
+          }
+
+          const currentStep = this.value[step] as {
+            fields: Record<string, Record<string, unknown>>;
+          } & Record<string, unknown>;
+          const fields = Object.fromEntries(
+            Object.entries(currentStep.fields).map(([fieldName, fieldValue]) => [
+              fieldName,
+              {
+                ...fieldValue,
+                defaultValue: values[fieldName],
+              },
+            ]),
+          );
+
+          this.update({
+            targetStep: step as never,
+            updater: { ...currentStep, fields } as never,
+            fields: 'all',
+          });
+        },
+        subscribe: this.subscribe,
+      };
 
       return ((props: props) => {
         const resolvedCtx = this.createResolvedCtx({
@@ -579,7 +649,7 @@ export class MultiStepFormStepSchema<
         // Call hook functions from extraInput at the top level of the component
         // This ensures hooks are called in a valid React context (before any conditionals)
         const hookResults = getValidatedCustomInputHooks(extraInput);
-        const { form } = config;
+        const { form, formLibrary } = config;
 
         InvalidStepError.invariant(this.steps.isValidStep(step), {
           reason: `The target step ${step} is invalid`,
@@ -632,6 +702,9 @@ export class MultiStepFormStepSchema<
           useSelector,
           Selector,
           defaultValues: this.createDefaultValues(step as never) as never,
+          validation: (
+            this.original[step] as { validateFields?: unknown } | undefined
+          )?.validateFields,
           ...hookResults,
         };
 
@@ -668,7 +741,22 @@ export class MultiStepFormStepSchema<
             };
           }
 
-          return fn(fnInput, props);
+        }
+
+        if (extraConfig?.formLibrary) {
+          InvalidFormConfigError.invariant(formLibrary !== undefined, {
+            reason:
+              'This component enabled "formLibrary", but no form-library adapter was configured on the definition',
+            property: 'formLibrary',
+            value: formLibrary,
+            expected: 'a configured form-library adapter',
+          });
+
+          return createElement(formLibrary.Boundary, {
+            binding: formLibraryBinding,
+            children: (libraryInput: Record<string, unknown>) =>
+              fn({ ...fnInput, ...libraryInput }, props),
+          });
         }
 
         return fn(fnInput, props);
@@ -685,13 +773,15 @@ export class MultiStepFormStepSchema<
     const impl = <
       additionalCtx extends Record<string, unknown> = {},
       props = undefined,
+      useFormLibrary extends boolean = false,
     >(
       componentConfig: StepSpecificComponent.config<
         def,
         value,
         targetStep,
         props,
-        additionalCtx
+        additionalCtx,
+        useFormLibrary
       >,
     ) => {
       InvalidComponentError.invariant(
@@ -704,7 +794,12 @@ export class MultiStepFormStepSchema<
         },
       );
 
-      const { ctxData, debug, render } = componentConfig;
+      const {
+        ctxData,
+        debug,
+        formLibrary: formLibraryEnabled = config.formLibrary !== undefined,
+        render,
+      } = componentConfig;
 
       InvalidComponentError.invariant(typeof render === 'function', {
         reason: 'The "render" property must be a function',
@@ -723,6 +818,7 @@ export class MultiStepFormStepSchema<
       return this.createStepSpecificComponentImpl([targetStep], config, {
         logger,
         ctxData,
+        formLibrary: formLibraryEnabled,
       })(render);
     };
 
@@ -764,6 +860,7 @@ export class MultiStepFormStepSchema<
       // a field, ownership moves to the returned component so one implementation can serve every
       // compatible field in the step.
       const Component = impl({
+        formLibrary: false,
         render: (
           { Field }: StepSpecificComponent.input<def, value, targetStep, {}>,
           componentProps: StepSpecificComponent.fieldComponentProps<
@@ -852,7 +949,8 @@ export class MultiStepFormStepSchema<
         targetStep,
         config,
       )({
-        render: (input, props) => {
+        formLibrary: false,
+        render: (input: Record<string, unknown>, props: unknown) => {
           const registrations: Registration[] = [];
           const previousRegistrations = useRef<Registration[]>([]);
           const selectedFunction =
@@ -914,7 +1012,7 @@ export class MultiStepFormStepSchema<
 
           return result as ReactNode;
         },
-      });
+      } as never);
 
       return (props?: unknown) =>
         (HookInput as (props?: unknown) => unknown)(props);
@@ -929,6 +1027,7 @@ export class MultiStepFormStepSchema<
     props = undefined,
   >(
     componentConfig: HelperFn.BaseOptions<value, chosenSteps> & {
+      formLibrary?: boolean;
       render: CreateComponent<
         StepSpecificComponent.instanceInput<def, value, chosenSteps>,
         props
@@ -964,7 +1063,10 @@ export class MultiStepFormStepSchema<
         }) => CreatedMultiStepFormComponent<props>;
       };
 
-      return step.createComponent({ render } as never);
+      return step.createComponent({
+        formLibrary: componentConfig.formLibrary,
+        render,
+      } as never);
     }
 
     const stepData = options.stepData as chosenSteps;
@@ -1046,10 +1148,12 @@ export class MultiStepFormStepSchema<
     for (const step of selectedSteps) {
       const stepValue = this.value[step] as {
         createComponent: (config: {
+          formLibrary?: boolean;
           render: (input: { Field: Function }, props: BridgeProps) => ReactNode;
         }) => CreatedMultiStepFormComponent<BridgeProps>;
       };
       const StepField = stepValue.createComponent({
+        formLibrary: false,
         render({ Field }, props) {
           const {
             children,
