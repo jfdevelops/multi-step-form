@@ -3,7 +3,8 @@
   "tag": "beta",
   "initialVersions": {
     "@jfdevelops/multi-step-form-core": "1.0.0-alpha.37",
-    "@jfdevelops/react-multi-step-form": "1.0.0-alpha.55"
+    "@jfdevelops/react-multi-step-form": "1.0.0-alpha.55",
+    "@jfdevelops/react-multi-step-form-tanstack": "1.0.0-beta.0"
   },
   "changesets": [
     "beta-tooling-validation",
@@ -103,6 +104,7 @@
     "update-mismatch-error",
     "wacky-pans-sniff",
     "warm-fields-compose",
+    "warm-forms-connect",
     "warm-steps-validate",
     "warm-tools-validate",
     "yummy-numbers-stare",
