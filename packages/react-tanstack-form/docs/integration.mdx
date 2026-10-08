@@ -1,0 +1,47 @@
+# TanStack Form integration
+
+`tanstackForm()` is configured once at the definition level. Every single-step
+component receives a native TanStack form by default.
+
+```tsx
+const createForm = defineMultiStepForm({ steps }).configure({
+  formLibrary: tanstackForm(),
+});
+```
+
+An opted-in step receives a fully typed native `form`. Use `form.Field`,
+`form.Subscribe`, `form.handleSubmit`, and the rest of TanStack Form directly.
+The adapter package also re-exports TanStack Form, so imports such as `useForm`
+continue to use their native names:
+
+```tsx
+import {
+  tanstackForm,
+  useForm,
+} from '@jfdevelops/react-multi-step-form-tanstack';
+```
+
+## Validation timing
+
+Validation is not assigned to a TanStack event automatically. Map the step's
+validator to the event your application wants:
+
+```tsx
+const createForm = defineMultiStepForm({ steps }).configure({
+  formLibrary: tanstackForm({
+    formOptions: ({ validation }) => ({
+      validators: validation ? { onChange: validation } : undefined,
+    }),
+  }),
+});
+```
+
+Change `onChange` to `onBlur`, `onSubmit`, or another TanStack validator slot
+without changing the multi-step-form schema.
+
+## Opt-out behavior
+
+Set `formLibrary: false` when a component only needs the existing
+multi-step-form utilities. Integrated components still receive `Field`,
+`Selector`, `useSelector`, and `useStep`; native and existing fields can be mixed
+because both sides read and write the same step values.

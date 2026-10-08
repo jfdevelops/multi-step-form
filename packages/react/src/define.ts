@@ -28,6 +28,7 @@ import {
   MultiStepFormSchema,
 } from './schema';
 import { ForField, withReusableField } from './for-field';
+import type { AnyFormLibraryAdapter } from './form-library';
 import {
   type instantiateReactSteps,
   type StepSpecificComponent,
@@ -59,10 +60,21 @@ const factorySchemaStorage: Storage = {
  * The resolved instantiated value shape for a form definition's steps, independent of any
  * particular instance.
  */
+export type DefineReactConfig<
+  TSteps extends StepConfig,
+  TCasing extends CasingType = DefaultCasing,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+> = DefineConfig<TSteps, TCasing> & {
+  readonly __formLibrary?: TFormLibrary;
+};
+
 export type DefineReactValue<
   TSteps extends StepConfig,
   TCasing extends CasingType = DefaultCasing,
-> = instantiateReactSteps<DefineConfig<TSteps, TCasing>>;
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+> = instantiateReactSteps<
+  DefineReactConfig<TSteps, TCasing, TFormLibrary>
+>;
 
 export interface MultiStepFormReactInstance<
   def extends DefineConfig,
@@ -119,6 +131,7 @@ function attachInstance<
     rawSteps: def['steps'];
     nameTransformCasing: def['nameTransformCasing'];
     storageConfig: BaseStorageConfig<string>;
+    formLibrary?: AnyFormLibraryAdapter;
     instanceName: TInstance;
     onRebuild: (next: MultiStepFormReactInstance<def>) => void;
     overridesApplied?: boolean;
@@ -128,6 +141,7 @@ function attachInstance<
     rawSteps,
     nameTransformCasing,
     storageConfig,
+    formLibrary,
     instanceName,
     onRebuild,
     overridesApplied: initialOverridesApplied = false,
@@ -155,11 +169,13 @@ function attachInstance<
           steps: mergedSteps,
           nameTransformCasing,
           storage: storageConfig,
+          formLibrary,
         } as never),
         {
           rawSteps: mergedSteps,
           nameTransformCasing,
           storageConfig,
+          formLibrary,
           instanceName,
           onRebuild,
           overridesApplied: true,
@@ -254,6 +270,7 @@ export interface MultiStepFormReactFactoryStepFunctions<
 interface MultiStepFormReactFactoryCreateComponentFn<
   TSteps extends StepConfig,
   TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
   // The type a `forField`/`forInstance` component's `instance` prop accepts. Defaults to
   // the deliberately loose `AnyMultiStepFormSchema` — every instance produced by any
   // definition's factory (at any point in its `withOverrides`/`withForm`/`withContext`
@@ -263,20 +280,49 @@ interface MultiStepFormReactFactoryCreateComponentFn<
   TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > {
   <
-    chosenSteps extends HelperFnChosenSteps.main<
-      DefineReactValue<TSteps, TCasing>,
-      StepNumbers<DefineReactValue<TSteps, TCasing>>
+    targetStep extends StepNumbers<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>
     >,
     props = undefined,
   >(
     config: HelperFn.BaseOptions<
-      DefineReactValue<TSteps, TCasing>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      [targetStep]
+    > &
+      StepSpecificComponent.instanceFormLibraryOption<
+        DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+        DefineReactValue<TSteps, TCasing, TFormLibrary>,
+        [targetStep],
+        true
+      > & {
+        render: CreateComponent<
+          StepSpecificComponent.instanceInput<
+            DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+            DefineReactValue<TSteps, TCasing, TFormLibrary>,
+            [targetStep],
+            true
+          >,
+          props
+        >;
+      },
+  ): CreatedMultiStepFormComponent<props>;
+
+  <
+    chosenSteps extends HelperFnChosenSteps.main<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      StepNumbers<DefineReactValue<TSteps, TCasing, TFormLibrary>>
+    >,
+    props = undefined,
+  >(
+    config: HelperFn.BaseOptions<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
       chosenSteps
     > & {
+      formLibrary?: false;
       render: CreateComponent<
         StepSpecificComponent.instanceInput<
-          DefineConfig<TSteps, TCasing>,
-          DefineReactValue<TSteps, TCasing>,
+          DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+          DefineReactValue<TSteps, TCasing, TFormLibrary>,
           chosenSteps
         >,
         props
@@ -285,8 +331,8 @@ interface MultiStepFormReactFactoryCreateComponentFn<
   ): CreatedMultiStepFormComponent<props>;
 
   forField: ForField.createComponentFn<
-    DefineConfig<TSteps, TCasing>,
-    DefineReactValue<TSteps, TCasing>,
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+    DefineReactValue<TSteps, TCasing, TFormLibrary>,
     { instance: TInstanceSchema }
   >;
 
@@ -295,22 +341,37 @@ interface MultiStepFormReactFactoryCreateComponentFn<
 interface MultiStepFormReactFactoryStepCreateComponentFn<
   TSteps extends StepConfig,
   TCasing extends CasingType,
-  targetStep extends StepNumbers<DefineReactValue<TSteps, TCasing>>,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
+  targetStep extends StepNumbers<
+    DefineReactValue<TSteps, TCasing, TFormLibrary>
+  >,
   TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > {
   <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
     config: StepSpecificComponent.config<
-      DefineConfig<TSteps, TCasing>,
-      DefineReactValue<TSteps, TCasing>,
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
       targetStep,
       props,
-      additionalCtx
+      additionalCtx,
+      true
+    >,
+  ): CreatedMultiStepFormComponent<props>;
+
+  <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
+    config: StepSpecificComponent.config<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      targetStep,
+      props,
+      additionalCtx,
+      false
     >,
   ): CreatedMultiStepFormComponent<props>;
 
   forField: ForField.stepCreateComponentFn<
-    DefineConfig<TSteps, TCasing>,
-    DefineReactValue<TSteps, TCasing>,
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+    DefineReactValue<TSteps, TCasing, TFormLibrary>,
     targetStep,
     { instance: TInstanceSchema }
   >;
@@ -320,19 +381,25 @@ interface MultiStepFormReactFactoryStepCreateComponentFn<
 type MultiStepFormReactFactoryStepSchema<
   TSteps extends StepConfig,
   TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
   TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 > = Omit<
-  MultiStepFormSchema<DefineConfig<TSteps, TCasing>>['stepSchema'],
+  MultiStepFormSchema<
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>
+  >['stepSchema'],
   'value'
 > & {
   value: {
-    [targetStep in StepNumbers<DefineReactValue<TSteps, TCasing>>]: Omit<
-      DefineReactValue<TSteps, TCasing>[targetStep],
+    [targetStep in StepNumbers<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>
+    >]: Omit<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>[targetStep],
       'createComponent'
     > & {
       createComponent: MultiStepFormReactFactoryStepCreateComponentFn<
         TSteps,
         TCasing,
+        TFormLibrary,
         targetStep,
         TInstanceSchema
       >;
@@ -352,14 +419,16 @@ export type MultiStepFormReactFactoryBase<
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType,
   TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
 > = Omit<
-  MultiStepFormSchema<DefineConfig<TSteps, TCasing>>,
+  MultiStepFormSchema<DefineReactConfig<TSteps, TCasing, TFormLibrary>>,
   'createComponent' | 'stepSchema'
 > &
   MultiStepFormReactFactoryStepProperties<TSteps> & {
   createComponent: MultiStepFormReactFactoryCreateComponentFn<
     TSteps,
     TCasing,
+    TFormLibrary,
     TInstanceSchema
   >;
   /**
@@ -370,6 +439,7 @@ export type MultiStepFormReactFactoryBase<
   stepSchema: MultiStepFormReactFactoryStepSchema<
     TSteps,
     TCasing,
+    TFormLibrary,
     TInstanceSchema
   >;
   /**
@@ -433,41 +503,59 @@ export type MultiStepFormReactFactory<
   TInstances extends readonly string[] | undefined,
   TCasing extends CasingType = CasingType,
   TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
 > = MultiStepFormReactFactoryBase<
   TSteps,
   TInstances,
   TCasing,
-  TInstanceSchema
+  TInstanceSchema,
+  TFormLibrary
 > &
   (<TInstance extends InstanceName<TInstances>>(
     ...args: MultiStepFormReactFactoryCallOptions<TInstances, TInstance>
   ) =>
     MultiStepFormReactInstance<
-      DefineConfig<TSteps, TCasing>,
-      DefineReactValue<TSteps, TCasing>
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>
     >);
 
 function createReactFactory<
   const TSteps extends StepConfig,
   TInstances extends readonly string[] | undefined,
   const TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
   TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
 >(
   config: DefineMultiStepFormOptions<TSteps, TInstances>,
-  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
-): MultiStepFormReactFactory<TSteps, TInstances, TCasing, TInstanceSchema> {
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps> & {
+    formLibrary?: TFormLibrary;
+  },
+): MultiStepFormReactFactory<
+  TSteps,
+  TInstances,
+  TCasing,
+  TInstanceSchema,
+  TFormLibrary
+> {
   const { steps, instances: declaredInstances } = config;
-  const { defaultOverrides, nameTransformCasing } = configureOptions;
+  const { defaultOverrides, formLibrary, nameTransformCasing } = configureOptions;
   const configuredSteps = mergeStepOverrides(steps as TSteps, defaultOverrides);
   const registry = new Map<
     InstanceName<TInstances>,
-    MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>
+    MultiStepFormReactInstance<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>
+    >
   >();
   const factorySchema = new MultiStepFormSchema<
-    DefineConfig<TSteps, TCasing>
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>
   >({
-    steps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
+    steps: configuredSteps as DefineReactConfig<
+      TSteps,
+      TCasing,
+      TFormLibrary
+    >['steps'],
     nameTransformCasing,
+    formLibrary,
     storage: {
       key: DEFAULT_STORAGE_KEY,
       store: factorySchemaStorage,
@@ -477,7 +565,9 @@ function createReactFactory<
 
   function setActive(
     instanceName: InstanceName<TInstances>,
-    instance: MultiStepFormReactInstance<DefineConfig<TSteps, TCasing>>,
+    instance: MultiStepFormReactInstance<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>
+    >,
   ) {
     registry.set(instanceName, instance);
     activeInstance = instanceName;
@@ -490,18 +580,30 @@ function createReactFactory<
       configureOptions,
     );
     const instance = attachInstance<
-      DefineConfig<TSteps, TCasing>,
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
       InstanceName<TInstances>
     >(
-      new MultiStepFormSchema<DefineConfig<TSteps, TCasing>>({
-        steps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
+      new MultiStepFormSchema<
+        DefineReactConfig<TSteps, TCasing, TFormLibrary>
+      >({
+        steps: configuredSteps as DefineReactConfig<
+          TSteps,
+          TCasing,
+          TFormLibrary
+        >['steps'],
         nameTransformCasing,
+        formLibrary,
         storage: storageConfig,
       } as never),
       {
-        rawSteps: configuredSteps as DefineConfig<TSteps, TCasing>['steps'],
+        rawSteps: configuredSteps as DefineReactConfig<
+          TSteps,
+          TCasing,
+          TFormLibrary
+        >['steps'],
         nameTransformCasing,
         storageConfig,
+        formLibrary,
         instanceName,
         onRebuild: (next) => setActive(instanceName, next),
       },
@@ -667,6 +769,7 @@ function createReactFactory<
   ) as unknown as MultiStepFormReactFactoryCreateComponentFn<
     TSteps,
     TCasing,
+    TFormLibrary,
     TInstanceSchema
   >;
 
@@ -691,7 +794,8 @@ function createReactFactory<
     TSteps,
     TInstances,
     TCasing,
-    TInstanceSchema
+    TInstanceSchema,
+    TFormLibrary
   >;
 }
 
@@ -713,6 +817,9 @@ export class MultiStepFormReactDefinition<
    * Also accepts {@linkcode ConfigureOptions} `nameTransformCasing` — the schema-wide default
    * casing used to derive field labels. When omitted, defaults to `'title'`.
    *
+   * `formLibrary` installs an optional integration adapter for the definition. Single-step
+   * components use it by default and can opt out by passing `formLibrary: false`.
+   *
    * `TInstanceSchema` types every `instance` prop the resulting factory's `forField`/
    * `forInstance` components accept. It defaults to the permissive
    * {@linkcode AnyMultiStepFormSchema} — every instance this factory can produce, at any
@@ -725,14 +832,31 @@ export class MultiStepFormReactDefinition<
   configure<
     const TCasing extends CasingType = DefaultCasing,
     TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+    const TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
   >(
     configureOptions: ConfigureOptions<
       TInstances,
       TCasing,
       TSteps
-    > = {} as ConfigureOptions<TInstances, TCasing, TSteps>,
-  ): MultiStepFormReactFactory<TSteps, TInstances, TCasing, TInstanceSchema> {
-    return createReactFactory<TSteps, TInstances, TCasing, TInstanceSchema>(
+    > & {
+      formLibrary?: TFormLibrary;
+    } = {} as ConfigureOptions<TInstances, TCasing, TSteps> & {
+      formLibrary?: TFormLibrary;
+    },
+  ): MultiStepFormReactFactory<
+    TSteps,
+    TInstances,
+    TCasing,
+    TInstanceSchema,
+    TFormLibrary
+  > {
+    return createReactFactory<
+      TSteps,
+      TInstances,
+      TCasing,
+      TFormLibrary,
+      TInstanceSchema
+    >(
       this.config,
       configureOptions,
     );

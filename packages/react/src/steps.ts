@@ -18,6 +18,10 @@ import { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import type { ReactNode } from 'react';
 import type * as FieldTypes from './field';
 import { MultiStepFormSchemaConfig } from './form-config';
+import type {
+  ConfiguredFormLibrary,
+  FormLibraryRenderInput,
+} from './form-library';
 import { UseSelector } from './hooks/use-selector';
 import { selector } from './selector';
 import {
@@ -27,6 +31,36 @@ import {
 } from './utils';
 
 export namespace StepSpecificComponent {
+  type validation<
+    def extends StepSchema.Config,
+    targetStep extends PropertyKey,
+  > = targetStep extends keyof def['steps']
+    ? def['steps'][targetStep] extends { validateFields?: infer validator }
+      ? validator
+      : undefined
+    : undefined;
+
+  type formLibraryOption<
+    def extends StepSchema.Config,
+    enabled extends boolean,
+  > = [ConfiguredFormLibrary<def>] extends [never]
+    ? { formLibrary?: never }
+    : enabled extends true
+      ? { formLibrary?: true }
+      : { formLibrary: false };
+
+  type formLibraryInput<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    targetStep extends StepNumbers<value>,
+    enabled extends boolean,
+  > = enabled extends true
+    ? FormLibraryRenderInput<
+        ConfiguredFormLibrary<def>,
+        Expand<getDefaultValues<value, targetStep>>
+      >
+    : Record<never, never>;
+
   type enabledFormSteps<
     def extends StepSchema.Config,
     steps extends instantiateReactSteps<def>,
@@ -380,6 +414,8 @@ export namespace StepSpecificComponent {
        * as defined in the schema config.
        */
       defaultValues: Expand<getDefaultValues<value, targetStep>>;
+      /** The step-level validator from the original schema, when one was provided. */
+      validation: validation<def, targetStep>;
     };
 
   export type callback<
@@ -388,10 +424,12 @@ export namespace StepSpecificComponent {
     targetStep extends StepNumbers<value>,
     props,
     additionalCtx extends Record<string, unknown> = {},
+    useFormLibrary extends boolean = false,
   > = CreateComponent<
     Expand<
       input<def, value, targetStep, additionalCtx> &
         formComponent<def, value, [targetStep]> &
+        formLibraryInput<def, value, targetStep, useFormLibrary> &
         additionalCtx
     >,
     props
@@ -413,11 +451,14 @@ export namespace StepSpecificComponent {
     targetStep extends StepNumbers<value>,
     props,
     additionalCtx extends Record<string, unknown> = {},
+    useFormLibrary extends boolean = false,
   > = options<value, targetStep, additionalCtx> &
+    formLibraryOption<def, useFormLibrary> &
     CreateComponentConfig<
       Expand<
         input<def, value, targetStep, additionalCtx> &
           formComponent<def, value, [targetStep]> &
+          formLibraryInput<def, value, targetStep, useFormLibrary> &
           additionalCtx
       >,
       props
@@ -502,12 +543,23 @@ export namespace StepSpecificComponent {
     def extends StepSchema.Config,
     value extends instantiateReactSteps<def>,
     chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+    useFormLibrary extends boolean = false,
   > = chosenSteps extends [infer targetStep extends StepNumbers<value>]
     ? Expand<
         input<def, value, targetStep, {}> &
-          formComponent<def, value, [targetStep]>
+          formComponent<def, value, [targetStep]> &
+          formLibraryInput<def, value, targetStep, useFormLibrary>
       >
     : multiStepInput<def, value, chosenSteps>;
+
+  export type instanceFormLibraryOption<
+    def extends StepSchema.Config,
+    value extends instantiateReactSteps<def>,
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+    enabled extends boolean,
+  > = chosenSteps extends [StepNumbers<value>]
+    ? formLibraryOption<def, enabled>
+    : { formLibrary?: never };
 }
 
 type IsLegacyFormAvailable<
@@ -554,7 +606,19 @@ export interface StepSpecificCreateComponentFn<
       value,
       targetStep,
       props,
-      additionalCtx
+      additionalCtx,
+      true
+    >,
+  ): CreatedMultiStepFormComponent<props>;
+
+  <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
+    config: StepSpecificComponent.config<
+      def,
+      value,
+      targetStep,
+      props,
+      additionalCtx,
+      false
     >,
   ): CreatedMultiStepFormComponent<props>;
 

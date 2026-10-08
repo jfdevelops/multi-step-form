@@ -13,6 +13,7 @@ form instances, optional browser persistence, and per-step state.
 | --- | --- |
 | [`@jfdevelops/multi-step-form-core`](./packages/core/README.md) | Framework-agnostic schema, state, validation, and storage APIs |
 | [`@jfdevelops/react-multi-step-form`](./packages/react/README.md) | React components, hooks, context, and selectors built on the core package |
+| [`@jfdevelops/react-multi-step-form-tanstack`](./packages/react-tanstack-form/README.md) | Native TanStack Form integration for React |
 
 Install the React package for a React application:
 
@@ -101,6 +102,8 @@ the instance remains in memory.
   - [Builder order and React integration](./packages/react/docs/instances-and-storage.mdx)
   - [Migrating from alpha](./packages/react/docs/migration.mdx)
 - [React example](./examples/react-basic)
+- [TanStack Form integration guide](./packages/react-tanstack-form/docs/integration.mdx)
+- [TanStack Form example](./examples/react-tanstack-form)
 
 ## Development
 
@@ -132,8 +135,10 @@ The repository is organized as follows:
 packages/
   core/          Framework-agnostic package
   react/         React bindings
+  react-tanstack-form/ TanStack Form adapter
 examples/
   react-basic/   Vite example application
+  react-tanstack-form/ Minimal TanStack Form example
 ```
 
 ## License

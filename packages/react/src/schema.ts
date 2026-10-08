@@ -11,7 +11,8 @@ import {
   createMultiStepFormContext,
   type MultiStepFormContextResult,
 } from './create-context';
-import { MultiStepFormSchemaConfig } from './form-config';
+import type { MultiStepFormSchemaConfig } from './form-config';
+import type { AnyFormLibraryAdapter } from './form-library';
 import {
   type CreateComponentFn,
   type HelperFunctions,
@@ -88,6 +89,7 @@ export namespace MultiStepFormSchema {
      * @internal
      */
     context?: MultiStepFormContextResult<def, value>;
+    formLibrary?: AnyFormLibraryAdapter;
   };
 }
 
@@ -112,6 +114,7 @@ export class MultiStepFormSchema<
   context: MultiStepFormContextResult<def, value> = undefined as never;
   readonly #formConfig: MultiStepFormSchemaConfig.FormConfig<def, value> =
     undefined as never;
+  readonly #formLibrary?: AnyFormLibraryAdapter;
 
   constructor(config: MultiStepFormSchema.config<def, value>) {
     const {
@@ -120,12 +123,14 @@ export class MultiStepFormSchema<
       form,
       storage,
       context,
+      formLibrary,
     } = config;
     const options = {
       steps,
       nameTransformCasing,
       storage,
       form,
+      formLibrary,
     } as MultiStepFormStepSchema.config<def, value>;
 
     super(options);
@@ -151,6 +156,7 @@ export class MultiStepFormSchema<
     if (form) {
       this.#formConfig = form;
     }
+    this.#formLibrary = formLibrary;
   }
 
   /**
@@ -201,6 +207,7 @@ export class MultiStepFormSchema<
     >({
       steps: this.stepSchema.original,
       form: config,
+      formLibrary: this.#formLibrary,
       nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
       storage: {
         key,
@@ -214,6 +221,7 @@ export class MultiStepFormSchema<
     const next = new MultiStepFormSchema<def, value>({
       steps: this.stepSchema.original,
       form: this.#formConfig,
+      formLibrary: this.#formLibrary,
       nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
       storage: {
         key: this.storageConfig.key,
