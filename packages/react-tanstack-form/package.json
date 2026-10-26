@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/react-multi-step-form-tanstack",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "description": "TanStack Form integration for @jfdevelops/react-multi-step-form",
   "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",
