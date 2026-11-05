@@ -1,5 +1,16 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0-beta.17
+
+### Minor Changes
+
+- Support lazy async step definitions through defineMultiStepForm while keeping factory creation synchronous. Resolve loaders through the existing status, error, retry, and Suspense APIs and preserve loaded state, validation, resets, persisted values, and React component factories.
+
+### Patch Changes
+
+- Updated dependencies
+  - @jfdevelops/multi-step-form-core@1.0.0-beta.11
+
 ## 1.0.0-beta.16
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @jfdevelops/react-multi-step-form-tanstack
 
+## 1.0.0-beta.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @jfdevelops/react-multi-step-form@1.0.0-beta.17
+
 ## 1.0.0-beta.1
 
 ### Minor Changes
