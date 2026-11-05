@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/react-multi-step-form",
-  "version": "1.0.0-alpha.51",
+  "version": "1.0.0-beta.16",
   "description": "",
   "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",
@@ -20,7 +20,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsdown",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "watch": "tsdown --watch",
     "typecheck": "tsc --noEmit"
   },

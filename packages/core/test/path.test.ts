@@ -221,7 +221,7 @@ describe('path.updateAt with partial merge', () => {
       value: [
         {
           title: 'Updated Section 1',
-          items: [{ id: 1, name: 'Updated Item A' } as never],
+          items: [{ id: 1, name: 'Updated Item A' }],
         },
       ],
       partial: true,

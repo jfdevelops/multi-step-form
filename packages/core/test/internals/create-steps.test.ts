@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { instantiateSteps } from '@/steps/steps';
+import { InvalidStepConfigError } from '@/errors/invalid-step-config';
 import { type } from 'arktype';
 
 describe('instantiateSteps', () => {
@@ -28,6 +29,7 @@ describe('instantiateSteps', () => {
     expect(steps).toStrictEqual({
       step1: {
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'title',
         fields: {
           firstName: {
@@ -35,11 +37,13 @@ describe('instantiateSteps', () => {
             label: 'First Name',
             nameTransformCasing: 'title',
             name: 'firstName',
+            isRequired: false,
           },
         },
       },
       step2: {
         title: 'Step 2',
+        isComplete: true,
         nameTransformCasing: 'title',
         fields: {
           lastName: {
@@ -47,6 +51,7 @@ describe('instantiateSteps', () => {
             label: 'Last Name',
             nameTransformCasing: 'title',
             name: 'lastName',
+            isRequired: false,
           },
         },
       },
@@ -80,6 +85,7 @@ describe('instantiateSteps', () => {
     expect(steps).toStrictEqual({
       step1: {
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'kebab',
         fields: {
           firstName: {
@@ -87,11 +93,13 @@ describe('instantiateSteps', () => {
             label: 'first-name',
             nameTransformCasing: 'kebab',
             name: 'firstName',
+            isRequired: false,
           },
         },
       },
       step2: {
         title: 'Step 2',
+        isComplete: true,
         nameTransformCasing: 'pascal',
         fields: {
           lastName: {
@@ -99,6 +107,7 @@ describe('instantiateSteps', () => {
             label: 'LastName',
             nameTransformCasing: 'pascal',
             name: 'lastName',
+            isRequired: false,
           },
         },
       },
@@ -131,6 +140,7 @@ describe('instantiateSteps', () => {
     expect(steps).toStrictEqual({
       step1: {
         title: 'Step 1',
+        isComplete: true,
         description: 'This is step 1',
         nameTransformCasing: 'title',
         fields: {
@@ -139,11 +149,13 @@ describe('instantiateSteps', () => {
             label: 'First Name',
             nameTransformCasing: 'title',
             name: 'firstName',
+            isRequired: false,
           },
         },
       },
       step2: {
         title: 'Step 2',
+        isComplete: true,
         nameTransformCasing: 'title',
         fields: {
           lastName: {
@@ -151,6 +163,7 @@ describe('instantiateSteps', () => {
             label: 'Last Name',
             nameTransformCasing: 'title',
             name: 'lastName',
+            isRequired: false,
           },
         },
       },
@@ -174,6 +187,7 @@ describe('instantiateSteps', () => {
     expect(steps.step1).not.toHaveProperty('description');
     expect(steps.step1).toStrictEqual({
       title: 'Step 1',
+      isComplete: true,
       nameTransformCasing: 'title',
       fields: {
         firstName: {
@@ -181,6 +195,7 @@ describe('instantiateSteps', () => {
           label: 'First Name',
           nameTransformCasing: 'title',
           name: 'firstName',
+          isRequired: false,
         },
       },
     });
@@ -205,6 +220,7 @@ describe('instantiateSteps', () => {
       expect(steps).toStrictEqual({
         step1: {
           title: 'Step 1',
+          isComplete: true,
           nameTransformCasing: 'title',
           fields: {
             firstName: {
@@ -212,13 +228,14 @@ describe('instantiateSteps', () => {
               label: 'First Name',
               nameTransformCasing: 'title',
               name: 'firstName',
+              isRequired: false,
             },
           },
         },
       });
     });
 
-    it('should error if the fields are invalid', () => {
+    it('does not validate initial field values', () => {
       expect(() =>
         instantiateSteps({
           steps: {
@@ -233,7 +250,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(Error);
+      ).not.toThrow();
     });
   });
 
@@ -243,7 +260,7 @@ describe('instantiateSteps', () => {
         instantiateSteps({
           steps: {},
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if step key is not in the correct format', () => {
@@ -260,7 +277,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError();
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if title is missing', () => {
@@ -276,7 +293,7 @@ describe('instantiateSteps', () => {
             } as any,
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if title is not a string', () => {
@@ -293,7 +310,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if description is not a string', () => {
@@ -311,7 +328,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
 
     it('should error if nameTransformCasing is invalid', () => {
@@ -329,7 +346,7 @@ describe('instantiateSteps', () => {
             },
           },
         })
-      ).toThrowError(TypeError);
+      ).toThrowError(InvalidStepConfigError);
     });
   });
 });

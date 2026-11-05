@@ -1,0 +1,952 @@
+import {
+  DEFAULT_INSTANCE_NAME,
+  DEFAULT_STORAGE_KEY,
+  InvalidInstanceError,
+  NoActiveInstanceError,
+  type BaseStorageConfig,
+  type CasingType,
+  type ConfigureOptions,
+  createValueOverride,
+  type DefaultCasing,
+  type DefineConfig,
+  type DefineMultiStepFormOptions,
+  type DefineSteps,
+  type HelperFn,
+  type HelperFnChosenSteps,
+  InvalidComponentError,
+  type InstanceName,
+  mergeStepOverrides,
+  type MultiStepFormFactoryCreateValueOverrideFn,
+  scheduleOverrideResolution,
+  type StepConfig,
+  type AsyncStepMap,
+  type RequireAsyncStep,
+  type ResolvedStepMap,
+  type StepNumbers,
+  type StepSpecificHelperFn,
+  type WithOverridesMap,
+} from '@jfdevelops/multi-step-form-core';
+import {
+  type AnyMultiStepFormSchema,
+  MultiStepFormSchema,
+} from './schema';
+import { ForField, withReusableField } from './for-field';
+import type { AnyFormLibraryAdapter } from './form-library';
+import {
+  type instantiateReactSteps,
+  type StepSpecificComponent,
+} from './steps';
+import type {
+  CreateComponent,
+  CreatedMultiStepFormComponent,
+} from './utils';
+import { createElement, type ReactNode } from 'react';
+
+// The factory schema is an API surface, not a persisted form instance. Keeping its
+// store inert prevents it from reading or overwriting the shared default browser key.
+const factorySchemaStorage: Storage = {
+  clear() {},
+  getItem() {
+    return null;
+  },
+  key() {
+    return null;
+  },
+  get length() {
+    return 0;
+  },
+  removeItem() {},
+  setItem() {},
+};
+
+/**
+ * The resolved instantiated value shape for a form definition's steps, independent of any
+ * particular instance.
+ */
+export type DefineReactConfig<
+  TSteps extends StepConfig,
+  TCasing extends CasingType = DefaultCasing,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+> = DefineConfig<TSteps, TCasing> & {
+  readonly __formLibrary?: TFormLibrary;
+};
+
+export type DefineReactValue<
+  TSteps extends StepConfig,
+  TCasing extends CasingType = DefaultCasing,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+> = instantiateReactSteps<
+  DefineReactConfig<TSteps, TCasing, TFormLibrary>
+>;
+
+export interface MultiStepFormReactInstance<
+  def extends DefineConfig,
+  value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+> extends MultiStepFormSchema<def, value> {
+  /**
+   * The name of this instance (e.g. `'client'` or `'admin'`).
+   */
+  readonly instanceName: string;
+  /**
+   * Attaches per-step override resolvers to this instance. Returns a new instance with the
+   * overrides applied; the previous instance is superseded and this new one becomes active.
+   *
+   * Overrides supplied here are **not** shared across instances created from the same
+   * definition — attach different overrides to each instance independently.
+   *
+   * Chain order: `createForm({ instance }).withOverrides(...).withForm(...).withContext()`.
+   */
+  withOverrides(
+    overrides: WithOverridesMap<DefineSteps<def>>,
+  ): MultiStepFormReactInstanceWithOverridesApplied<def, value>;
+}
+
+/**
+ * The shape of a {@linkcode MultiStepFormReactInstance} after `withOverrides` has been applied.
+ * `withOverrides` cannot be chained — it may only be called once per instance.
+ */
+export type MultiStepFormReactInstanceWithOverridesApplied<
+  def extends DefineConfig,
+  value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+> = Omit<MultiStepFormReactInstance<def, value>, 'withOverrides'>;
+
+function createNoopStorage(): Storage {
+  return {
+    length: 0,
+    clear() {},
+    getItem() {
+      return null;
+    },
+    key() {
+      return null;
+    },
+    removeItem() {},
+    setItem() {},
+  };
+}
+
+function attachInstance<
+  const def extends DefineConfig,
+  TInstance extends string = string,
+>(
+  instance: MultiStepFormSchema<def>,
+  options: {
+    rawSteps: def['steps'];
+    nameTransformCasing: def['nameTransformCasing'];
+    storageConfig: BaseStorageConfig<string>;
+    formLibrary?: AnyFormLibraryAdapter;
+    instanceName: TInstance;
+    onRebuild: (next: MultiStepFormReactInstance<def>) => void;
+    overridesApplied?: boolean;
+  },
+): MultiStepFormReactInstance<def> {
+  const {
+    rawSteps,
+    nameTransformCasing,
+    storageConfig,
+    formLibrary,
+    instanceName,
+    onRebuild,
+    overridesApplied: initialOverridesApplied = false,
+  } = options;
+  let overridesApplied = initialOverridesApplied;
+
+  return Object.assign(instance, {
+    instanceName,
+    withOverrides(overrides: WithOverridesMap<DefineSteps<def>>) {
+      InvalidInstanceError.invariant(!overridesApplied, {
+        reason:
+          '"withOverrides" was already applied to this instance and cannot be chained again. Call "withOverrides" once, on the instance returned by the factory.',
+        instance: instanceName,
+      });
+
+      overridesApplied = true;
+
+      const mergedSteps = mergeStepOverrides(
+        rawSteps,
+        overrides as WithOverridesMap<def['steps']>,
+      );
+
+      const next = attachInstance<def, TInstance>(
+        new MultiStepFormSchema<def>({
+          steps: mergedSteps,
+          nameTransformCasing,
+          storage: storageConfig,
+          formLibrary,
+        } as never),
+        {
+          rawSteps: mergedSteps,
+          nameTransformCasing,
+          storageConfig,
+          formLibrary,
+          instanceName,
+          onRebuild,
+          overridesApplied: true,
+        },
+      );
+
+      onRebuild(next);
+
+      next.stepSchema.resolveOverrides();
+
+      return next;
+    },
+  }) as MultiStepFormReactInstance<def>;
+}
+
+function resolveStorageConfig<
+  TInstances extends readonly string[] | undefined,
+  TCasing extends CasingType,
+  TSteps extends StepConfig,
+>(
+  instanceName: InstanceName<TInstances>,
+  declaredInstances: TInstances,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps>,
+): BaseStorageConfig<string> {
+  const { storage, update } = configureOptions;
+  const configuredInstances: readonly InstanceName<TInstances>[] =
+    storage?.configure?.instances ??
+    (declaredInstances as readonly InstanceName<TInstances>[] | undefined) ??
+    ([DEFAULT_INSTANCE_NAME] as unknown as readonly InstanceName<TInstances>[]);
+  const hasStorage =
+    Boolean(storage) && configuredInstances.includes(instanceName);
+  const updateStorage = update?.updateStorage;
+  const passesUpdateGate =
+    updateStorage === undefined
+      ? true
+      : typeof updateStorage === 'function'
+        ? updateStorage(instanceName)
+        : updateStorage;
+  const shouldPersist = hasStorage && passesUpdateGate;
+
+  if (!shouldPersist) {
+    return {
+      key: `__memory__:${instanceName}`,
+      store: createNoopStorage(),
+    };
+  }
+
+  const key =
+    typeof storage!.key === 'string'
+      ? storage!.key
+      : (storage!.key as Record<InstanceName<TInstances>, string>)[
+          instanceName
+        ];
+
+  InvalidInstanceError.invariant(typeof key === 'string' && key.length > 0, {
+    reason: `No storage key was found for instance "${instanceName}". Provide a "storage.key" string or a record containing a key for this instance.`,
+    instance: instanceName,
+  });
+
+  return {
+    key: key ?? DEFAULT_STORAGE_KEY,
+    store: storage!.store,
+    throwWhenUndefined: storage!.throwWhenUndefined,
+  };
+}
+
+/**
+ * The arguments the factory accepts when called. When `instances` was declared, `{ instance }`
+ * is required. When it was omitted, the factory takes no arguments at all — there's only ever
+ * one instance to create.
+ */
+export type MultiStepFormReactFactoryCallOptions<
+  TInstances extends readonly string[] | undefined,
+  TInstance extends InstanceName<TInstances> = InstanceName<TInstances>,
+> = TInstances extends readonly string[]
+  ? [options: { instance: TInstance }]
+  : [];
+
+export interface MultiStepFormReactFactoryStepFunctions<
+  TSteps extends StepConfig,
+  key extends StepNumbers<DefineReactValue<TSteps>>,
+> {
+  /**
+   * Creates a helper function that dispatches to whichever instance is currently active
+   * (the most recently created/used instance) when called.
+   *
+   * Throws {@linkcode NoActiveInstanceError} if no instance has been created yet.
+   */
+  createHelperFn: StepSpecificHelperFn<DefineReactValue<TSteps>, key>;
+}
+
+interface MultiStepFormReactFactoryCreateComponentFn<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
+  // The type a `forField`/`forInstance` component's `instance` prop accepts. Defaults to
+  // the deliberately loose `AnyMultiStepFormSchema` — every instance produced by any
+  // definition's factory (at any point in its `withOverrides`/`withForm`/`withContext`
+  // chain) is assignable to it — but callers who want a specific instance's own type to
+  // flow through instead (e.g. so it's preserved by `forInstance` rather than widened)
+  // can narrow it explicitly via {@linkcode MultiStepFormReactDefinition.configure}.
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+> {
+  <
+    targetStep extends StepNumbers<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>
+    >,
+    props = undefined,
+  >(
+    config: HelperFn.BaseOptions<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      [targetStep]
+    > &
+      ([TFormLibrary] extends [undefined]
+        ? { formLibrary?: never }
+        : {}) &
+      StepSpecificComponent.instanceFormLibraryOption<
+        DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+        DefineReactValue<TSteps, TCasing, TFormLibrary>,
+        [targetStep],
+        true
+      > & {
+        render: CreateComponent<
+          StepSpecificComponent.instanceInput<
+            DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+            DefineReactValue<TSteps, TCasing, TFormLibrary>,
+            [targetStep],
+            true
+          >,
+          props
+        >;
+      },
+  ): CreatedMultiStepFormComponent<props>;
+
+  <
+    chosenSteps extends HelperFnChosenSteps.main<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      StepNumbers<DefineReactValue<TSteps, TCasing, TFormLibrary>>
+    >,
+    props = undefined,
+  >(
+    config: HelperFn.BaseOptions<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      chosenSteps
+    > & {
+      formLibrary?: false;
+      render: CreateComponent<
+        StepSpecificComponent.instanceInput<
+          DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+          DefineReactValue<TSteps, TCasing, TFormLibrary>,
+          chosenSteps
+        >,
+        props
+      >;
+    },
+  ): CreatedMultiStepFormComponent<props>;
+
+  forField: ForField.createComponentFn<
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+    DefineReactValue<TSteps, TCasing, TFormLibrary>,
+    { instance: TInstanceSchema }
+  >;
+
+}
+
+interface MultiStepFormReactFactoryStepCreateComponentFn<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
+  targetStep extends StepNumbers<
+    DefineReactValue<TSteps, TCasing, TFormLibrary>
+  >,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+> {
+  <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
+    config: StepSpecificComponent.config<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      targetStep,
+      props,
+      additionalCtx,
+      true
+    > &
+      ([TFormLibrary] extends [undefined]
+        ? { formLibrary?: never }
+        : {}),
+  ): CreatedMultiStepFormComponent<props>;
+
+  <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
+    config: StepSpecificComponent.config<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>,
+      targetStep,
+      props,
+      additionalCtx,
+      false
+    >,
+  ): CreatedMultiStepFormComponent<props>;
+
+  forField: ForField.stepCreateComponentFn<
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+    DefineReactValue<TSteps, TCasing, TFormLibrary>,
+    targetStep,
+    { instance: TInstanceSchema }
+  >;
+
+}
+
+type MultiStepFormReactFactoryStepSchema<
+  TSteps extends StepConfig,
+  TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+> = Omit<
+  MultiStepFormSchema<
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>
+  >['stepSchema'],
+  'value'
+> & {
+  value: {
+    [targetStep in StepNumbers<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>
+    >]: Omit<
+      DefineReactValue<TSteps, TCasing, TFormLibrary>[targetStep],
+      'createComponent'
+    > & {
+      createComponent: MultiStepFormReactFactoryStepCreateComponentFn<
+        TSteps,
+        TCasing,
+        TFormLibrary,
+        targetStep,
+        TInstanceSchema
+      >;
+    };
+  };
+};
+
+export type MultiStepFormReactFactoryStepProperties<TSteps extends StepConfig> =
+  {
+    [
+      key in StepNumbers<DefineReactValue<TSteps>>
+    ]: MultiStepFormReactFactoryStepFunctions<TSteps, key>;
+  };
+
+export type MultiStepFormReactFactoryBase<
+  TSteps extends StepConfig,
+  TInstances extends readonly string[] | undefined,
+  TCasing extends CasingType,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+> = Omit<
+  MultiStepFormSchema<DefineReactConfig<TSteps, TCasing, TFormLibrary>>,
+  'createComponent' | 'stepSchema'
+> &
+  MultiStepFormReactFactoryStepProperties<TSteps> & {
+  createComponent: MultiStepFormReactFactoryCreateComponentFn<
+    TSteps,
+    TCasing,
+    TFormLibrary,
+    TInstanceSchema
+  >;
+  /**
+   * Creates a typed value override resolver for one step that can be passed to
+   * {@linkcode MultiStepFormReactInstance.withOverrides}.
+   */
+  createValueOverride: MultiStepFormFactoryCreateValueOverrideFn<TSteps>;
+  stepSchema: MultiStepFormReactFactoryStepSchema<
+    TSteps,
+    TCasing,
+    TFormLibrary,
+    TInstanceSchema
+  >;
+  /**
+   * Explicitly sets the active instance (the instance shared `createHelperFn`s dispatch to).
+   *
+   * A `<MultiStepFormProvider />` (or equivalent) typically calls this on mount so shared
+   * helpers dispatch to whichever instance the current part of the tree owns.
+   */
+  setActiveInstance(instance: InstanceName<TInstances>): void;
+  /**
+   * The name of the currently active instance, or `undefined` if none has been created yet.
+   */
+  getActiveInstanceName(): InstanceName<TInstances> | undefined;
+};
+
+function attachFactorySchemaSurface<const def extends DefineConfig>(
+  factory: Function,
+  schema: MultiStepFormSchema<def>,
+) {
+  // The callable factory needs the same public schema API as the old schema constructor, but
+  // its schema must stay outside the instance registry so factory and instance state cannot leak.
+  Object.defineProperties(factory, {
+    defaultNameTransformationCasing: {
+      enumerable: true,
+      get: () => schema.defaultNameTransformationCasing,
+    },
+    stepSchema: {
+      enumerable: true,
+      get: () => schema.stepSchema,
+    },
+    storage: {
+      enumerable: true,
+      get: () => schema.storage,
+    },
+    storageConfig: {
+      enumerable: true,
+      get: () => schema.storageConfig,
+    },
+    context: {
+      enumerable: true,
+      get: () => schema.context,
+      set: (context) => {
+        schema.context = context;
+      },
+    },
+    subscribe: { value: schema.subscribe },
+    hasListeners: { value: schema.hasListeners.bind(schema) },
+    getSnapshot: { value: schema.getSnapshot.bind(schema) },
+    mount: { value: schema.mount.bind(schema) },
+    unmount: { value: schema.unmount.bind(schema) },
+    isMounted: { value: schema.isMounted.bind(schema) },
+    withForm: { value: schema.withForm.bind(schema) },
+    withContext: { value: schema.withContext.bind(schema) },
+  });
+
+  return factory;
+}
+
+export type MultiStepFormReactFactory<
+  TSteps extends StepConfig,
+  TInstances extends readonly string[] | undefined,
+  TCasing extends CasingType = CasingType,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined = undefined,
+> = MultiStepFormReactFactoryBase<
+  TSteps,
+  TInstances,
+  TCasing,
+  TInstanceSchema,
+  TFormLibrary
+> &
+  (<TInstance extends InstanceName<TInstances>>(
+    ...args: MultiStepFormReactFactoryCallOptions<TInstances, TInstance>
+  ) =>
+    MultiStepFormReactInstance<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      DefineReactValue<TSteps, TCasing, TFormLibrary>
+    >);
+
+function createReactFactory<
+  const TSteps extends StepConfig,
+  TInstances extends readonly string[] | undefined,
+  const TCasing extends CasingType,
+  TFormLibrary extends AnyFormLibraryAdapter | undefined,
+  TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+>(
+  config: DefineMultiStepFormOptions<TSteps, TInstances>,
+  configureOptions: ConfigureOptions<TInstances, TCasing, TSteps> & {
+    formLibrary?: TFormLibrary;
+  },
+): MultiStepFormReactFactory<
+  TSteps,
+  TInstances,
+  TCasing,
+  TInstanceSchema,
+  TFormLibrary
+> {
+  const { steps, instances: declaredInstances } = config;
+  const { defaultOverrides, formLibrary, nameTransformCasing } = configureOptions;
+  const configuredSteps = mergeStepOverrides(steps as TSteps, defaultOverrides);
+  const registry = new Map<
+    InstanceName<TInstances>,
+    MultiStepFormReactInstance<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>
+    >
+  >();
+  const factorySchema = new MultiStepFormSchema<
+    DefineReactConfig<TSteps, TCasing, TFormLibrary>
+  >({
+    steps: configuredSteps as DefineReactConfig<
+      TSteps,
+      TCasing,
+      TFormLibrary
+    >['steps'],
+    nameTransformCasing,
+    formLibrary,
+    storage: {
+      key: DEFAULT_STORAGE_KEY,
+      store: factorySchemaStorage,
+    },
+  } as never);
+  let activeInstance: InstanceName<TInstances> | undefined;
+
+  function setActive(
+    instanceName: InstanceName<TInstances>,
+    instance: MultiStepFormReactInstance<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>
+    >,
+  ) {
+    registry.set(instanceName, instance);
+    activeInstance = instanceName;
+  }
+
+  function createInstance(instanceName: InstanceName<TInstances>) {
+    const storageConfig = resolveStorageConfig(
+      instanceName,
+      declaredInstances as TInstances,
+      configureOptions,
+    );
+    const instance = attachInstance<
+      DefineReactConfig<TSteps, TCasing, TFormLibrary>,
+      InstanceName<TInstances>
+    >(
+      new MultiStepFormSchema<
+        DefineReactConfig<TSteps, TCasing, TFormLibrary>
+      >({
+        steps: configuredSteps as DefineReactConfig<
+          TSteps,
+          TCasing,
+          TFormLibrary
+        >['steps'],
+        nameTransformCasing,
+        formLibrary,
+        storage: storageConfig,
+      } as never),
+      {
+        rawSteps: configuredSteps as DefineReactConfig<
+          TSteps,
+          TCasing,
+          TFormLibrary
+        >['steps'],
+        nameTransformCasing,
+        storageConfig,
+        formLibrary,
+        instanceName,
+        onRebuild: (next) => setActive(instanceName, next),
+      },
+    );
+
+    setActive(instanceName, instance);
+    scheduleOverrideResolution(instance, () => registry.get(instanceName));
+
+    return instance;
+  }
+
+  function factory(options?: { instance?: InstanceName<TInstances> }) {
+    const instanceName =
+      options?.instance ?? (DEFAULT_INSTANCE_NAME as InstanceName<TInstances>);
+
+    if (declaredInstances) {
+      InvalidInstanceError.invariant(declaredInstances.includes(instanceName), {
+        reason: `"${instanceName}" is not a valid instance. Valid instances are: ${declaredInstances.join(', ')}`,
+        instance: instanceName,
+        validInstances: declaredInstances,
+      });
+    }
+
+    const existing = registry.get(instanceName);
+
+    if (existing) {
+      activeInstance = instanceName;
+
+      return existing;
+    }
+
+    return createInstance(instanceName);
+  }
+
+  function getActiveInstance() {
+    NoActiveInstanceError.invariant(
+      activeInstance !== undefined && registry.has(activeInstance),
+      {
+        reason:
+          'No active instance was found. Create an instance first (e.g. `createForm({ instance: "client" })`) before calling a shared helper function.',
+        availableInstances: [...registry.keys()],
+      },
+    );
+
+    return registry.get(activeInstance)!;
+  }
+
+  const stepKeys = Object.keys(steps);
+  const stepHelpers = Object.fromEntries(
+    stepKeys.map((stepKey) => [
+      stepKey,
+      {
+        createHelperFn: (optionsOrFn: unknown, fn?: unknown) => {
+          return (input?: unknown) => {
+            const active = getActiveInstance();
+            const stepValue = (
+              active.stepSchema.value as Record<string, unknown>
+            )[stepKey] as {
+              createHelperFn: (
+                a: unknown,
+                b?: unknown,
+              ) => (i?: unknown) => unknown;
+            };
+
+            return stepValue.createHelperFn(optionsOrFn, fn)(input);
+          };
+        },
+      },
+    ]),
+  );
+
+  const sharedFieldComponent = {
+    forField(componentConfig: {
+      step: string;
+      field?: string;
+      fields?: readonly string[];
+      render: (field: unknown, props: unknown) => ReactNode;
+    }) {
+      // Each explicitly selected instance gets its own bound component. Caching preserves
+      // component identity and subscriptions without relying on mutable global selection.
+      const components = new WeakMap<object, (props?: unknown) => ReactNode>();
+
+      function SharedField(props?: unknown) {
+        InvalidComponentError.invariant(
+          typeof props === 'object' &&
+            props !== null &&
+            'instance' in props,
+          {
+            reason:
+              'A shared field component requires an "instance" prop containing the configured form instance it should use',
+            component: 'createFieldComponent',
+            argument: 'props.instance',
+            value: props,
+          },
+        );
+
+        const { instance, ...componentProps } = props as {
+          instance: AnyMultiStepFormSchema;
+        } & Record<string, unknown>;
+        let Component = components.get(instance);
+
+        if (!Component) {
+          const step = (instance.stepSchema.value as Record<string, unknown>)[
+            componentConfig.step
+          ] as {
+            createComponent: {
+              forField: (config: {
+                field?: string;
+                fields?: readonly string[];
+                render: (field: unknown, props: unknown) => ReactNode;
+              }) => (props?: unknown) => ReactNode;
+            };
+          };
+
+          Component = step.createComponent.forField({
+            field: componentConfig.field,
+            fields: componentConfig.fields,
+            render: componentConfig.render,
+          });
+          components.set(instance, Component);
+        }
+
+        return createElement(Component as never, componentProps as never);
+      }
+
+      // A `field` fixed in `componentConfig` came from config, not from `bindToField` —
+      // either way it's already fixed, so the wrapper shouldn't expose a `bindToField`
+      // that would silently do nothing.
+      return withReusableField(SharedField as never, {
+        field: componentConfig.field !== undefined,
+      });
+    },
+  };
+
+  // The factory schema exposes the definition's step surface, but its reusable field
+  // components must bind to a real configured instance instead of the inert schema state.
+  for (const stepKey of stepKeys) {
+    const step = (factorySchema.stepSchema.value as Record<string, unknown>)[
+      stepKey
+    ] as {
+      createComponent: Function & {
+        forField: (config: {
+          field?: string;
+          fields?: readonly string[];
+          render: (field: unknown, props: unknown) => ReactNode;
+        }) => (props?: unknown) => ReactNode;
+      };
+    };
+
+    Object.assign(step.createComponent, {
+      forField: (config: {
+        field?: string;
+        render: (field: unknown, props: unknown) => ReactNode;
+      }) => sharedFieldComponent.forField({ ...config, step: stepKey }),
+    });
+  }
+
+  const sharedCreateComponent = Object.assign(
+    function createFactoryComponent(componentConfig: unknown) {
+      return factorySchema.createComponent(componentConfig as never);
+    },
+    sharedFieldComponent,
+  ) as unknown as MultiStepFormReactFactoryCreateComponentFn<
+    TSteps,
+    TCasing,
+    TFormLibrary,
+    TInstanceSchema
+  >;
+
+  return Object.assign(
+    attachFactorySchemaSurface(factory, factorySchema),
+    stepHelpers,
+    {
+      createComponent: sharedCreateComponent,
+      createValueOverride,
+      setActiveInstance(instanceName: InstanceName<TInstances>) {
+        InvalidInstanceError.invariant(registry.has(instanceName), {
+          reason: `"${instanceName}" has not been created yet. Call the factory with this instance first.`,
+          instance: instanceName,
+        });
+        activeInstance = instanceName;
+      },
+      getActiveInstanceName() {
+        return activeInstance;
+      },
+    },
+  ) as unknown as MultiStepFormReactFactory<
+    TSteps,
+    TInstances,
+    TCasing,
+    TInstanceSchema,
+    TFormLibrary
+  >;
+}
+
+export class MultiStepFormReactDefinition<
+  const TSteps extends StepConfig,
+  TInstances extends readonly string[] | undefined = undefined,
+> extends MultiStepFormSchema<DefineConfig<TSteps, DefaultCasing>> {
+  constructor(
+    private readonly config: DefineMultiStepFormOptions<TSteps, TInstances>,
+  ) {
+    // The definition remains a fully usable React schema, while `configure()` creates
+    // independent instances that reuse only its declared shape.
+    super({ steps: config.steps } as DefineConfig<TSteps, DefaultCasing>);
+  }
+
+  /**
+   * Configures storage and update-persistence behavior for this definition's instances.
+   *
+   * Also accepts {@linkcode ConfigureOptions} `nameTransformCasing` — the schema-wide default
+   * casing used to derive field labels. When omitted, defaults to `'title'`.
+   *
+   * `formLibrary` installs an optional integration adapter for the definition. Single-step
+   * components use it by default and can opt out by passing `formLibrary: false`.
+   *
+   * `TInstanceSchema` types every `instance` prop the resulting factory's `forField`/
+   * `forInstance` components accept. It defaults to the permissive
+   * {@linkcode AnyMultiStepFormSchema} — every instance this factory can produce, at any
+   * point in its `withOverrides`/`withForm`/`withContext` chain, is assignable to it —
+   * but narrowing it (e.g. to a specific `withForm`/`withContext` result type) lets that
+   * type flow through `forInstance` instead of being widened away.
+   *
+   * @returns A callable factory used to create/retrieve named instances.
+   */
+  configure<
+    const TCasing extends CasingType = DefaultCasing,
+    TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+    const TFormLibrary extends AnyFormLibraryAdapter = AnyFormLibraryAdapter,
+  >(
+    configureOptions: ConfigureOptions<TInstances, TCasing, TSteps> & {
+      formLibrary: TFormLibrary;
+    },
+  ): MultiStepFormReactFactory<
+    TSteps,
+    TInstances,
+    TCasing,
+    TInstanceSchema,
+    TFormLibrary
+  >;
+
+  configure<
+    const TCasing extends CasingType = DefaultCasing,
+    TInstanceSchema extends AnyMultiStepFormSchema = AnyMultiStepFormSchema,
+  >(
+    configureOptions?: ConfigureOptions<TInstances, TCasing, TSteps> & {
+      formLibrary?: undefined;
+    },
+  ): MultiStepFormReactFactory<
+    TSteps,
+    TInstances,
+    TCasing,
+    TInstanceSchema,
+    undefined
+  >;
+
+  configure(configureOptions: unknown = {}) {
+    const options = configureOptions as ConfigureOptions<
+      TInstances,
+      CasingType,
+      TSteps
+    > & {
+      formLibrary?: AnyFormLibraryAdapter;
+    };
+
+    return createReactFactory<
+      TSteps,
+      TInstances,
+      CasingType,
+      AnyFormLibraryAdapter | undefined,
+      AnyMultiStepFormSchema
+    >(
+      this.config,
+      options,
+    ) as unknown;
+  }
+}
+
+/**
+ * Defines a multi-step form (React edition) that can be instantiated once (the default) or as
+ * several named, independent instances (e.g. `'client'` and `'admin'`) sharing the same
+ * step/field definitions and helper functions.
+ *
+ * @example
+ * ```tsx
+ * const createBookingForm = defineMultiStepForm({
+ *   steps: {
+ *     step1: {
+ *       title: 'Contact info',
+ *       fields: { firstName: { defaultValue: '', isRequired: true } },
+ *     },
+ *   },
+ *   instances: ['admin', 'client'],
+ * }).configure({
+ *   storage: {
+ *     key: { client: 'booking:client', admin: 'booking:admin' },
+ *     configure: { instances: ['client'] },
+ *   },
+ * });
+ *
+ * const publicForm = createBookingForm({ instance: 'client' })
+ *   .withOverrides({ step1: async ({ fields }) => ({ firstName: '' }) })
+ *   .withForm({ render: ({ id }, props) => <form id={id} {...props} /> })
+ *   .withContext();
+ * ```
+ */
+export function defineMultiStepForm<
+  const steps extends StepConfig,
+  const contextualSteps extends StepConfig,
+  const instances extends readonly string[] | undefined = undefined,
+>(
+  options: {
+    steps: steps;
+    instances?: instances;
+  } & DefineMultiStepFormOptions<contextualSteps, instances>,
+): MultiStepFormReactDefinition<steps, instances>;
+
+export function defineMultiStepForm<
+  const steps extends AsyncStepMap,
+  const instances extends readonly string[] | undefined = undefined,
+>(options: {
+  steps: steps & RequireAsyncStep<steps>;
+  instances?: instances;
+}): MultiStepFormReactDefinition<ResolvedStepMap<steps>, instances>;
+
+export function defineMultiStepForm<
+  const steps extends StepConfig,
+  const contextualSteps extends StepConfig,
+  const instances extends readonly string[] | undefined = undefined,
+>(
+  options: {
+    steps: steps;
+    instances?: instances;
+  } & DefineMultiStepFormOptions<contextualSteps, instances>,
+): MultiStepFormReactDefinition<steps, instances> {
+  return new MultiStepFormReactDefinition<steps, instances>(options as never);
+}

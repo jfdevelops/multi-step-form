@@ -3,39 +3,79 @@ import {
   DEFAULT_CASING,
   DEFAULT_STORAGE_KEY,
   type Expand,
-  type HelperFn,
-  type HelperFnChosenSteps,
   MultiStepFormSchema as MultiStepFormSchemaCore,
   MultiStepFormStorage,
-  type StepNumbers,
 } from '@jfdevelops/multi-step-form-core';
-import {
-  MultiStepFormStepSchemaInternal,
-  type StepSchema,
-} from '@jfdevelops/multi-step-form-core/_internals';
+import type { StepSchema } from '@jfdevelops/multi-step-form-core/_internals';
 import {
   createMultiStepFormContext,
   type MultiStepFormContextResult,
 } from './create-context';
-import { MultiStepFormSchemaConfig } from './form-config';
-import { type HelperFunctions, MultiStepFormStepSchema } from './step-schema';
-import { createComponent, type CreateComponentCallback } from './utils';
-import { type instantiateReactSteps } from './steps';
+import type { MultiStepFormSchemaConfig } from './form-config';
+import type { AnyFormLibraryAdapter } from './form-library';
+import {
+  type CreateComponentFn,
+  type HelperFunctions,
+  MultiStepFormStepSchema,
+} from './step-schema';
+import type { instantiateReactSteps } from './steps';
 
 // Helper inference types for `AnyMultiStepFormSchema`
 export namespace MultiStepFormSchema {
-  export type resolvedStep<T> =
-    T extends MultiStepFormSchema<infer _def, infer value> ? value : never;
+  // Read the public value property directly because inferring the class's constrained
+  // generic can widen exact step keys back to the generic StepConfig index signature.
+  export type resolvedStep<T> = T extends {
+    stepSchema: { value: infer value };
+  }
+    ? value
+    : never;
 
   export type withFormDef<
     def extends StepSchema.Config,
     formConfig extends object,
-  > = Expand<def & Readonly<{ form: formConfig }>>;
+  > = def & {
+    readonly form: MultiStepFormSchemaConfig.formDefinition<formConfig>;
+  };
+
+  type resolvedStepFunctionKey =
+    | 'createComponent'
+    | 'createHelperFn'
+    | 'createHook'
+    | 'createReset'
+    | 'createUpdate'
+    | 'reset'
+    | 'update';
+  type withoutResolvedStepFunctions<value extends instantiateReactSteps> = {
+    [key in keyof value]: Expand<{
+      [
+        property in keyof value[key] as property extends resolvedStepFunctionKey
+          ? never
+          : property
+      ]: value[key][property];
+    }>;
+  };
+
+  type withFormValueCandidate<
+    def extends StepSchema.Config,
+    formConfig extends object,
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+  > = instantiateReactSteps<
+    withFormDef<def, formConfig>,
+    withoutResolvedStepFunctions<value>
+  >;
 
   export type withFormValue<
     def extends StepSchema.Config,
     formConfig extends object,
-  > = instantiateReactSteps<withFormDef<def, formConfig>>;
+    value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+  > =
+    withFormValueCandidate<
+      def,
+      formConfig,
+      value
+    > extends instantiateReactSteps<withFormDef<def, formConfig>>
+      ? withFormValueCandidate<def, formConfig, value>
+      : instantiateReactSteps<withFormDef<def, formConfig>>;
 
   export type config<
     def extends StepSchema.Config,
@@ -49,6 +89,7 @@ export namespace MultiStepFormSchema {
      * @internal
      */
     context?: MultiStepFormContextResult<def, value>;
+    formLibrary?: AnyFormLibraryAdapter;
   };
 }
 
@@ -62,8 +103,6 @@ export class MultiStepFormSchema<
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   stepSchema: MultiStepFormStepSchema<def, value>;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
-  // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
   override readonly storage: MultiStepFormStorage<
     value,
     StepSchema.inferStorageKey<def>
@@ -75,6 +114,7 @@ export class MultiStepFormSchema<
   context: MultiStepFormContextResult<def, value> = undefined as never;
   readonly #formConfig: MultiStepFormSchemaConfig.FormConfig<def, value> =
     undefined as never;
+  readonly #formLibrary?: AnyFormLibraryAdapter;
 
   constructor(config: MultiStepFormSchema.config<def, value>) {
     const {
@@ -83,12 +123,14 @@ export class MultiStepFormSchema<
       form,
       storage,
       context,
+      formLibrary,
     } = config;
     const options = {
       steps,
       nameTransformCasing,
       storage,
       form,
+      formLibrary,
     } as MultiStepFormStepSchema.config<def, value>;
 
     super(options);
@@ -96,16 +138,6 @@ export class MultiStepFormSchema<
     this.stepSchema = new MultiStepFormStepSchema(options);
     this.stepSchema.subscribe(() => {
       this.notify();
-    });
-    // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-    this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
-      originalValue: this.stepSchema.original,
-      getValue: () => this.stepSchema.value,
-      setValue: (value) => {
-        this.stepSchema.value = { ...value };
-        this.storage.add(value);
-        this.notify();
-      },
     });
     this.storageConfig = {
       key: (storage?.key ??
@@ -124,6 +156,7 @@ export class MultiStepFormSchema<
     if (form) {
       this.#formConfig = form;
     }
+    this.#formLibrary = formLibrary;
   }
 
   /**
@@ -134,7 +167,7 @@ export class MultiStepFormSchema<
    *
    * @example
    * ```tsx
-   * const schema = createMultiStepFormSchema({
+   * const schema = defineMultiStepForm({
    *   steps: {
    *     step1: {
    *       title: 'Step 1',
@@ -146,30 +179,35 @@ export class MultiStepFormSchema<
    *     },
    *   },
    * }).withForm({
-   *   render(data) {
-   *     return (props: MyCustomProps) => {
-   *       return <form {...props}>{props.children}</form>;
-   *     };
+   *   render({ id, steps }, props: MyCustomProps) {
+   *     return <form id={id} {...props}>{props.children}</form>;
    *   },
    * });
    * ```
    * @param config The form configuration.
    * @returns A new {@linkcode MultiStepFormSchema} with the form configuration.
    */
-  withForm<const formConfig extends object>(
-    config: formConfig & MultiStepFormSchemaConfig.FormConfig<def, value>,
+  withForm<
+    const formConfig extends MultiStepFormSchemaConfig.FormConfig<
+      def,
+      value,
+      never
+    >,
+  >(
+    config: formConfig,
   ): MultiStepFormSchema<
     MultiStepFormSchema.withFormDef<def, formConfig>,
-    MultiStepFormSchema.withFormValue<def, formConfig>
+    MultiStepFormSchema.withFormValue<def, formConfig, value>
   > {
     const { key, store, throwWhenUndefined } = this.storageConfig;
 
     return new MultiStepFormSchema<
       MultiStepFormSchema.withFormDef<def, formConfig>,
-      MultiStepFormSchema.withFormValue<def, formConfig>
+      MultiStepFormSchema.withFormValue<def, formConfig, value>
     >({
       steps: this.stepSchema.original,
       form: config,
+      formLibrary: this.#formLibrary,
       nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
       storage: {
         key,
@@ -183,6 +221,7 @@ export class MultiStepFormSchema<
     const next = new MultiStepFormSchema<def, value>({
       steps: this.stepSchema.original,
       form: this.#formConfig,
+      formLibrary: this.#formLibrary,
       nameTransformCasing: this.stepSchema.defaultNameTransformationCasing,
       storage: {
         key: this.storageConfig.key,
@@ -196,27 +235,14 @@ export class MultiStepFormSchema<
     return next;
   }
 
-  createComponent<
-    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    props = undefined,
-  >(
-    options: HelperFn.BaseOptions<value, chosenSteps>,
-    fn: CreateComponentCallback<value, chosenSteps, props>,
-  ) {
-    return createComponent({
-      fn,
-      input: ({ stepData }) => ({
-        reset: this.#internal.createHelperFnInputReset(stepData),
-        update: this.#internal.createHelperFnInputUpdate(stepData),
-      }),
-      options,
-      value: this.stepSchema.value,
-    });
+  get createComponent(): CreateComponentFn<def, value> {
+    return this.stepSchema.createComponent;
   }
 }
 
-export function createMultiStepFormSchema<
-  const steps extends StepSchema.Config['steps'],
->(options: StepSchema.Config<steps>) {
-  return new MultiStepFormSchema<StepSchema.Config<steps>>(options);
-}
+/** A React multi-step form schema regardless of its concrete steps or configured features. */
+export type AnyMultiStepFormSchema = {
+  readonly stepSchema: {
+    readonly value: object;
+  };
+};

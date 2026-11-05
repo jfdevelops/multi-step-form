@@ -1,4 +1,6 @@
 import { path } from '@/internals';
+import { InvalidFieldConfigError } from '@/errors/invalid-field-config';
+import { InvalidStepError } from '@/errors/invalid-step';
 import {
   CASING_TYPES,
   changeCasing,
@@ -14,13 +16,7 @@ import {
   type SetDefaultString,
   type Split,
 } from '@/utils';
-import { createInvariant, type Invariant } from '@/utils/invariant';
-import {
-  runStandardValidation,
-  type AnyValidator,
-  type DefaultValidator,
-  type StandardSchemaValidator,
-} from '@/utils/validator';
+import type { AnyValidator, DefaultValidator } from '@/utils/validator';
 import type { instantiateSteps, StepNumbers } from './steps';
 
 type GetDeepFields<TFields> = [keyof TFields] extends [never]
@@ -105,20 +101,28 @@ export function getDefaultValues<
   targetStep extends StepNumbers<values>,
   fields extends getFieldForStep<values, targetStep> = getFieldForStep<values, targetStep>,
   >(values: values, targetStep: targetStep) {
-  const invariant: Invariant = createInvariant('[createDefaultValues]');
-
-  invariant(
+  InvalidStepError.invariant(
     targetStep in values,
-    `The target step ${targetStep} is not a valid step key`
+    {
+      reason: `The target step ${targetStep} is not a valid step key`,
+      targetStep,
+      validSteps: Object.keys(values),
+    },
   );
 
   const current = values[targetStep];
 
-  invariant(
+  InvalidStepError.invariant(
     typeof current === 'object' && current !== null,
-    `The target step ${targetStep} is not an object`
+    {
+      reason: `The target step ${targetStep} is not an object`,
+      targetStep,
+    },
   );
-  invariant('fields' in current, `No "fields" were found for ${targetStep}`);
+  InvalidStepError.invariant('fields' in current, {
+    reason: `No "fields" were found for ${targetStep}`,
+    targetStep,
+  });
 
   let defaultValues = {};
 
@@ -192,7 +196,12 @@ export interface NameTransformCasingOptions<TCasing extends CasingType> {
    *
    * If omitted, the default will be whatever is set during {@linkcode MultiStepFormSchema} initialization.
    */
-  nameTransformCasing?: Constrain<TCasing, CasingType>;
+  // NOTE: intentionally not `Constrain<TCasing, CasingType>` — `Constrain`'s default third type
+  // argument (`TDefault = TConstraint`) unions in the full `CasingType`, which discards whatever
+  // literal casing `TCasing` was inferred to and widens every downstream label/name type to a
+  // union of every possible casing transformation. `TCasing extends CasingType` is already
+  // enforced by this interface's own generic constraint, so `Constrain` adds nothing here.
+  nameTransformCasing?: TCasing;
 }
 export interface BaseFieldOptions<
   TCasing extends CasingType,
@@ -205,12 +214,37 @@ export interface BaseFieldOptions<
   /**
    * The text for the label.
    *
-   * If omitted, it will default to the specified casing.
+   * If omitted, it will default to the specified casing. If {@linkcode BaseFieldOptions.isRequired}
+   * is `true` and no `label` is provided, the resolved label will have a trailing `*` appended
+   * (e.g. `"First Name*"`).
    *
    * If `false`, `label` will be `undefined`, meaning there won't
    * be a label for this field.
    */
   label?: string | false;
+  /**
+   * Placeholder text for the field.
+   */
+  placeholder?: string;
+  /**
+   * Whether the field is required.
+   *
+   * If `true` and no explicit `label` is provided, the resolved label will have a trailing `*`
+   * appended.
+   * @default false
+   */
+  isRequired?: boolean;
+  /**
+   * The default / field-level error message copy.
+   */
+  errorMessage?: string;
+  /**
+   * Consumer-defined input metadata such as `string.email` or `boolean.switch`.
+   *
+   * Date defaults still use the narrower date-field branch below; the broad string
+   * here keeps non-date UI metadata valid during contextual step inference.
+   */
+  type?: string;
 }
 
 export interface BaseDateFieldOptions<
@@ -288,6 +322,13 @@ export type inferNameTransformCasing<
   : undefined extends TDefault
     ? DefaultCasing
     : TDefault;
+type computeCasedLabel<
+  Casing extends CasingType | undefined,
+  FieldKey extends string,
+> = undefined extends Casing
+  ? ChangeCasing<FieldKey, DefaultCasing>
+  : ChangeCasing<FieldKey, Exclude<Casing, undefined>>;
+
 export type inferLabel<
   T,
   Casing extends CasingType | undefined,
@@ -296,9 +337,9 @@ export type inferLabel<
   label: infer label extends string | false;
 }
   ? label
-  : undefined extends Casing
-    ? ChangeCasing<FieldKey, DefaultCasing>
-    : ChangeCasing<FieldKey, Exclude<Casing, undefined>>;
+  : T extends { isRequired: true }
+    ? `${computeCasedLabel<Casing, FieldKey>}*`
+    : computeCasedLabel<Casing, FieldKey>;
 
 type instantiateResolvedLabelProp<
   T,
@@ -309,6 +350,40 @@ type instantiateResolvedLabelProp<
     ? {}
     : { label: label }
   : never;
+export type inferIsRequired<T> = T extends {
+  isRequired: infer isRequired extends boolean;
+}
+  ? isRequired
+  : false;
+type instantiateResolvedPlaceholderProp<T> = T extends {
+  placeholder: string;
+}
+  ? { placeholder: string }
+  : {};
+type instantiateResolvedErrorMessageProp<T> = T extends {
+  errorMessage: string;
+}
+  ? { errorMessage: string }
+  : {};
+type instantiateFieldMetadata<T> = T extends object
+  ? Omit<
+      T,
+      | 'defaultValue'
+      | 'label'
+      | 'nameTransformCasing'
+      | 'isRequired'
+      | 'placeholder'
+      | 'errorMessage'
+      | 'type'
+    >
+  : {};
+type instantiateResolvedTypeProp<T> = 'type' extends keyof T
+  ? T extends object
+    ? T['type'] extends infer type extends string
+      ? { type: type }
+      : {}
+    : {}
+  : {};
 export type inferResolvedDateFieldType<T> = T extends {
   type: infer type extends DateFieldType;
 }
@@ -321,7 +396,7 @@ export type instantiateFields<
   ? T extends instantiateConfig
     ? {
         -readonly [key in keyof T['fields']]: Expand<
-          {
+          instantiateFieldMetadata<T['fields'][key]> & {
             /**
              * The default value for the field.
              */
@@ -337,6 +412,10 @@ export type instantiateFields<
              * The name of the field.
              */
             name: key;
+            /**
+             * Whether the field is required.
+             */
+            isRequired: inferIsRequired<T['fields'][key]>;
           } & (key extends string
             ? instantiateResolvedLabelProp<
                 T['fields'][key],
@@ -344,6 +423,9 @@ export type instantiateFields<
                 key
               >
             : {}) &
+            instantiateResolvedPlaceholderProp<T['fields'][key]> &
+            instantiateResolvedErrorMessageProp<T['fields'][key]> &
+            instantiateResolvedTypeProp<T['fields'][key]> &
             (inferDefaultValue<T['fields'][key]> extends Date
               ? /**
                  * The type of the field.
@@ -354,7 +436,9 @@ export type instantiateFields<
       }
     : never
   : never;
-export type instantiateConfig<TMap extends FieldConfig = FieldConfig> = {
+export type instantiateConfig<
+  TMap extends FieldConfig<CasingType> = FieldConfig<CasingType>,
+> = {
   fields: TMap;
   defaultCasing?: CasingType;
   validateFields?: Constrain<unknown, AnyValidator, DefaultValidator>;
@@ -363,13 +447,20 @@ export type instantiateConfig<TMap extends FieldConfig = FieldConfig> = {
 export function createFieldLabel(
   label: string | false | undefined,
   fieldName: string,
-  casingType: CasingType
+  casingType: CasingType,
+  isRequired = false
 ) {
   if (label === false) {
     return undefined;
   }
 
-  return label ?? changeCasing(fieldName, casingType);
+  if (typeof label === 'string') {
+    return label;
+  }
+
+  const casedLabel = changeCasing(fieldName, casingType);
+
+  return isRequired ? `${casedLabel}*` : casedLabel;
 }
 /**
  * Creates new fields for the multi step form schema.
@@ -380,64 +471,100 @@ export function instantiateFields<
   const def extends instantiateConfig,
   inst = instantiateFields<def>,
 >(def: def) {
-  const { fields, defaultCasing, validateFields } = def;
-  const invariant: Invariant = createInvariant('[instantiateFields]');
-
+  const { fields, defaultCasing } = def;
   if (defaultCasing) {
-    invariant(
+    InvalidFieldConfigError.invariant(
       typeof defaultCasing === 'string',
-      `The default casing must be a string. Was ${typeof defaultCasing}`
+      {
+        reason: `The default casing must be a string. Was ${typeof defaultCasing}`,
+        value: defaultCasing,
+        expected: 'string',
+      },
     );
-    invariant(
+    InvalidFieldConfigError.invariant(
       isCasingValid(defaultCasing),
-      (formatter) =>
-        `The default casing is not a valid casing. Was ${defaultCasing}, must be one of ${formatter.format(
-          CASING_TYPES
-        )}`
+      {
+        reason: `The default casing is not valid. Was ${defaultCasing}`,
+        value: defaultCasing,
+        expected: CASING_TYPES,
+      },
     );
   }
 
-  invariant(
+  InvalidFieldConfigError.invariant(
     fields,
-    'No fields were provided to the "fields" option.',
-    TypeError
+    {
+      reason: 'No fields were provided to the "fields" option.',
+      expected: 'non-empty object',
+    },
   );
-  invariant(
+  InvalidFieldConfigError.invariant(
     typeof fields === 'object',
-    `The fields must be an object. Was ${typeof fields}`
+    {
+      reason: `The fields must be an object. Was ${typeof fields}`,
+      value: fields,
+      expected: 'object',
+    },
   );
-  invariant(
+  InvalidFieldConfigError.invariant(
     Object.keys(fields).length > 0,
-    `A field must be provided to the "fields" option.`
+    {
+      reason: 'A field must be provided to the "fields" option.',
+      value: fields,
+      expected: 'non-empty object',
+    },
   );
 
   let resolvedFields: Record<string, unknown> = {};
 
   for (const [name, values] of Object.entries(fields)) {
-    invariant(
+    InvalidFieldConfigError.invariant(
       typeof name === 'string',
-      `Each key for the "fields" option must be a string. Key ${name} was a ${typeof name}`
+      {
+        reason: `Each key for the "fields" option must be a string. Key ${name} was a ${typeof name}`,
+        field: name,
+        value: name,
+        expected: 'string',
+      },
     );
-    invariant(
+    InvalidFieldConfigError.invariant(
       typeof values === 'object',
-      `The value for key ${name} must be an object. Was ${typeof values}`
+      {
+        reason: `The value for key ${name} must be an object. Was ${typeof values}`,
+        field: name,
+        value: values,
+        expected: 'object',
+      },
     );
 
-    const { defaultValue, label, nameTransformCasing } = values;
+    const {
+      defaultValue,
+      label,
+      nameTransformCasing,
+      isRequired,
+      ...metadata
+    } = values;
     const casing = nameTransformCasing ?? defaultCasing ?? DEFAULT_CASING;
-    const resolvedLabel = createFieldLabel(label, name, casing);
+    const resolvedLabel = createFieldLabel(label, name, casing, Boolean(isRequired));
     const sharedFields = {
+      ...metadata,
       nameTransformCasing: casing,
       name,
+      isRequired: Boolean(isRequired),
       ...(resolvedLabel === undefined ? {} : { label: resolvedLabel }),
     };
 
     if (defaultValue instanceof Date) {
       const type = 'type' in values ? values.type : 'date';
 
-      invariant(
+      InvalidFieldConfigError.invariant(
         type === 'date' || type === 'string',
-        `The type for key ${name} must be either 'date' or 'string'. Was ${type}`
+        {
+          reason: `The type for key ${name} must be either 'date' or 'string'. Was ${type}`,
+          field: name,
+          value: type,
+          expected: ['date', 'string'],
+        },
       );
       const resolvedValue =
         type === 'date' ? defaultValue : JSON.stringify(defaultValue);
@@ -455,20 +582,6 @@ export function instantiateFields<
         defaultValue,
       };
     }
-  }
-
-  if (validateFields) {
-    const defaultValues = Object.fromEntries(
-      Object.entries(resolvedFields).map(([name, value]) => [
-        name,
-        (value as Record<string, unknown>).defaultValue,
-      ])
-    );
-
-    runStandardValidation(
-      validateFields as StandardSchemaValidator,
-      defaultValues
-    );
   }
 
   return resolvedFields as inst;
@@ -494,6 +607,21 @@ function isValidFieldValue(field: Record<string, unknown>): boolean {
     if (typeof casing !== 'string' || !isCasingValid(casing)) {
       return false;
     }
+  }
+
+  // If placeholder is provided, it must be a string
+  if ('placeholder' in field && typeof field.placeholder !== 'string') {
+    return false;
+  }
+
+  // If isRequired is provided, it must be a boolean
+  if ('isRequired' in field && typeof field.isRequired !== 'boolean') {
+    return false;
+  }
+
+  // If errorMessage is provided, it must be a string
+  if ('errorMessage' in field && typeof field.errorMessage !== 'string') {
+    return false;
   }
 
   // If defaultValue is a Date, validate type field

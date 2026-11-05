@@ -1,4 +1,11 @@
 import { createCtx } from '@/steps';
+import { InvalidContextError } from '@/errors/invalid-context';
+import { InvalidInternalStateError } from '@/errors/invalid-internal-state';
+import { InvalidKeyError } from '@/errors/invalid-key';
+import { InvalidStepError } from '@/errors/invalid-step';
+import { InvalidUpdateError } from '@/errors/invalid-update';
+import { InvalidHelperInputError } from '@/errors/invalid-helper-input';
+import { UpdateMismatchError } from '@/errors/update-mismatch';
 import type { NameTransformCasingOptions } from '@/steps/fields';
 import { HelperFn, HelperFnChosenSteps } from '@/steps/fn-utils/helper-fn';
 import type {
@@ -10,32 +17,35 @@ import type { ResetFn } from '@/steps/fn-utils/reset-fn';
 import type { UpdateFn } from '@/steps/fn-utils/update-fn';
 import {
   instantiateSteps,
+  resolveStepState,
   type instantiateStepsConfig,
-  type instantiateAsyncStepsConfig,
+  type StepConfig,
   type StepNumbers,
 } from '@/steps/steps';
 import { functionalUpdate, omit } from '@/steps/utils';
+import { createStepUpdate } from '@/update';
+import { createStepReset } from '@/reset';
 import type { BaseStorageConfig, DefaultStorageKey } from '@/storage';
 import {
-  invariant,
   MultiStepFormLogger,
   type CasingType,
   type DeepKeys,
-  type DefaultCasing,
 } from '@/utils';
 import {
   comparePartialArray,
-  printErrors,
   typedObjectKeys,
 } from '@/utils/helpers';
-import { createInvariant, type Invariant } from '@/utils/invariant';
 import { path } from '@/utils/path';
 import {
+  allowsStandardValidation,
   runStandardValidation,
+  validateStandardSchema,
   type StandardSchemaValidator,
 } from '@/utils/validator';
 
 function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
+  targetStep: string;
+  fields: unknown;
   strict: boolean;
   partial: boolean;
   silenceErrors: boolean;
@@ -43,7 +53,16 @@ function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   paths: paths[];
   actual: path.pickBy<def, paths>;
 }) {
-  const { strict, partial, actual, obj, paths, silenceErrors } = options;
+  const {
+    targetStep,
+    fields,
+    strict,
+    partial,
+    actual,
+    obj,
+    paths,
+    silenceErrors,
+  } = options;
 
   // Define the logic for when the update is considered valid
   const { mismatches, ok } = path.equalsAtPaths(obj, paths, actual);
@@ -71,13 +90,18 @@ function verifyUpdate<def, paths extends DeepKeys<def>>(options: {
   }
 
   if (!silenceErrors) {
-    invariant(
-      isValid,
-      `[update]: found value mismatches in ${path.printMismatches({
-        ok,
+    path.printMismatches({ ok, mismatches });
+
+    if (!isValid) {
+      throw new UpdateMismatchError({
+        targetStep,
+        fields,
+        strict,
+        partial,
         mismatches,
-      })}`
-    );
+        mismatchDetails: path.formatMismatches({ ok, mismatches }),
+      });
+    }
   }
 }
 
@@ -88,6 +112,12 @@ export namespace MultiStepFormStepSchemaInternal {
     additionalEnrichedProps extends Record<string, unknown> = {}
   > {
     originalValue: def['steps'];
+    /**
+     * The schema-wide default casing, used as the fallback when a step/field doesn't set its
+     * own `nameTransformCasing` — threaded through so resets back to the original values use the
+     * same default casing the schema was constructed with.
+     */
+    defaultNameTransformationCasing?: def['nameTransformCasing'];
     additionalEnrichedProps?: (step: number) => additionalEnrichedProps;
     /**
      * The resolved multi step form values.
@@ -100,20 +130,21 @@ export namespace MultiStepFormStepSchemaInternal {
      * @returns
      */
     setValue: (value: value) => void;
-    getResetStepValue?: <targetStep extends StepNumbers<value>>(
-      step: targetStep,
-    ) => value[targetStep];
   }
 }
 
 export namespace StepSchema {
   export type Config<
-    TSteps extends instantiateAsyncStepsConfig['steps'] = instantiateAsyncStepsConfig['steps'],
-    TCasing extends CasingType = DefaultCasing,
+    TSteps extends StepConfig = StepConfig,
+    // NOTE: defaults to the wide `CasingType` (not `DefaultCasing`) since this default is what's
+    // used when `Config` appears bare as a generic constraint (e.g. `<const def extends
+    // StepSchema.Config>`) — it needs to accept any concrete casing, not just `'title'`. Callers
+    // that want the runtime default casing pass `DefaultCasing`/omit `nameTransformCasing`
+    // explicitly at the value level, which is unrelated to this type-level default.
+    TCasing extends CasingType = CasingType,
     TStorageKey extends string = string
-  > = {
-    steps: TSteps;
-  } & NameTransformCasingOptions<TCasing> & {
+  > = instantiateStepsConfig<TSteps> &
+    NameTransformCasingOptions<TCasing> & {
       /**
        * The options for the storage module.
        */
@@ -135,15 +166,34 @@ export class MultiStepFormStepSchemaInternal<
   additionalEnrichedProps extends Record<string, unknown> = {}
 > {
   readonly #originalValue: def['steps'];
+  readonly #defaultNameTransformationCasing?: def['nameTransformCasing'];
   readonly #additionalEnrichedProps?: (step: number) => additionalEnrichedProps;
   readonly #getValue: () => value;
   readonly #setValue: (value: value) => void;
-  readonly #getResetStepValue?: <targetStep extends StepNumbers<value>>(
-    step: targetStep,
-  ) => value[targetStep];
 
   private get value() {
     return this.#getValue();
+  }
+
+  private getFieldValues(stepValue: unknown) {
+    if (
+      typeof stepValue !== 'object' ||
+      stepValue === null ||
+      !('fields' in stepValue) ||
+      typeof stepValue.fields !== 'object' ||
+      stepValue.fields === null
+    ) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(stepValue.fields).map(([fieldName, field]) => [
+        fieldName,
+        typeof field === 'object' && field !== null && 'defaultValue' in field
+          ? field.defaultValue
+          : undefined,
+      ]),
+    );
   }
 
   constructor(
@@ -157,16 +207,68 @@ export class MultiStepFormStepSchemaInternal<
       getValue,
       setValue,
       originalValue,
+      defaultNameTransformationCasing,
       additionalEnrichedProps,
-      getResetStepValue,
-    } =
-      options;
+    } = options;
 
     this.#originalValue = originalValue;
+    this.#defaultNameTransformationCasing = defaultNameTransformationCasing;
     this.#getValue = getValue;
     this.#setValue = setValue;
     this.#additionalEnrichedProps = additionalEnrichedProps;
-    this.#getResetStepValue = getResetStepValue;
+  }
+
+  resolveStateValues(
+    values: value,
+    options: {
+      previousValues?: value;
+      resetSelectedLiterals?: boolean;
+    } = {},
+  ) {
+    const { previousValues, resetSelectedLiterals = false } = options;
+    const resolvedValues = { ...values } as Record<string, unknown>;
+
+    for (const [stepKey, originalStep] of Object.entries(
+      this.#originalValue,
+    )) {
+      if (
+        typeof originalStep !== 'object' ||
+        originalStep === null ||
+        !('state' in originalStep) ||
+        typeof originalStep.state !== 'object' ||
+        originalStep.state === null
+      ) {
+        continue;
+      }
+
+      const nextStep = resolvedValues[stepKey];
+
+      if (typeof nextStep !== 'object' || nextStep === null) {
+        continue;
+      }
+
+      const previousStep = previousValues?.[
+        stepKey as StepNumbers<value>
+      ] as unknown;
+      const resolvedStep = nextStep as Record<string, unknown>;
+
+      resolvedValues[stepKey] = {
+        ...resolvedStep,
+        state: resolveStepState({
+          fields: this.getFieldValues(resolvedStep),
+          previousFields: this.getFieldValues(previousStep),
+          resolvedState:
+            typeof resolvedStep.state === 'object' &&
+            resolvedStep.state !== null
+              ? (resolvedStep.state as Record<string, unknown>)
+              : undefined,
+          resetSelectedLiterals,
+          state: originalStep.state as Record<string, unknown>,
+        }),
+      };
+    }
+
+    return resolvedValues as value;
   }
 
   private handlePostUpdate(value: value) {
@@ -186,18 +288,26 @@ export class MultiStepFormStepSchemaInternal<
     }
   ) {
     const { logger, values, ctxData } = options;
-    invariant(
+    InvalidContextError.invariant(
       typeof ctxData === 'function',
-      '[update]: "ctxData" must be a function'
+      {
+        reason: '"ctxData" must be a function',
+        value: ctxData,
+        expected: 'function',
+      },
     );
     logger.info('Custom "ctx" will be used');
 
     const additionalCtx = ctxData({ ctx: values as never });
 
-    invariant(
+    InvalidContextError.invariant(
       typeof additionalCtx === 'object' &&
         Object.keys(additionalCtx).length > 0,
-      '[update]: "ctxData" must return an object with keys'
+      {
+        reason: '"ctxData" must return an object with keys',
+        value: additionalCtx,
+        expected: 'non-empty object',
+      },
     );
 
     logger.info(
@@ -249,16 +359,24 @@ export class MultiStepFormStepSchemaInternal<
     });
 
     logger.info(`${targetStep} will be updated`);
-    invariant(
+    InvalidStepError.invariant(
       targetStep in this.value,
-      `[update]: The target step ${targetStep} isn't a valid step. Please select a valid step`
+      {
+        reason: `The target step ${targetStep} isn't valid`,
+        targetStep,
+        validSteps: Object.keys(this.value),
+      },
     );
 
     const { [targetStep]: currentStep, ...values } = this.value;
 
-    invariant(
+    InvalidUpdateError.invariant(
       'updater' in options,
-      '[update]: No "updater" was found. Please provide a value to the "updater" property'
+      {
+        reason: 'No "updater" was found',
+        targetStep,
+        expected: 'updater property',
+      },
     );
 
     const updater = options.updater;
@@ -291,72 +409,67 @@ export class MultiStepFormStepSchemaInternal<
 
     // default case: updating all fields for the current step
     if (fields === 'all') {
-      invariant(
+      InvalidUpdateError.invariant(
         typeof updated === 'object',
-        '[update]: "updater" must be an object or a function that returns an object'
+        {
+          reason: '"updater" must be an object or return an object',
+          targetStep,
+          value: updated,
+          expected: 'object',
+        },
       );
 
-      const functionKeys = new Set(['update', 'reset', 'createHelperFn']);
-      const stepKeys = Object.keys(this.value);
-      const updaterResultKeys = Object.keys(
-        updated as Record<string, unknown>
-      ).filter((value) => !functionKeys.has(value));
-      const missingKeys = stepKeys.filter(
-        (key) => !updaterResultKeys.includes(key)
+      const functionKeys = new Set([
+        'update',
+        'reset',
+        'createHelperFn',
+        'createReset',
+        'createUpdate',
+      ]);
+      const currentStepEntries = Object.entries(
+        currentStep as Record<string, unknown>
       );
+      const updatedStep = Object.fromEntries(
+        Object.entries(updated as Record<string, unknown>).filter(
+          ([key]) => !functionKeys.has(key)
+        )
+      );
+      const functions = Object.fromEntries(
+        currentStepEntries.filter(([key]) => functionKeys.has(key))
+      );
+      const expectedStep = Object.fromEntries(
+        currentStepEntries.filter(([key]) => !functionKeys.has(key))
+      );
+      const paths = path.createDeep(expectedStep);
 
-      for (const stepKey of stepKeys) {
-        // @ts-expect-error - we know the keys are present
-        const { update, reset, createHelperFn, ...currentStep } =
-          this.value[stepKey as keyof value];
+      verifyUpdate({
+        targetStep,
+        fields,
+        strict,
+        partial,
+        silenceErrors,
+        obj: expectedStep,
+        paths,
+        actual: updatedStep as never,
+      });
 
-        invariant(
-          updaterResultKeys.length === Object.keys(currentStep).length,
-          (formatter) => {
-            return `[update]: "updater" is missing keys ${formatter.format(
-              missingKeys
-            )}`;
-          }
-        );
-        const functions = { update, reset, createHelperFn };
-        const obj = { ...currentStep, update, reset, createHelperFn };
-        const paths = path.createDeep(obj);
-        const actual: Record<string, unknown> = {
-          ...updated,
+      logger.info('The entire step will be updated');
+
+      updatedValue = {
+        ...updatedValue,
+        [targetStep]: {
+          ...path.updateAt({
+            obj: expectedStep,
+            paths,
+            value: updatedStep as never,
+            partial,
+          }),
           ...functions,
-        };
+        },
+      };
 
-        verifyUpdate({
-          strict,
-          partial,
-          silenceErrors,
-          obj,
-          paths,
-          actual: actual as never,
-        });
-
-        logger.info('The entire step will be updated');
-
-        const currentUpdatedValue = updatedValue[
-          stepKey as keyof value
-        ] as Record<string, unknown>;
-        const updatedAtPath = path.updateAt({
-          obj: currentUpdatedValue,
-          paths,
-          value: actual as never,
-          partial,
-        });
-
-        updatedValue = {
-          ...updatedValue,
-          [targetStep]: updatedAtPath,
-        };
-
-        this.handlePostUpdate(updatedValue);
-        logger.info(
-          `The new value is: ${JSON.stringify(updatedValue, null, 2)}`
-        );
-      }
+      this.handlePostUpdate(updatedValue);
+      logger.info(`The new value is: ${JSON.stringify(updatedValue, null, 2)}`);
 
       return;
     }
@@ -366,16 +479,17 @@ export class MultiStepFormStepSchemaInternal<
     if (Array.isArray(fields)) {
       const compareResult = comparePartialArray(currentStepDeepKeys, fields);
 
-      invariant(
+      InvalidKeyError.invariant(
         compareResult.status === 'success',
-        `[update]: Found errors with the provided fields\n${
-          compareResult.status === 'error'
-            ? printErrors(compareResult.errors)
-            : ''
-        }`
+        {
+          invalidKeys: fields,
+          validKeys: currentStepDeepKeys,
+        },
       );
 
       verifyUpdate({
+        targetStep,
+        fields,
         strict,
         partial,
         silenceErrors,
@@ -414,17 +528,18 @@ export class MultiStepFormStepSchemaInternal<
         keys as never
       );
 
-      invariant(
+      InvalidKeyError.invariant(
         compareResult.status === 'success',
-        `[update]: Found errors with the provided fields\n${
-          compareResult.status === 'error'
-            ? printErrors(compareResult.errors)
-            : ''
-        }`
+        {
+          invalidKeys: keys,
+          validKeys: currentStepDeepKeys,
+        },
       );
 
       // TODO validate all values (deepest) are `true`
       verifyUpdate({
+        targetStep,
+        fields,
         strict,
         partial,
         silenceErrors,
@@ -514,14 +629,13 @@ export class MultiStepFormStepSchemaInternal<
         ...(resolvedFields as any)
       );
 
-      config.updatedValues = {
-        ...config.updatedValues,
-        ...path.updateAt({
-          obj: values,
-          paths: resolvedFields as DeepKeys<value>[],
-          value: picked,
-        }),
-      };
+      // Apply original field values onto the live schema so unrelated fields and steps
+      // keep the values the user has already entered.
+      config.updatedValues = path.updateAt({
+        obj: config.updatedValues,
+        paths: resolvedFields as DeepKeys<value>[],
+        value: picked,
+      });
 
       const formatter = new Intl.ListFormat('en', {
         style: 'long',
@@ -545,28 +659,34 @@ export class MultiStepFormStepSchemaInternal<
       debug,
       prefix: (value) => `${value}:reset${targetStep}`,
     });
-    const currentValues = this.value;
-    const resetStepValue =
-      this.#getResetStepValue?.(targetStep) ?? currentValues[targetStep];
-    const resetSourceValues = {
-      ...currentValues,
-      [targetStep]: resetStepValue,
-    } as value;
+    const originalValues = instantiateSteps({
+      steps: this.#originalValue,
+      nameTransformCasing: this.#defaultNameTransformationCasing,
+    } as never);
+    const enrichedOriginalValues = this.enrichValues(
+      originalValues,
+      this.#additionalEnrichedProps
+    ) as value;
 
     if (fields === 'all') {
       logger.info(`Resetting all fields for ${targetStep}`);
-      this.handlePostUpdate(resetSourceValues);
+      // A step-scoped reset must replace only its target; writing every original step
+      // here would silently discard progress made elsewhere in the form.
+      this.handlePostUpdate({
+        ...this.value,
+        [targetStep]: enrichedOriginalValues[targetStep],
+      });
       logger.info(`Reset all fields for ${targetStep}`);
 
       return;
     }
 
-    let updatedValues = { ...currentValues };
+    let updatedValues = { ...this.value };
     const reset = this.resetFields<targetStep, currentStep>({
       logger,
       targetStep,
       updatedValues,
-      values: resetSourceValues,
+      values: enrichedOriginalValues,
     });
 
     if (HelperFnChosenSteps.isTuple<DeepKeys<currentStep>>(fields)) {
@@ -618,7 +738,7 @@ export class MultiStepFormStepSchemaInternal<
           {} as UpdateFn.createHelperFnForAllSteps<value, chosenSteps>
         );
         const update = Object.assign(
-          this.update,
+          this.update.bind(this),
           stepSpecificUpdateFn
         ) as UpdateFn.HelperFn<value, chosenSteps>;
 
@@ -634,7 +754,7 @@ export class MultiStepFormStepSchemaInternal<
           {} as UpdateFn.createHelperFnForObjectSteps<value, chosenSteps>
         );
         const update = Object.assign(
-          this.update,
+          this.update.bind(this),
           stepSpecificUpdateFn
         ) as UpdateFn.HelperFn<value, chosenSteps>;
 
@@ -649,7 +769,7 @@ export class MultiStepFormStepSchemaInternal<
           return acc;
         }, {} as UpdateFn.createHelperFnForTupleSteps<value, chosenSteps>);
         const update = Object.assign(
-          this.update,
+          this.update.bind(this),
           stepSpecificUpdateFn
         ) as UpdateFn.HelperFn<value, chosenSteps>;
 
@@ -726,6 +846,60 @@ export class MultiStepFormStepSchemaInternal<
     return match<value, chosenSteps>(chosenSteps);
   }
 
+  private resolveStepIsComplete<targetStep extends StepNumbers<value>>(
+    targetStep: targetStep,
+    stepValue: unknown
+  ) {
+    const original = (this.#originalValue as Record<string, unknown>)[
+      targetStep as string
+    ] as
+      | {
+          isComplete?: (data: Record<string, unknown>) => boolean;
+          validateFields?: StandardSchemaValidator;
+        }
+      | undefined;
+    const currentStep = stepValue as {
+      fields: Record<string, { defaultValue: unknown }>;
+    };
+    const data = Object.fromEntries(
+      Object.entries(currentStep.fields).map(([name, field]) => [
+        name,
+        field.defaultValue,
+      ])
+    );
+
+    if (original && typeof original.isComplete === 'function') {
+      return Boolean(original.isComplete(data));
+    }
+
+    if (original?.validateFields) {
+      return allowsStandardValidation(original.validateFields, data);
+    }
+
+    return true;
+  }
+
+  private createStepValidateFn<targetStep extends StepNumbers<value>>(
+    targetStep: targetStep
+  ) {
+    return () => {
+      const original = (this.#originalValue as Record<string, unknown>)[
+        targetStep as string
+      ] as { validateFields: StandardSchemaValidator };
+      const stepValue = this.value[targetStep] as {
+        fields: Record<string, { defaultValue: unknown }>;
+      };
+      const data = Object.fromEntries(
+        Object.entries(stepValue.fields).map(([name, field]) => [
+          name,
+          field.defaultValue,
+        ])
+      );
+
+      return validateStandardSchema(original.validateFields, data);
+    };
+  }
+
   createStepHelperFn<
     chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>
   >(stepData: chosenSteps) {
@@ -787,9 +961,14 @@ export class MultiStepFormStepSchemaInternal<
           let ctx = createCtx(this.value, stepData);
 
           if ('validator' in optionsOrFunction) {
-            invariant(
+            InvalidHelperInputError.invariant(
               typeof input === 'object',
-              'An input is expected since you provided a validator'
+              {
+                reason: 'An input is expected when a validator is provided',
+                helper: 'createHelperFn',
+                value: input,
+                expected: 'object',
+              },
             );
 
             runStandardValidation(
@@ -800,9 +979,13 @@ export class MultiStepFormStepSchemaInternal<
             if (optionsOrFunction.ctxData) {
               const ctxData = optionsOrFunction.ctxData;
 
-              invariant(
+              InvalidContextError.invariant(
                 typeof ctxData === 'function',
-                'Option "ctxData" must be a function'
+                {
+                  reason: 'Option "ctxData" must be a function',
+                  value: ctxData,
+                  expected: 'function',
+                },
               );
 
               const logger = new MultiStepFormLogger({
@@ -900,17 +1083,23 @@ export class MultiStepFormStepSchemaInternal<
     values extends Record<string, unknown>,
     additionalProps extends Record<string, unknown>
   >(values: values, additionalProps?: (step: number) => additionalProps) {
-    const invariant: Invariant = createInvariant('[enrichValues]');
-
-    invariant(
+    InvalidInternalStateError.invariant(
       typeof values === 'object' && values !== null,
-      'The values must be an object'
+      {
+        reason: 'The values must be an object',
+        operation: 'enrichValues',
+        value: values,
+      },
     );
 
     if (additionalProps) {
-      invariant(
+      InvalidInternalStateError.invariant(
         typeof additionalProps === 'function',
-        'The additional props must be a function'
+        {
+          reason: 'The additional props must be a function',
+          operation: 'enrichValues',
+          value: additionalProps,
+        },
       );
     }
 
@@ -919,10 +1108,22 @@ export class MultiStepFormStepSchemaInternal<
     for (const [key, stepValue] of Object.entries(enriched)) {
       const targetStep = key as StepNumbers<value>;
       const step = Number.parseInt(targetStep.replace('step', ''));
+      const originalStep = (this.#originalValue as Record<string, unknown>)[
+        targetStep as string
+      ];
+      const hasValidateFields =
+        typeof originalStep === 'object' &&
+        originalStep !== null &&
+        'validateFields' in originalStep &&
+        originalStep.validateFields !== undefined;
 
-      invariant(
+      InvalidInternalStateError.invariant(
         typeof stepValue === 'object' && stepValue !== null,
-        `The value for ${key} must be an object`
+        {
+          reason: `The value for ${key} must be an object`,
+          operation: 'enrichValues',
+          value: stepValue,
+        },
       );
 
       enriched[targetStep as keyof values] = {
@@ -930,8 +1131,27 @@ export class MultiStepFormStepSchemaInternal<
         update: this.createStepUpdaterFn(targetStep),
         reset: this.createStepResetterFn(targetStep),
         createHelperFn: this.createStepHelperFn([targetStep]),
+        isComplete: this.resolveStepIsComplete(targetStep, stepValue),
+        ...(hasValidateFields
+          ? { validate: this.createStepValidateFn(targetStep) }
+          : {}),
         ...additionalProps?.(step),
       } as never;
+
+      const enrichedStep = enriched[targetStep as keyof values] as unknown as value[
+        StepNumbers<value>
+      ];
+
+      Object.assign(enrichedStep as object, {
+        createReset: createStepReset<value, StepNumbers<value>>({
+          getContext: () => createCtx(this.value, [targetStep]) as never,
+          reset: this.createStepResetterFn(targetStep) as never,
+        }),
+        createUpdate: createStepUpdate<value, StepNumbers<value>>({
+          getContext: () => createCtx(this.value, [targetStep]) as never,
+          step: enrichedStep,
+        }),
+      });
     }
 
     return enriched;

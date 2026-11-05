@@ -1,12 +1,18 @@
 import {
   buildValuePath,
+  createConditions,
   createCtx,
-  createInvariant,
+  instantiateSteps as instantiateStepsCore,
   type Expand,
   getDefaultValues,
+  type getDeepFields,
   type HelperFn,
-  type HelperFnChosenSteps,
-  type Invariant,
+  HelperFnChosenSteps,
+  InvalidComponentError,
+  InvalidFieldError,
+  InvalidFormConfigError,
+  InvalidInternalStateError,
+  InvalidStepError,
   MultiStepFormLogger,
   MultiStepFormStepSchema as MultiStepFormStepSchemaBase,
   type StepNumbers,
@@ -18,17 +24,24 @@ import {
   type StepSchema,
 } from '@jfdevelops/multi-step-form-core/_internals';
 import { field } from './field';
+import { ForField, withReusableField } from './for-field';
 import { MultiStepFormSchemaConfig } from './form-config';
-import { createUseSelector } from './hooks/use-selector';
+import type {
+  AnyFormLibraryAdapter,
+  FormLibraryBinding,
+  FormLibraryValues,
+} from './form-library';
+import { createUseSelector, deepEqual } from './hooks/use-selector';
 import { selector } from './selector';
 import {
+  type HookRunner,
   type instantiateReactSteps,
   StepSpecificComponent,
   type StepSpecificCreateComponentFn,
+  type StepSpecificCreateHookFn,
 } from './steps';
 import {
-  createComponent,
-  type CreateComponentCallback,
+  type CreateComponent,
   type CreatedMultiStepFormComponent,
   getValidatedCustomInputHooks,
   resolvedCtxCreator,
@@ -37,32 +50,69 @@ import {
   Suspense,
   createElement,
   useEffect,
-  useSyncExternalStore,
+  useRef,
   type ReactNode,
 } from 'react';
+import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/shim/with-selector';
 
-export type CreateComponentFn<
+export interface CreateComponentFn<
   def extends StepSchema.Config,
-  value extends instantiateReactSteps<def>
-> = <targetStep extends StepNumbers<value>, props = undefined>(
-  options: HelperFn.BaseOptions<value, [targetStep]>,
-  fn: CreateComponentCallback<value, [targetStep], props>
-) => CreatedMultiStepFormComponent<props>;
+  value extends instantiateReactSteps<def>,
+> {
+  <targetStep extends StepNumbers<value>, props = undefined>(
+    config: HelperFn.BaseOptions<value, [targetStep]> &
+      StepSpecificComponent.instanceFormLibraryOption<
+        def,
+        value,
+        [targetStep],
+        true
+      > & {
+        render: CreateComponent<
+          StepSpecificComponent.instanceInput<
+            def,
+            value,
+            [targetStep],
+            true
+          >,
+          props
+        >;
+      },
+  ): CreatedMultiStepFormComponent<props>;
+
+  <
+    chosenSteps extends HelperFnChosenSteps.main<
+      value,
+      StepNumbers<value>
+    >,
+    props = undefined,
+  >(
+    config: HelperFn.BaseOptions<value, chosenSteps> & {
+      formLibrary?: false;
+      render: CreateComponent<
+        StepSpecificComponent.instanceInput<def, value, chosenSteps>,
+        props
+      >;
+    },
+  ): CreatedMultiStepFormComponent<props>;
+
+  forField: ForField.createComponentFn<def, value>;
+
+}
 
 export interface HelperFunctions<
   def extends StepSchema.Config,
-  value extends instantiateReactSteps<def>
+  value extends instantiateReactSteps<def>,
 > {
   createComponent: CreateComponentFn<def, value>;
 }
 namespace CreateComponentImplConfig {
   export type stepSpecificConfig<
     def extends StepSchema.Config,
-    _value extends instantiateReactSteps<def>
+    _value extends instantiateReactSteps<def>,
   > = {
     isStepSpecific: true;
-    defaultId: string;
     form?: Record<string, unknown>;
+    formLibrary?: AnyFormLibraryAdapter;
   };
 
   export type nonStepSpecific = {
@@ -71,14 +121,14 @@ namespace CreateComponentImplConfig {
 
   export type config<
     def extends StepSchema.Config,
-    value extends instantiateReactSteps<def>
+    value extends instantiateReactSteps<def>,
   > = nonStepSpecific | stepSpecificConfig<def, value>;
 }
 
 export namespace MultiStepFormStepSchema {
   export type config<
     def extends StepSchema.Config,
-    value extends instantiateReactSteps<def>
+    value extends instantiateReactSteps<def>,
   > = def & {
     /**
      * The form configuration.
@@ -89,164 +139,226 @@ export namespace MultiStepFormStepSchema {
      * @internal
      */
     form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
+    formLibrary?: AnyFormLibraryAdapter;
   };
 }
 
-export class MultiStepFormStepSchema<
-    const def extends StepSchema.Config,
-    value extends instantiateReactSteps<def> = instantiateReactSteps<def>
+// The base class's own constructor calls `this.sync()` before a subclass's `#private`
+// instance fields exist yet — an overridden `sync()` touching one at that point throws
+// ("Receiver must be an instance of class ..."), since the private-field brand for this
+// class isn't installed on `this` until its own field initializers run, which only
+// happens *after* `super()` returns. A module-level WeakMap sidesteps that entirely:
+// keying by `this` needs no brand on the instance, so it's safe to read however early
+// `sync()` fires, and simply returns `undefined` before the constructor has built
+// anything to re-attach yet.
+const stepComponentFactoriesByInstance = new WeakMap<
+  MultiStepFormStepSchema<StepSchema.Config, never>,
+  Map<
+    string,
+    {
+      createComponent: StepSpecificCreateComponentFn<
+        StepSchema.Config,
+        never,
+        never
+      >;
+      createHook: StepSpecificCreateHookFn<StepSchema.Config, never, never>;
+    }
   >
+>();
+
+export class MultiStepFormStepSchema<
+  const def extends StepSchema.Config,
+  value extends instantiateReactSteps<def> = instantiateReactSteps<def>,
+>
   extends MultiStepFormStepSchemaBase<def>
   implements HelperFunctions<def, value>
 {
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  declare value: value;
+  value: value;
   // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-  private internal?: MultiStepFormStepSchemaInternal<def, value>;
-  private formId?: string;
-  private instantiatedForm?: ReturnType<
-    ReturnType<typeof MultiStepFormSchemaConfig.instantiateFormConfig<def>>
-  >;
-  readonly #initialFieldDefaultValues = new Map<string, unknown>();
+  readonly #internal: MultiStepFormStepSchemaInternal<def, value>;
+  readonly #form?: MultiStepFormSchemaConfig.FormConfig<def, value>;
+  readonly createComponent: CreateComponentFn<def, value>;
 
   constructor(config: MultiStepFormStepSchema.config<def, value>) {
-    const { form, ...rest } = config;
+    const { form, formLibrary, ...rest } = config;
 
     super(rest as never);
-    this.formId = form?.id;
+
+    this.value = instantiateStepsCore({
+      steps: this.resolvedDefinitions,
+      nameTransformCasing: this.defaultNameTransformationCasing,
+    } as never);
 
     // @ts-expect-error `value` is not assignable to the constraint of `value` but it works because of the `instantiateSteps` type
-    this.internal = new MultiStepFormStepSchemaInternal<def, value>({
-      originalValue: this.original,
+    this.#internal = new MultiStepFormStepSchemaInternal<def, value>({
+      originalValue: this.resolvedDefinitions,
+      defaultNameTransformationCasing: this.defaultNameTransformationCasing,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next as never),
-      getResetStepValue: (step) => this.getResetStepValue(step as never),
     });
+    this.#form = form;
+
+    this.sync();
 
     const createFormConfig = MultiStepFormSchemaConfig.instantiateFormConfig(
-      this.value as never,
-      this.steps.value
+      () => this.value as never,
+      this.subscribe,
+      Object.keys(this.value) as StepNumbers<value>[],
     );
-    this.instantiatedForm = createFormConfig(form as never);
-    this.value = this.enrichWithReactHelpers(this.value);
+
+    // Each step's `createComponent` factory only needs building once — it closes over
+    // `this` and reads `this.value[step]` fresh whenever it's actually invoked, so the
+    // same factory instance stays valid across every later `value` reassignment.
+    const stepComponentFactories = new Map<
+      StepNumbers<value>,
+      {
+        createComponent: StepSpecificCreateComponentFn<
+          def,
+          value,
+          StepNumbers<value>
+        >;
+        createHook: StepSpecificCreateHookFn<def, value, StepNumbers<value>>;
+      }
+    >();
+
+    for (const key of Object.keys(this.value)) {
+      const targetStep = key as StepNumbers<value>;
+      const id = form?.id ?? targetStep;
+      const instantiatedForm = createFormConfig(form as never, id);
+
+      stepComponentFactories.set(
+        targetStep,
+        {
+          createComponent: this.createStepSpecificComponentFactory(targetStep, {
+            isStepSpecific: true,
+            form: instantiatedForm,
+            formLibrary,
+          }),
+          createHook: this.createStepSpecificHookFactory(targetStep, {
+            isStepSpecific: true,
+            form: instantiatedForm,
+            formLibrary,
+          }),
+        },
+      );
+    }
+
+    stepComponentFactoriesByInstance.set(
+      this as never,
+      stepComponentFactories as never,
+    );
+    this.applyStepComponentFactories();
+
+    // A function object preserves the callable factory while grouping the field-specific
+    // variant under the API it specializes.
+    this.createComponent = Object.assign(this.createComponentImpl.bind(this), {
+      forField: <
+        targetStep extends StepNumbers<value>,
+        targetField extends getDeepFields<value, targetStep>,
+        customProps extends object = {},
+      >(
+        componentConfig: StepSpecificComponent.fieldConfig<
+          def,
+          value,
+          targetStep,
+          targetField,
+          customProps
+        > & { step: targetStep },
+      ) => {
+        InvalidComponentError.invariant(
+          typeof componentConfig === 'object' && componentConfig !== null,
+          {
+            reason:
+              'The argument must be a field component configuration object',
+            component: 'createFieldComponent',
+            argument: 'config',
+            value: componentConfig,
+          },
+        );
+
+        const { step, ...fieldConfig } = componentConfig;
+        InvalidStepError.invariant(this.steps.isValidStep(step), {
+          reason: `The target step ${step} is invalid`,
+          targetStep: step,
+          validSteps: [...this.steps.value],
+        });
+        const target = this.value[step] as {
+          createComponent: StepSpecificCreateComponentFn<
+            def,
+            value,
+            targetStep
+          >;
+        };
+
+        return target.createComponent.forField(fieldConfig as never);
+      },
+    }) as unknown as CreateComponentFn<def, value>;
   }
 
-  private enrichWithReactHelpers(next: value) {
-    return this.internal!.enrichValues(next, (step) => {
-      const targetStep = `step${step}` as StepNumbers<value>;
-      const id = this.formId ?? targetStep;
+  /**
+   * Re-attaches each step's cached `createComponent` (built once in the constructor)
+   * onto {@linkcode value}.
+   *
+   * The base class's `sync()` rebuilds `value` from only its own core-level enrichment
+   * (`update`/`reset`/`createHelperFn`/…), which has no notion of `createComponent` —
+   * so without this, every `value` reassignment (every field update routes through
+   * `sync()` via `handlePostUpdate`) would silently drop it, and any component that
+   * looks it up lazily (e.g. a `forField` component resolving which instance to bind
+   * to at render time) would crash on the next reassignment after it was built.
+   *
+   * A TypeScript `private` (not a `#private` field) deliberately — the base class's own
+   * constructor invokes `this.sync()`, which dispatches to our override, *before*
+   * `super()` returns and this class's `#private` elements are installed on `this`; a
+   * real `#private` method call at that point throws ("Receiver must be an instance of
+   * class ..."), brand check and all, before its body ever runs. An ordinary method
+   * carries no such brand, so it's safe to call that early as long as its body doesn't
+   * touch `#private` state until *after* the early-return below, which the WeakMap read
+   * (itself brand-free) guarantees.
+   */
+  private applyStepComponentFactories() {
+    const factories = stepComponentFactoriesByInstance.get(this as never);
 
-      return {
-        createComponent: this.createStepSpecificComponentFactory(targetStep, {
-          isStepSpecific: true,
-          defaultId: id,
-          form: this.instantiatedForm,
-        }),
-      };
+    if (!factories) {
+      // Not built yet — this runs once before the constructor's own initial `sync()`,
+      // before there's anything to re-attach.
+      return;
+    }
+
+    this.value = this.#internal.enrichValues(this.value, (step) => {
+      const targetStep = `step${step}` as StepNumbers<value>;
+      const factory = factories.get(targetStep);
+
+      InvalidInternalStateError.invariant(factory !== undefined, {
+        reason: `No cached "createComponent" factory was found for ${targetStep}`,
+        operation: 'sync',
+        value: targetStep,
+      });
+
+      return factory;
     });
   }
 
-  private mergeStoredFieldValues<targetStep extends StepNumbers<value>>(
-    previousStep: value[targetStep],
-    nextStep: value[targetStep],
-  ) {
-    const current = previousStep as value[targetStep] & {
-      fields?: Record<string, Record<string, unknown>>;
-    };
-    const resolved = nextStep as value[targetStep] & {
-      fields?: Record<string, Record<string, unknown>>;
-    };
-
-    if (
-      typeof current !== 'object' ||
-      current === null ||
-      typeof current.fields !== 'object' ||
-      current.fields === null ||
-      typeof resolved !== 'object' ||
-      resolved === null ||
-      typeof resolved.fields !== 'object' ||
-      resolved.fields === null
-    ) {
-      return nextStep;
-    }
-
-    const fields = { ...resolved.fields };
-    let hasMergedStoredValue = false;
-
-    for (const [fieldName, fieldValue] of Object.entries(current.fields)) {
-      const resolvedField = fields[fieldName];
-
-      if (
-        typeof fieldValue !== 'object' ||
-        fieldValue === null ||
-        typeof resolvedField !== 'object' ||
-        resolvedField === null ||
-        !('defaultValue' in fieldValue) ||
-        !('defaultValue' in resolvedField)
-      ) {
-        continue;
-      }
-
-      fields[fieldName] = {
-        ...resolvedField,
-        defaultValue: fieldValue.defaultValue,
-      };
-      hasMergedStoredValue = true;
-    }
-
-    if (!hasMergedStoredValue) {
-      return nextStep;
-    }
-
-    return {
-      ...resolved,
-      fields,
-    } as value[targetStep];
-  }
-
-  protected override handlePostUpdate(next: value) {
-    super.handlePostUpdate(this.enrichWithReactHelpers(next));
-  }
-
+  /**
+   * Syncs `value` from storage, then re-attaches the per-step `createComponent`
+   * factories the base class's own sync has no knowledge of. See
+   * {@linkcode MultiStepFormStepSchema.applyStepComponentFactories}.
+   */
   override sync() {
     super.sync();
-    if (!this.internal) {
-      return;
-    }
-    this.value = this.enrichWithReactHelpers(this.value);
-  }
-
-  override async resolveStep<targetStep extends StepNumbers<value>>(
-    step: targetStep,
-  ): Promise<value[targetStep]> {
-    const previousStep = this.value[step];
-    const shouldPreserveStoredValues =
-      typeof this.original[step as keyof def['steps']] === 'function';
-    const resolved = await super.resolveStep(step);
-    const mergedStep = shouldPreserveStoredValues
-      ? this.mergeStoredFieldValues(previousStep, this.value[step])
-      : this.value[step];
-
-    if (mergedStep !== this.value[step]) {
-      this.handlePostUpdate({
-        ...this.value,
-        [step]: mergedStep,
-      } as value);
-    }
-
-    return resolved;
+    this.applyStepComponentFactories();
   }
 
   private createResolvedCtx<
     // Safe to use tuple notation here since the step specific `createComponent` will always have
     // `stepData` as a tuple
     chosenStep extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
-    additionalCtx extends Record<string, unknown>
+    additionalCtx extends Record<string, unknown>,
   >(
     options: {
       stepData: chosenStep;
       logger: MultiStepFormLogger;
-    } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
+    } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>,
   ) {
     const { logger, stepData, ctxData } = options;
     // Create ctx fresh each time to ensure it has the latest this.value
@@ -255,7 +367,7 @@ export class MultiStepFormStepSchema<
     if (ctxData) {
       const [targetStep] = stepData;
       const { [targetStep]: _, ...values } = this.value;
-      const createResolvedCtx = resolvedCtxCreator(logger, values as value);
+      const createResolvedCtx = resolvedCtxCreator(logger, values);
 
       return createResolvedCtx({ ctx, ctxData } as never);
     }
@@ -266,21 +378,79 @@ export class MultiStepFormStepSchema<
   private createUseStep<targetStep extends StepNumbers<value>>(
     step: targetStep,
   ): StepSpecificComponent.useStep<def, value, targetStep> {
-    return <TError = Error>() => {
-      const status = useSyncExternalStore(
+    type StepResult<TError extends Error = Error> =
+      StepSpecificComponent.useStepResult<value, targetStep, TError>;
+
+    let cachedSnapshot: StepResult | undefined;
+
+    const getSnapshot = () => {
+      const data = this.value[step] as HelperFnChosenSteps.currentStep<
+        value,
+        [targetStep]
+      >;
+      const status = this.getStepStatus(step as never);
+      const error = this.getStepError(step as never);
+
+      if (
+        cachedSnapshot &&
+        Object.is(cachedSnapshot.data, data) &&
+        Object.is(cachedSnapshot.status, status) &&
+        Object.is(cachedSnapshot.error, error)
+      ) {
+        return cachedSnapshot;
+      }
+
+      const nextSnapshot: StepResult = {
+        data,
+        status,
+        error: error as Error | undefined,
+      };
+      cachedSnapshot = nextSnapshot;
+
+      return nextSnapshot;
+    };
+
+    function identity<T>(result: T) {
+      return result;
+    }
+
+    function selectedValuesEqual(first: unknown, second: unknown) {
+      if (Object.is(first, second)) {
+        return true;
+      }
+
+      if (
+        first === null ||
+        second === null ||
+        typeof first !== 'object' ||
+        typeof second !== 'object'
+      ) {
+        return false;
+      }
+
+      return deepEqual(first, second);
+    }
+
+    const useStep = <
+      TError extends Error = Error,
+      TSelected = StepResult<TError>,
+    >(
+      options?: StepSpecificComponent.useStepOptions<
+        def,
+        value,
+        targetStep,
+        TError,
+        TSelected
+      >,
+    ) => {
+      const getTypedSnapshot = () => getSnapshot() as StepResult<TError>;
+      const selected = useSyncExternalStoreWithSelector(
         this.subscribe,
-        () => this.getStepStatus(step as never),
-        () => this.getStepStatus(step as never),
-      );
-      const data = useSyncExternalStore(
-        this.subscribe,
-        () => this.value[step],
-        () => this.value[step],
-      ) as HelperFnChosenSteps.currentStep<value, [targetStep]>;
-      const error = useSyncExternalStore(
-        this.subscribe,
-        () => this.getStepError(step as never),
-        () => this.getStepError(step as never),
+        getTypedSnapshot,
+        getTypedSnapshot,
+        options?.selector ??
+          (identity as (result: StepResult<TError>) => TSelected),
+        selectedValuesEqual,
       );
 
       useEffect(() => {
@@ -289,12 +459,10 @@ export class MultiStepFormStepSchema<
         });
       }, []);
 
-      return {
-        data,
-        status,
-        error: error as TError | undefined,
-      };
+      return selected;
     };
+
+    return useStep as StepSpecificComponent.useStep<def, value, targetStep>;
   }
 
   private createStepSuspend<targetStep extends StepNumbers<value>>(
@@ -321,23 +489,157 @@ export class MultiStepFormStepSchema<
     // Safe to use tuple notation here since the step specific `createComponent` will always have
     // `stepData` as a tuple
     chosenStep extends HelperFnChosenSteps.tupleNotation<StepNumbers<value>>,
-    additionalCtx extends Record<string, unknown> = {}
+    additionalCtx extends Record<string, unknown> = {},
   >(
     stepData: chosenStep,
     config: CreateComponentImplConfig.stepSpecificConfig<def, value>,
     extraConfig?: {
       logger?: MultiStepFormLogger;
+      formLibrary?: boolean;
       input?: (
-        ctx: Expand<HelperFn.buildCtx<value, chosenStep>>
+        ctx: Expand<HelperFn.buildCtx<value, chosenStep>>,
       ) => Record<string, unknown>;
-    } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>
+    } & HelperFn.CtxDataSelector<value, chosenStep, additionalCtx>,
   ) {
     const [step] = stepData;
-    const invariant: Invariant = createInvariant(`[${step}:createComponent]`);
-    return <props>(fn: Function) =>
-      ((props: props) => {
-        const ctxData = extraConfig?.ctxData;
-        const logger = extraConfig?.logger ?? new MultiStepFormLogger();
+    return <props>(fn: Function) => {
+      const ctxData = extraConfig?.ctxData;
+      const logger = extraConfig?.logger ?? new MultiStepFormLogger();
+      const getResolvedCtx = () =>
+        this.createResolvedCtx({ stepData, ctxData, logger });
+      const Field = field.create({
+        propsCreator: (name) => {
+          const currentStep = this.value[step] as {
+            fields: Record<string, unknown>;
+          };
+          const currentFields = Object.keys(currentStep.fields);
+
+          InvalidFieldError.invariant(typeof name === 'string', {
+            reason: `The "name" prop must be a string and a valid field for ${step}`,
+            targetStep: step,
+            field: name,
+            validFields: currentFields,
+          });
+
+          const allAvailableFields = path
+            .createDeep(currentStep.fields)
+            .map((value) => (value as string).replace('.defaultValue.', '.'));
+
+          InvalidFieldError.invariant(allAvailableFields.includes(name), {
+            reason: `The field "${name}" doesn't exist for ${step}`,
+            targetStep: step,
+            field: name,
+            validFields: allAvailableFields,
+          });
+          InvalidInternalStateError.invariant('update' in currentStep, {
+            reason: `No "update" function was found for ${step}`,
+            operation: 'Field',
+            value: currentStep,
+          });
+
+          const defaultValue = this.getValue(step as never, name);
+          const builtValuePath = buildValuePath(name);
+          const fieldName = String(name);
+          const [parentFieldName] = fieldName.split('.');
+          const fieldMetadata = currentStep.fields[parentFieldName] as Record<
+            string,
+            unknown
+          >;
+          const targetFields = `fields.${builtValuePath}`;
+
+          return {
+            ...fieldMetadata,
+            defaultValue,
+            name,
+            onInputChange: <
+              strict extends boolean = true,
+              partial extends boolean = false,
+            >(
+              value: unknown,
+              options?: field.onInputChangeOptions<strict, partial>,
+            ) => {
+              const resolvedValue =
+                typeof value === 'function'
+                  ? value(this.getValue(step as never, name))
+                  : value;
+
+              this.update({
+                partial: options?.partial ?? false,
+                strict: options?.strict ?? true,
+                debug: options?.debug,
+                silentErrors: options?.silentErrors,
+                targetStep: step as never,
+                updater: resolvedValue as never,
+                fields: [targetFields] as never,
+              });
+            },
+            reset: (options?: UpdateFn.DebugOptions) =>
+              this.reset({
+                fields: [targetFields] as never,
+                targetStep: step as never,
+                debug: options?.debug,
+                silentErrors: options?.silentErrors,
+              }),
+          } as never;
+        },
+        subscribe: this.subscribe,
+        getValue: (name) => this.getValue(step as never, name as never),
+        selectorCtx: () => getResolvedCtx() as never,
+        suspendStep: () => {
+          this.suspendStep(step as never);
+        },
+      });
+      const useSelector = createUseSelector(
+        () => getResolvedCtx() as never,
+        this.subscribe,
+      );
+      const Selector = selector.create(
+        () => getResolvedCtx() as never,
+        this.subscribe,
+      );
+      const useStep = this.createUseStep(step);
+      const SuspendStep = this.createStepSuspend(step);
+      const formLibraryBinding: FormLibraryBinding = {
+        defaultValues: this.createDefaultValues(
+          step as never,
+        ) as FormLibraryValues,
+        validation: (
+          this.resolvedDefinitions[step] as { validateFields?: unknown } | undefined
+        )?.validateFields,
+        getValues: () =>
+          this.createDefaultValues(step as never) as FormLibraryValues,
+        setValues: (values) => {
+          const currentValues = this.createDefaultValues(
+            step as never,
+          ) as FormLibraryValues;
+
+          if (deepEqual(currentValues, values)) {
+            return;
+          }
+
+          const currentStep = this.value[step] as {
+            fields: Record<string, Record<string, unknown>>;
+          } & Record<string, unknown>;
+          const fields = Object.fromEntries(
+            Object.entries(currentStep.fields).map(([fieldName, fieldValue]) => [
+              fieldName,
+              {
+                ...fieldValue,
+                defaultValue: values[fieldName],
+              },
+            ]),
+          );
+
+          this.update({
+            targetStep: step as never,
+            updater: { ...currentStep, fields } as never,
+            fields: 'all',
+          });
+        },
+        subscribe: this.subscribe,
+      };
+
+      return ((props: props) => {
         const resolvedCtx = this.createResolvedCtx({
           stepData,
           ctxData,
@@ -347,185 +649,62 @@ export class MultiStepFormStepSchema<
         // Call hook functions from extraInput at the top level of the component
         // This ensures hooks are called in a valid React context (before any conditionals)
         const hookResults = getValidatedCustomInputHooks(extraInput);
-        const { defaultId, form } = config;
+        const { form, formLibrary } = config;
 
-        invariant(
-          this.steps.isValidStep(step),
-          `The target step ${step} is invalid. Note, this error shouldn't appear as the target step should always be valid. If you see this error, please open an issue.`
-        );
+        InvalidStepError.invariant(this.steps.isValidStep(step), {
+          reason: `The target step ${step} is invalid`,
+          targetStep: step,
+          validSteps: [...this.steps.value],
+        });
 
         const stepNumber = Number.parseInt(step.replace('step', ''));
 
-        invariant(
-          !Number.isNaN(stepNumber),
-          `An error occurred while extracting the number`
-        );
+        InvalidInternalStateError.invariant(!Number.isNaN(stepNumber), {
+          reason: `Unable to extract a number from ${step}`,
+          operation: 'createComponent',
+          value: step,
+        });
         const current = this.value[step];
 
-        invariant(
+        InvalidInternalStateError.invariant(
           typeof current === 'object' && current !== null,
-          `The current step must be an object, was ${typeof current}`
+          {
+            reason: `The current step must be an object, was ${typeof current}`,
+            operation: 'createComponent',
+            value: current,
+          },
         );
         // These checks are mostly for type safety. `current` should _always_ be in the proper format.
         // On the off chance that it's not, we have the checks here to help, but these checks are basically
         // just for type safety.
-        invariant(
-          'fields' in current,
-          `Unable to find the "fields" for the current step`
-        );
-        invariant(
-          typeof current.fields === 'object',
-          `The "fields" property must be an object, was ${typeof current.fields}`
-        );
-
-        // Memoize Field component to prevent remounting on every render
-        // This ensures input focus is maintained when ctx changes
-        const Field = field.create({
-          propsCreator: (name) => {
-            // Access current step data directly to avoid stale closure
-            const currentStep = this.value[step] as typeof current;
-            const currentFields = Object.keys(
-              currentStep.fields as Record<string, unknown>
-            );
-            const invariant: Invariant = createInvariant(`[${step}:Field]`);
-
-            invariant(
-              typeof name === 'string',
-              (formatter) =>
-                `[${step}:Field]: the "name" prop must be a string and a valid field for ${step}. Available fields include: "${formatter.format(
-                  currentFields
-                )}"`
-            );
-            // TODO add support for deep keys (`name`)
-
-            const allAvailableFields = path
-              .createDeep(currentStep.fields)
-              .map((value) => (value as string).replace('.defaultValue.', '.'));
-
-            invariant(
-              allAvailableFields.includes(name),
-              (formatter) =>
-                `[${step}:Field]: the field "${name}" doesn't exist for the current step. Available fields include: "${formatter.format(
-                  allAvailableFields
-                )}".`
-            );
-
-            invariant(
-              'update' in currentStep,
-              `[${step}:Field]: No "update" function was found`
-            );
-
-            const defaultValue = this.getValue(step as never, name);
-            const builtValuePath = buildValuePath(name);
-            const fieldName = String(name);
-            const [parentFieldName] = fieldName.split('.');
-            const resetFieldKey = `${step}:${builtValuePath}`;
-            const fieldsRecord = currentStep.fields as Record<string, unknown>;
-            const {
-              label,
-              nameTransformCasing,
-              type,
-            } = fieldsRecord[parentFieldName] as {
-              label?: unknown;
-              nameTransformCasing?: unknown;
-              type?: unknown;
-            };
-
-            const targetFields = `fields.${builtValuePath}`;
-
-            if (!this.#initialFieldDefaultValues.has(resetFieldKey)) {
-              this.#initialFieldDefaultValues.set(resetFieldKey, defaultValue);
-            }
-
-            return {
-              defaultValue,
-              ...(label === undefined ? {} : { label }),
-              nameTransformCasing,
-              ...(type === undefined ? {} : { type }),
-              name,
-              onInputChange: <
-                strict extends boolean = true,
-                partial extends boolean = false
-              >(
-                value: unknown,
-                options?: field.onInputChangeOptions<strict, partial>
-              ) => {
-                // Handle Updater pattern: if value is a function, call it with the current field value
-                let resolvedValue;
-
-                if (typeof value === 'function') {
-                  const defaultValue = this.getValue(step as never, name);
-
-                  resolvedValue = value(defaultValue);
-                } else {
-                  resolvedValue = value;
-                }
-
-                this.update({
-                  partial: options?.partial ?? false,
-                  strict: options?.strict ?? true,
-                  debug: options?.debug,
-                  silentErrors: options?.silentErrors,
-                  targetStep: step,
-                  updater: resolvedValue as never,
-                  fields: [targetFields] as never,
-                });
-              },
-              reset: (options?: UpdateFn.DebugOptions) =>
-                this.update({
-                  partial: false,
-                  strict: true,
-                  debug: options?.debug,
-                  silentErrors: options?.silentErrors,
-                  targetStep: step,
-                  updater: this.#initialFieldDefaultValues.get(
-                    resetFieldKey,
-                  ) as never,
-                  fields: [targetFields] as never,
-                }),
-            } as never;
-          },
-          subscribe: this.subscribe,
-          getValue: (name) => this.getValue(step as never, name as never),
-          selectorCtx: () =>
-            this.createResolvedCtx({
-              stepData,
-              ctxData,
-              logger,
-            }) as never,
-          suspendStep: () => {
-            this.suspendStep(step as never);
-          },
+        InvalidInternalStateError.invariant('fields' in current, {
+          reason: 'Unable to find the "fields" for the current step',
+          operation: 'createComponent',
+          value: current,
         });
-
-        // Create useSelector hook for reactive value access via selector
-        // This allows getting values from ctx reactively without causing re-renders
-        // Pass a function that creates fresh ctx on each call to avoid stale closures
-        const useSelector = createUseSelector(
-          () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
-          this.subscribe
+        InvalidInternalStateError.invariant(
+          typeof current.fields === 'object',
+          {
+            reason: `The "fields" property must be an object, was ${typeof current.fields}`,
+            operation: 'createComponent',
+            value: current.fields,
+          },
         );
-
-        // Create Selector component that uses useSelector internally
-        // This allows parts of the UI to subscribe to specific values without
-        // causing the parent component to re-render
-        const Selector = selector.create(
-          () => this.createResolvedCtx({ stepData, ctxData, logger }) as never,
-          this.subscribe
-        );
-        const useStep = this.createUseStep(step);
-        const SuspendStep = this.createStepSuspend(step);
 
         let fnInput = {
           ctx: resolvedCtx,
-          onInputChange: this.internal!.createStepUpdaterFn(step),
-          reset: this.internal!.createStepResetterFn(step),
+          update: this.#internal.createHelperFnInputUpdate(stepData),
+          onInputChange: this.#internal.createStepUpdaterFn(step),
+          reset: this.#internal.createStepResetterFn(step),
           Field,
           Suspend: SuspendStep,
           useStep,
           useSelector,
           Selector,
           defaultValues: this.createDefaultValues(step as never) as never,
+          validation: (
+            this.resolvedDefinitions[step] as { validateFields?: unknown } | undefined
+          )?.validateFields,
           ...hookResults,
         };
 
@@ -540,15 +719,20 @@ export class MultiStepFormStepSchema<
             MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS;
           const enabledFor =
             (instantiated.enabledForSteps as
-              | MultiStepFormSchemaConfig.formEnabledFor<value>
-              | undefined) ?? 'all';
+              MultiStepFormSchemaConfig.formEnabledFor<value> | undefined) ??
+            'all';
 
-          invariant(typeof alias === 'string', 'The alias must be a string');
+          InvalidFormConfigError.invariant(typeof alias === 'string', {
+            reason: 'The alias must be a string',
+            property: 'alias',
+            value: alias,
+            expected: 'string',
+          });
 
           if (
             MultiStepFormSchemaConfig.isFormAvailable(
               stepData as never,
-              enabledFor as never
+              enabledFor as never,
             )
           ) {
             fnInput = {
@@ -557,107 +741,503 @@ export class MultiStepFormStepSchema<
             };
           }
 
-          return fn(fnInput, props);
         }
 
-        return fn(
-          {
-            ...fnInput,
-            [MultiStepFormSchemaConfig.DEFAULT_FORM_ALIAS]:
-              MultiStepFormSchemaConfig.createDefaultForm(defaultId),
-          },
-          props
-        );
+        if (extraConfig?.formLibrary) {
+          InvalidFormConfigError.invariant(formLibrary !== undefined, {
+            reason:
+              'This component enabled "formLibrary", but no form-library adapter was configured on the definition',
+            property: 'formLibrary',
+            value: formLibrary,
+            expected: 'a configured form-library adapter',
+          });
+
+          return createElement(formLibrary.Boundary, {
+            binding: formLibraryBinding,
+            children: (libraryInput: Record<string, unknown>) =>
+              fn({ ...fnInput, ...libraryInput }, props),
+          });
+        }
+
+        return fn(fnInput, props);
       }) as CreatedMultiStepFormComponent<props>;
+    };
   }
 
   private createStepSpecificComponentFactory<
-    targetStep extends StepNumbers<value>
+    targetStep extends StepNumbers<value>,
   >(
     targetStep: targetStep,
-    config: CreateComponentImplConfig.stepSpecificConfig<def, value>
+    config: CreateComponentImplConfig.stepSpecificConfig<def, value>,
   ) {
-    const impl = <additionalCtx extends Record<string, unknown> = {}, props = undefined>(
-      optionsOrFn:
-        | StepSpecificComponent.options<value, targetStep, additionalCtx>
-        | StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>,
-      fn?: StepSpecificComponent.callback<def, value, targetStep, props, additionalCtx>
+    const impl = <
+      additionalCtx extends Record<string, unknown> = {},
+      props = undefined,
+      useFormLibrary extends boolean = false,
+    >(
+      componentConfig: StepSpecificComponent.config<
+        def,
+        value,
+        targetStep,
+        props,
+        additionalCtx,
+        useFormLibrary
+      >,
     ) => {
-      const invariant: Invariant = createInvariant(
-        '[createStepSpecificComponent]'
+      InvalidComponentError.invariant(
+        typeof componentConfig === 'object' && componentConfig !== null,
+        {
+          reason: 'The argument must be a component configuration object',
+          component: 'createStepSpecificComponent',
+          argument: 'config',
+          value: componentConfig,
+        },
       );
 
-      const createStepSpecificComponent = () => {
-        invariant(
-          typeof optionsOrFn === 'function',
-          'The first argument must be a function'
-        );
+      const {
+        ctxData,
+        debug,
+        formLibrary: formLibraryEnabled = config.formLibrary !== undefined,
+        render,
+      } = componentConfig;
 
-        return this.createStepSpecificComponentImpl(
-          [targetStep],
-          config
-        )(optionsOrFn);
-      };
+      InvalidComponentError.invariant(typeof render === 'function', {
+        reason: 'The "render" property must be a function',
+        component: 'createStepSpecificComponent',
+        argument: 'config.render',
+        value: render,
+      });
 
-      if (typeof optionsOrFn === 'object') {
-        const { ctxData, debug } = optionsOrFn;
-        const logger = new MultiStepFormLogger({
-          debug,
-          prefix(prefix) {
-            return `${prefix}-${targetStep}-createComponent`;
-          },
-        });
+      const logger = new MultiStepFormLogger({
+        debug,
+        prefix(prefix) {
+          return `${prefix}-${targetStep}-createComponent`;
+        },
+      });
 
-        logger.info('First argument is an object');
-
-        invariant(
-          typeof fn === 'function',
-          'The second argument must be a function'
-        );
-
-        if (ctxData) {
-          return this.createStepSpecificComponentImpl([targetStep], config, {
-            logger,
-            ctxData,
-          })(fn);
-        }
-
-        return createStepSpecificComponent();
-      }
-
-      return createStepSpecificComponent();
+      return this.createStepSpecificComponentImpl([targetStep], config, {
+        logger,
+        ctxData,
+        formLibrary: formLibraryEnabled,
+      })(render);
     };
 
-    return impl as StepSpecificCreateComponentFn<def, value, targetStep>;
+    const forField = <
+      targetField extends getDeepFields<value, targetStep>,
+      customProps extends object = {},
+    >(
+      fieldConfig: StepSpecificComponent.fieldConfig<
+        def,
+        value,
+        targetStep,
+        targetField,
+        customProps
+      >,
+    ) => {
+      InvalidComponentError.invariant(
+        typeof fieldConfig === 'object' && fieldConfig !== null,
+        {
+          reason: 'The argument must be a field component configuration object',
+          component: 'createFieldComponent',
+          argument: 'config',
+          value: fieldConfig,
+        },
+      );
+
+      const { field: configuredField, fields, render } = fieldConfig as typeof fieldConfig & {
+        fields?: readonly targetField[];
+      };
+
+      InvalidComponentError.invariant(typeof render === 'function', {
+        reason: 'The "render" property must be a function',
+        component: 'createFieldComponent',
+        argument: 'config.render',
+        value: render,
+      });
+
+      // Reuse the existing Field component so specialized components inherit its subscriptions,
+      // validation, deep-field support, and update/reset behavior. When the configuration omits
+      // a field, ownership moves to the returned component so one implementation can serve every
+      // compatible field in the step.
+      const Component = impl({
+        formLibrary: false,
+        render: (
+          { Field }: StepSpecificComponent.input<def, value, targetStep, {}>,
+          componentProps: StepSpecificComponent.fieldComponentProps<
+            def,
+            value,
+            targetStep,
+            targetField,
+            customProps
+          >,
+        ) => {
+          const { field: selectedField, ...forwardedProps } = componentProps as
+            StepSpecificComponent.fieldComponentProps<
+              def,
+              value,
+              targetStep,
+              targetField,
+              customProps
+            > & { field?: targetField };
+          const targetField = configuredField ?? selectedField;
+
+          InvalidFieldError.invariant(targetField !== undefined, {
+            reason:
+              'The returned field component requires a "field" prop because its configuration did not provide one',
+            targetStep,
+          });
+
+          InvalidFieldError.invariant(
+            fields === undefined || fields.includes(targetField),
+            {
+              reason: 'The selected field is not included in the configured "fields" list',
+              targetStep,
+              targetField,
+            },
+          );
+
+          return createElement(
+            Field as never,
+            {
+              ...forwardedProps,
+              name: targetField,
+              children: (fieldProps: unknown) =>
+                render(
+                  fieldProps as never,
+                  forwardedProps as unknown as customProps,
+                ),
+            } as never,
+          );
+        },
+      } as never);
+
+      // A `field` fixed here came from config, not from `bindToField` — either way it's
+      // already fixed, so the wrapper shouldn't expose a `bindToField` that would
+      // silently do nothing (`configuredField` always wins over a `field` prop above).
+      return withReusableField(Component as never, {
+        field: configuredField !== undefined,
+      });
+    };
+
+    return Object.assign(impl, { forField }) as unknown as StepSpecificCreateComponentFn<
+      def,
+      value,
+      targetStep
+    >;
+  }
+
+  private createStepSpecificHookFactory<
+    targetStep extends StepNumbers<value>,
+  >(
+    targetStep: targetStep,
+    config: CreateComponentImplConfig.stepSpecificConfig<def, value>,
+  ): StepSpecificCreateHookFn<def, value, targetStep> {
+    type HookFunction = (...arguments_: unknown[]) => unknown;
+    type Registration = {
+      arguments: unknown[];
+      conditions?: import('@jfdevelops/multi-step-form-core').ConditionExpression<unknown>;
+    };
+
+    return ((hookConfig: {
+      function: string | HookFunction;
+      render: (
+        input: Record<string, unknown> & { run: HookRunner<HookFunction> },
+        props: unknown,
+      ) => unknown;
+    }) => {
+      const HookInput = this.createStepSpecificComponentFactory(
+        targetStep,
+        config,
+      )({
+        formLibrary: false,
+        render: (input: Record<string, unknown>, props: unknown) => {
+          const registrations: Registration[] = [];
+          const previousRegistrations = useRef<Registration[]>([]);
+          const selectedFunction =
+            typeof hookConfig.function === 'string'
+              ? (input[hookConfig.function as keyof typeof input] as HookFunction)
+              : hookConfig.function;
+          const run = ((...arguments_: unknown[]) => {
+            registrations.push({ arguments: arguments_ });
+          }) as HookRunner<HookFunction>;
+
+          run.forConditions = (conditions, ...arguments_) => {
+            registrations.push({
+              arguments: arguments_,
+              conditions,
+            });
+          };
+
+          const result = hookConfig.render(
+            { ...input, run } as never,
+            props,
+          );
+
+          useEffect(() => {
+            const priorRegistrations = previousRegistrations.current;
+
+            registrations.forEach((registration, index) => {
+              if (deepEqual(registration, priorRegistrations[index])) {
+                return;
+              }
+
+              if (registration.conditions) {
+                if ('forConditions' in selectedFunction) {
+                  const conditionalFunction = selectedFunction as HookFunction & {
+                    forConditions(
+                      conditions: import('@jfdevelops/multi-step-form-core').ConditionExpression<unknown>,
+                      ...arguments_: unknown[]
+                    ): unknown;
+                  };
+
+                  conditionalFunction.forConditions(
+                    registration.conditions,
+                    ...registration.arguments,
+                  );
+                  return;
+                }
+
+                const conditionTools = createConditions<unknown>();
+
+                if (!conditionTools.evaluate(registration.conditions, undefined)) {
+                  return;
+                }
+              }
+
+              selectedFunction(...registration.arguments);
+            });
+
+            previousRegistrations.current = registrations;
+          });
+
+          return result as ReactNode;
+        },
+      } as never);
+
+      return (props?: unknown) =>
+        (HookInput as (props?: unknown) => unknown)(props);
+    }) as StepSpecificCreateHookFn<def, value, targetStep>;
   }
 
   /**
-   * A helper function to create a component for a specific step.
-   * @param options The options for creating the step specific component.
-   * @param fn A callback that is used for accessing the target step's data and defining
-   * any props that the component should have. This function must return a valid `JSX` element.
-   * @returns The created component for the step.
+   * Creates a component from selected step data and an object-based render configuration.
    */
-  createComponent<
+  private createComponentImpl<
     chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
-    props = undefined
+    props = undefined,
   >(
-    options: HelperFn.BaseOptions<value, chosenSteps>,
-    fn: CreateComponentCallback<value, chosenSteps, props>
+    componentConfig: HelperFn.BaseOptions<value, chosenSteps> & {
+      formLibrary?: boolean;
+      render: CreateComponent<
+        StepSpecificComponent.instanceInput<def, value, chosenSteps>,
+        props
+      >;
+    },
   ) {
-    return createComponent({
-      fn,
-      input: ({ stepData }) => ({
-        reset: this.internal!.createHelperFnInputReset(stepData),
-        update: this.internal!.createHelperFnInputUpdate(stepData),
-      }),
-      options,
-      value: this.value,
+    InvalidComponentError.invariant(
+      typeof componentConfig === 'object' && componentConfig !== null,
+      {
+        reason: 'The argument must be a component configuration object',
+        component: 'createComponent',
+        argument: 'config',
+        value: componentConfig,
+      },
+    );
+
+    const { render, ...options } = componentConfig;
+
+    InvalidComponentError.invariant(typeof render === 'function', {
+      reason: 'The "render" property must be a function',
+      component: 'createComponent',
+      argument: 'config.render',
+      value: render,
     });
+
+    // A single-step instance component delegates to the step-specific implementation so its
+    // runtime input and public type stay identical as new step utilities are added.
+    if (Array.isArray(options.stepData) && options.stepData.length === 1) {
+      const [targetStep] = options.stepData as [StepNumbers<value>];
+      const step = this.value[targetStep] as {
+        createComponent: (config: {
+          render: unknown;
+        }) => CreatedMultiStepFormComponent<props>;
+      };
+
+      return step.createComponent({
+        formLibrary: componentConfig.formLibrary,
+        render,
+      } as never);
+    }
+
+    const stepData = options.stepData as chosenSteps;
+    const getCtx = () => createCtx(this.value, stepData);
+    const useSelector = createUseSelector(getCtx as never, this.subscribe);
+    const Selector = selector.create(getCtx as never, this.subscribe);
+    const selectedSteps = this.getSelectedSteps(stepData);
+    const Field = this.createMultiStepField(selectedSteps);
+    const defaultFormId = selectedSteps.join('-');
+    const form = MultiStepFormSchemaConfig.instantiateFormConfig(
+      () => this.value,
+      this.subscribe,
+      Object.keys(this.value) as StepNumbers<value>[],
+    )(this.#form, defaultFormId) as
+      | undefined
+      | ({
+          alias: string;
+          enabledForSteps: HelperFnChosenSteps.main<
+            value,
+            StepNumbers<value>
+          >;
+        } & Record<string, unknown>);
+
+    return ((props: props) => {
+      const input: Record<string, unknown> = {
+        ctx: getCtx(),
+        reset: this.#internal.createHelperFnInputReset(stepData),
+        update: this.#internal.createHelperFnInputUpdate(stepData),
+        Field,
+        useSelector,
+        Selector,
+        defaultValues: this.createMultiStepDefaultValues(selectedSteps),
+      };
+
+      if (
+        form &&
+        MultiStepFormSchemaConfig.isFormAvailable(
+          stepData as never,
+          form.enabledForSteps as never,
+        )
+      ) {
+        input[form.alias] = form[form.alias];
+      }
+
+      return render(
+        input as StepSpecificComponent.instanceInput<
+          def,
+          value,
+          chosenSteps
+        >,
+        props,
+      );
+    }) as CreatedMultiStepFormComponent<props>;
+  }
+
+  private getSelectedSteps<
+    chosenSteps extends HelperFnChosenSteps.main<value, StepNumbers<value>>,
+  >(stepData: chosenSteps) {
+    if (stepData === 'all') {
+      return Object.keys(this.value) as StepNumbers<value>[];
+    }
+
+    if (Array.isArray(stepData)) {
+      return [...stepData] as StepNumbers<value>[];
+    }
+
+    return Object.keys(stepData) as StepNumbers<value>[];
+  }
+
+  private createMultiStepField(selectedSteps: StepNumbers<value>[]) {
+    type BridgeProps = {
+      children: (props: Record<string, unknown>) => ReactNode;
+      fieldName: string;
+      qualifiedName: string;
+    } & Record<string, unknown>;
+
+    const fields = new Map<string, CreatedMultiStepFormComponent<BridgeProps>>();
+
+    for (const step of selectedSteps) {
+      const stepValue = this.value[step] as {
+        createComponent: (config: {
+          formLibrary?: boolean;
+          render: (input: { Field: Function }, props: BridgeProps) => ReactNode;
+        }) => CreatedMultiStepFormComponent<BridgeProps>;
+      };
+      const StepField = stepValue.createComponent({
+        formLibrary: false,
+        render({ Field }, props) {
+          const {
+            children,
+            fieldName,
+            qualifiedName,
+            ...fieldOptions
+          } = props;
+
+          return createElement(Field as never, {
+            ...fieldOptions,
+            name: fieldName,
+            children: (fieldProps: Record<string, unknown>) =>
+              children({ ...fieldProps, name: qualifiedName }),
+          } as never);
+        },
+      });
+
+      fields.set(step, StepField);
+    }
+
+    return (props: {
+      name: string;
+      children: (props: Record<string, unknown>) => ReactNode;
+    }) => {
+      const { name, children, ...fieldOptions } = props;
+
+      InvalidFieldError.invariant(typeof name === 'string', {
+        reason: 'The multi-step Field "name" prop must be a string',
+        field: name,
+      });
+
+      const separatorIndex = name.indexOf('.');
+      const step = name.slice(0, separatorIndex);
+      const fieldName = name.slice(separatorIndex + 1);
+
+      InvalidFieldError.invariant(
+        separatorIndex > 0 && fields.has(step),
+        {
+          reason: `The field name "${name}" must start with one of the selected steps`,
+          field: name,
+          validSteps: selectedSteps,
+        },
+      );
+
+      const StepField = fields.get(step)!;
+
+      return createElement(StepField as never, {
+        ...fieldOptions,
+        children,
+        fieldName,
+        qualifiedName: name,
+      } as never);
+    };
+  }
+
+  private createMultiStepDefaultValues(
+    selectedSteps: StepNumbers<value>[],
+  ) {
+    const grouped = Object.fromEntries(
+      selectedSteps.map((step) => [step, this.createDefaultValues(step)]),
+    );
+    const fields = new Map<string, Array<[string, unknown]>>();
+
+    for (const [step, defaultValues] of Object.entries(grouped)) {
+      for (const [field, defaultValue] of Object.entries(defaultValues)) {
+        const matches = fields.get(field) ?? [];
+
+        matches.push([step, defaultValue]);
+        fields.set(field, matches);
+      }
+    }
+
+    const flat = Object.fromEntries(
+      [...fields].map(([field, matches]) => [
+        field,
+        matches.length === 1 ? matches[0][1] : Object.fromEntries(matches),
+      ]),
+    );
+
+    return { grouped, flat };
   }
 
   createDefaultValues<targetStep extends StepNumbers<value>>(
-    targetStep: targetStep
+    targetStep: targetStep,
   ) {
     return getDefaultValues(this.value, targetStep);
   }

@@ -10,9 +10,10 @@ export default defineConfig({
   test: {
     name: packageJson.name,
     environment: 'jsdom',
+    // Process forks intermittently time out on Windows when package suites run
+    // concurrently. Worker threads avoid that startup bottleneck.
     pool: 'threads',
-    maxWorkers: 1,
-    fileParallelism: false,
+    maxWorkers: 2,
     browser: useBrowserMode
       ? {
           enabled: true,

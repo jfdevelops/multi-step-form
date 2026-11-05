@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../../src/';
+import { defineMultiStepForm } from '../../src/';
 
 describe('multi step form step schema', () => {
   it('should create a valid step schema', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -14,7 +14,7 @@ describe('multi step form step schema', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value).toMatchObject({
       step1: {
@@ -33,7 +33,7 @@ describe('multi step form step schema', () => {
   });
 
   it('should return the data for the specified step', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -61,7 +61,7 @@ describe('multi step form step schema', () => {
           },
         },
       },
-    });
+    }).configure()();
     const step2 = schema.stepSchema.get({
       step: 'step2',
     });

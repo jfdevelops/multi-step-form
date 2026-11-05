@@ -1,10 +1,99 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 import { createMockStorage } from '../utils/create-mock-storage';
 
 describe('multi step form step schema: update', () => {
+  it('updates only the target step when fields is all', () => {
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          fields: {
+            firstName: { defaultValue: '' },
+          },
+          title: 'Step 1',
+        },
+        step3: {
+          fields: {
+            time: { defaultValue: '08:00' },
+          },
+          title: 'Step 3',
+        },
+      },
+    }).configure()();
+    const {
+      update: _update,
+      reset: _reset,
+      createHelperFn: _createHelperFn,
+      createReset: _createReset,
+      createUpdate: _createUpdate,
+      ...step3
+    } = schema.stepSchema.value.step3;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    schema.stepSchema.update({
+      targetStep: 'step3',
+      updater: {
+        ...step3,
+        fields: {
+          ...step3.fields,
+          time: { ...step3.fields.time, defaultValue: '09:00' },
+        },
+      },
+    });
+
+    expect(schema.stepSchema.value.step1.title).toBe('Step 1');
+    expect(schema.stepSchema.value.step1.fields.firstName.defaultValue).toBe('');
+    expect(schema.stepSchema.value.step3.fields.time.defaultValue).toBe('09:00');
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('includes update context and formatted details in mismatch errors', () => {
+    const schema = defineMultiStepForm({
+      steps: {
+        step3: {
+          fields: {
+            location: { defaultValue: '' },
+            time: { defaultValue: '08:00' },
+          },
+          title: 'Step 3',
+        },
+      },
+    }).configure()();
+    const invalidStepUpdate = {
+      fields: {
+        location: { defaultValue: 'Office' },
+      },
+      title: 'Step 3',
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(() =>
+      schema.stepSchema.update({
+        targetStep: 'step3',
+        // @ts-expect-error This intentionally omits a required field to exercise runtime validation.
+        updater: invalidStepUpdate,
+      })
+    ).toThrowError(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          '[update]: value mismatches for targetStep="step3", fields="all", strict=true, partial=false'
+        ),
+      })
+    );
+
+    expect(() =>
+      schema.stepSchema.update({
+        targetStep: 'step3',
+        // @ts-expect-error This intentionally omits a required field to exercise runtime validation.
+        updater: invalidStepUpdate,
+      })
+    ).toThrowError(/Missing key at "fields\.time"/);
+    consoleError.mockRestore();
+  });
+
   it.skip('should update the specified data immutably', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -32,7 +121,7 @@ describe('multi step form step schema: update', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     // Capture pre-update references
     const beforeValueRef = schema.stepSchema.value;
@@ -66,7 +155,7 @@ describe('multi step form step schema: update', () => {
   });
 
   it("should update the target step using the classes' update method", () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -94,7 +183,7 @@ describe('multi step form step schema: update', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value.step1.nameTransformCasing).toBe('title');
 
@@ -110,7 +199,7 @@ describe('multi step form step schema: update', () => {
   });
 
   it("should update target step using the step's update method", () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -138,7 +227,7 @@ describe('multi step form step schema: update', () => {
           },
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value.step2.title).toBe('Step 2');
 
@@ -155,7 +244,7 @@ describe('multi step form step schema: update', () => {
   });
 
   it("should update the target step's object values with known keys", () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -170,7 +259,7 @@ describe('multi step form step schema: update', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     expect(
       schema.stepSchema.value.step1.fields.userInfo.defaultValue
@@ -204,7 +293,7 @@ describe('multi step form step schema: update', () => {
     const initialDate = new Date('2024-01-01');
     const updatedDate = new Date('2024-12-31');
 
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -215,7 +304,7 @@ describe('multi step form step schema: update', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     expect(
       schema.stepSchema.value.step1.fields.birthDate.defaultValue
@@ -244,11 +333,7 @@ describe('multi step form step schema: update', () => {
     const updatedDate = new Date('2024-12-31');
 
     // Create schema with Date and store it (Date gets serialized to string)
-    const schema = createMultiStepFormSchema({
-      storage: {
-        key: `date-storage-test-${Date.now()}`,
-        store: mockStorage,
-      },
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -260,7 +345,12 @@ describe('multi step form step schema: update', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure({
+      storage: {
+        key: `date-storage-test-${Date.now()}`,
+        store: mockStorage,
+      },
+    })();
 
     expect(
       schema.stepSchema.value.step1.fields.birthDate.defaultValue
@@ -283,9 +373,51 @@ describe('multi step form step schema: update', () => {
     );
   });
 
+  it('preserves function-valued field metadata (e.g. a date field\'s transform) across a storage-backed update', () => {
+    const mockStorage = createMockStorage();
+    const transform = vi.fn((value: Date) => value.toISOString().slice(0, 10));
+
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          fields: {
+            birthDate: {
+              defaultValue: new Date('2024-01-01'),
+              type: 'string',
+              transform,
+            },
+          },
+          title: 'Step 1',
+        },
+      },
+    }).configure({
+      storage: {
+        key: `transform-storage-test-${Date.now()}`,
+        store: mockStorage,
+      },
+    })();
+
+    expect(schema.stepSchema.value.step1.fields.birthDate.transform).toBe(
+      transform
+    );
+
+    schema.stepSchema.update({
+      targetStep: 'step1',
+      fields: ['fields.birthDate.defaultValue'],
+      updater: JSON.stringify(new Date('2024-12-31')) as never,
+    });
+
+    expect(schema.stepSchema.value.step1.fields.birthDate.transform).toBe(
+      transform
+    );
+    expect(
+      typeof schema.stepSchema.value.step1.fields.birthDate.transform
+    ).toBe('function');
+  });
+
   describe('mode config (shallow)', () => {
     it('should another key', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -300,7 +432,7 @@ describe('multi step form step schema: update', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(
         schema.stepSchema.value.step1.fields.userInfo.defaultValue
@@ -332,7 +464,7 @@ describe('multi step form step schema: update', () => {
     });
 
     it('should update partially', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -347,7 +479,7 @@ describe('multi step form step schema: update', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(
         schema.stepSchema.value.step1.fields.userInfo.defaultValue
@@ -375,7 +507,7 @@ describe('multi step form step schema: update', () => {
     });
 
     it("shouldn't update partially when strict is true and an unknown key is being added", () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -390,7 +522,7 @@ describe('multi step form step schema: update', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(
         schema.stepSchema.value.step1.fields.userInfo.defaultValue
@@ -418,7 +550,7 @@ describe('multi step form step schema: update', () => {
 
   describe('mode config (deep)', () => {
     it('should add another key', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -444,7 +576,7 @@ describe('multi step form step schema: update', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       schema.stepSchema.update({
         targetStep: 'step1',
@@ -478,7 +610,7 @@ describe('multi step form step schema: update', () => {
     });
 
     it('should update partially', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -504,7 +636,7 @@ describe('multi step form step schema: update', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       schema.stepSchema.update({
         targetStep: 'step1',
@@ -538,7 +670,7 @@ describe('multi step form step schema: update', () => {
     });
 
     it("shouldn't update partially when strict is true and an unknown key is being added", () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -555,7 +687,7 @@ describe('multi step form step schema: update', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(() =>
         schema.stepSchema.update({
@@ -579,7 +711,7 @@ describe('multi step form step schema: update', () => {
   describe('silent errors', () => {
     describe('default behavior', () => {
       it('should silent errors when "partial === true"', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -594,7 +726,7 @@ describe('multi step form step schema: update', () => {
               title: 'Step 1',
             },
           },
-        });
+        }).configure()();
         const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
         schema.stepSchema.update({
@@ -611,7 +743,7 @@ describe('multi step form step schema: update', () => {
       });
 
       it('should silent errors when "strict === false"', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -626,7 +758,7 @@ describe('multi step form step schema: update', () => {
               title: 'Step 1',
             },
           },
-        });
+        }).configure()();
 
         const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -647,7 +779,7 @@ describe('multi step form step schema: update', () => {
       });
 
       it('should silent errors when "strict === false" AND "partial === true"', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -662,7 +794,7 @@ describe('multi step form step schema: update', () => {
               title: 'Step 1',
             },
           },
-        });
+        }).configure()();
 
         const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -686,7 +818,7 @@ describe('multi step form step schema: update', () => {
 
     describe('"silentErrors" === false', () => {
       it('shouldn\'t silent errors when "partial === true"', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -701,7 +833,7 @@ describe('multi step form step schema: update', () => {
               title: 'Step 1',
             },
           },
-        });
+        }).configure()();
         const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
         schema.stepSchema.update({
@@ -719,7 +851,7 @@ describe('multi step form step schema: update', () => {
       });
 
       it('shouldn\'t silent errors when "strict === false"', () => {
-        const schema = createMultiStepFormSchema({
+        const schema = defineMultiStepForm({
           steps: {
             step1: {
               fields: {
@@ -734,7 +866,7 @@ describe('multi step form step schema: update', () => {
               title: 'Step 1',
             },
           },
-        });
+        }).configure()();
 
         const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 

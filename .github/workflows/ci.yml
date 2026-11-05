@@ -25,6 +25,10 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
+    # Typecheck Core before building so declaration generation is not the only type gate.
+    - name: Typecheck (core)
+      run: pnpm --filter=@jfdevelops/multi-step-form-core typecheck
+
     # 2. UPDATED: Output to XML
     # We pass --reporter=junit and --outputFile via CLI to keep it clean
     - name: Run tests (core)
@@ -84,6 +88,11 @@ jobs:
           name: core-build
           path: packages/core/dist
 
+      # React resolves Core through its package exports, so its typecheck runs after the
+      # Core declaration artifact has been restored.
+      - name: Typecheck (react)
+        run: pnpm --filter=@jfdevelops/react-multi-step-form typecheck
+
       # 2. UPDATED: Output to XML for React tests as well
       - name: Run tests (react)
         working-directory: packages/react
@@ -105,3 +114,8 @@ jobs:
 
       - name: Build (react)
         run: pnpm run build:react
+
+      # Compile a real consumer after both packages exist to catch public API and
+      # declaration regressions that package-internal tests cannot expose.
+      - name: Build example
+        run: pnpm --filter=react-basic build

@@ -24,9 +24,11 @@ describe('createStep', () => {
             label: 'First Name',
             nameTransformCasing: 'title',
             name: 'firstName',
+            isRequired: false,
           },
         },
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'title',
       },
     });
@@ -57,9 +59,11 @@ describe('createStep', () => {
             nameTransformCasing: 'title',
             type: 'string',
             name: 'firstName',
+            isRequired: false,
           },
         },
         title: 'Step 1',
+        isComplete: true,
         nameTransformCasing: 'title',
       },
     });

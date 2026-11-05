@@ -1,0 +1,19 @@
+name: Push CI
+
+on:
+  push:
+    branches-ignore:
+      # These branches already invoke the reusable CI from their release workflows.
+      - main
+      - alpha
+      - beta
+      - rc
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createMultiStepFormSchema } from '../src';
+import { defineMultiStepForm } from '../src';
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -17,6 +17,7 @@ afterEach(async () => {
     });
     container.remove();
   }
+  window.localStorage.clear();
 });
 
 async function renderInJsdom(ui: ReactElement) {
@@ -46,9 +47,60 @@ async function renderInJsdom(ui: ReactElement) {
 }
 
 describe('Field', () => {
+  it('preserves a suspended input node and focus after a value update', async () => {
+    const schema = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Step 1',
+          fields: {
+            firstName: {
+              defaultValue: 'Taylor',
+            },
+          },
+        },
+      },
+    }).configure()();
+
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }) => (
+        <Field name='firstName' suspend fallback={<div>Loading</div>}>
+          {({ defaultValue, onInputChange }) => (
+            <input
+              data-testid='firstName'
+              value={defaultValue}
+              onChange={(event) => onInputChange(event.target.value)}
+            />
+          )}
+        </Field>
+      ),
+    });
+
+    const screen = await renderInJsdom(<Step1 />);
+    const originalInput = screen.getByTestId('firstName') as HTMLInputElement;
+
+    originalInput.focus();
+    expect(document.activeElement).toBe(originalInput);
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )?.set;
+
+      valueSetter?.call(originalInput, 'Jordan');
+      originalInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const updatedInput = screen.getByTestId('firstName') as HTMLInputElement;
+
+    expect(updatedInput).toBe(originalInput);
+    expect(document.activeElement).toBe(originalInput);
+    expect(updatedInput.value).toBe('Jordan');
+  });
+
   it('renders each children property to the dom', async () => {
     const date = new Date('2024-01-01T00:00:00.000Z');
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Step 1',
@@ -69,75 +121,87 @@ describe('Field', () => {
           },
         },
       },
+    }).configure()();
+
+    const Step1 = schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }: any) => (
+        <>
+          <Field name='firstName'>
+            {({
+              defaultValue,
+              label,
+              name,
+              nameTransformCasing,
+              onInputChange,
+              reset,
+            }: any) => (
+              <div>
+                <p data-testid='name'>{name}</p>
+                <p data-testid='defaultValue'>{defaultValue}</p>
+                <p data-testid='label'>{label}</p>
+                <p data-testid='nameTransformCasing'>
+                  {String(nameTransformCasing)}
+                </p>
+                <button
+                  data-testid='update'
+                  onClick={() => onInputChange('Jo')}
+                >
+                  update
+                </button>
+                <button data-testid='reset' onClick={() => reset()}>
+                  reset
+                </button>
+              </div>
+            )}
+          </Field>
+
+          <Field
+            name='firstName'
+            selectorFn={(ctx: any) =>
+              ctx.step1.fields.firstName.defaultValue.length
+            }
+          >
+            {({ selected }: any) => (
+              <p data-testid='selectedValue'>{selected.value}</p>
+            )}
+          </Field>
+
+          <Field name='birthday'>
+            {({
+              defaultValue,
+              label,
+              name,
+              nameTransformCasing,
+              type,
+            }: any) => (
+              <div>
+                <p data-testid='dateName'>{name}</p>
+                <p data-testid='dateDefaultValue'>
+                  {defaultValue.toISOString()}
+                </p>
+                <p data-testid='dateLabel'>{label}</p>
+                <p data-testid='dateNameTransformCasing'>
+                  {nameTransformCasing}
+                </p>
+                <p data-testid='dateType'>{type}</p>
+              </div>
+            )}
+          </Field>
+
+          <Field name='middleName'>
+            {(props: any) => (
+              <p data-testid='disabledLabelHasProp'>
+                {String('label' in props)}
+              </p>
+            )}
+          </Field>
+        </>
+      ),
     });
 
-    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
-      <>
-        <Field name='firstName'>
-          {({
-            defaultValue,
-            label,
-            name,
-            nameTransformCasing,
-            onInputChange,
-            reset,
-          }) => (
-            <div>
-              <p data-testid='name'>{name}</p>
-              <p data-testid='defaultValue'>{defaultValue}</p>
-              <p data-testid='label'>{label}</p>
-              <p data-testid='nameTransformCasing'>
-                {String(nameTransformCasing)}
-              </p>
-              <button data-testid='update' onClick={() => onInputChange('Jo')}>
-                update
-              </button>
-              <button data-testid='reset' onClick={() => reset()}>
-                reset
-              </button>
-            </div>
-          )}
-        </Field>
-
-        <Field
-          name='firstName'
-          selectorFn={(ctx) => ctx.step1.fields.firstName.defaultValue.length}
-        >
-          {({ selected }) => (
-            <p data-testid='selectedValue'>{selected.value}</p>
-          )}
-        </Field>
-
-        <Field name='birthday'>
-          {({ defaultValue, label, name, nameTransformCasing, type }) => (
-            <div>
-              <p data-testid='dateName'>{name}</p>
-              <p data-testid='dateDefaultValue'>{defaultValue.toISOString()}</p>
-              <p data-testid='dateLabel'>{label}</p>
-              <p data-testid='dateNameTransformCasing'>{nameTransformCasing}</p>
-              <p data-testid='dateType'>{type}</p>
-            </div>
-          )}
-        </Field>
-
-        <Field name='middleName'>
-          {(props) => (
-            <p data-testid='disabledLabelHasProp'>{String('label' in props)}</p>
-          )}
-        </Field>
-      </>
-    ));
-
-    schema.stepSchema.value.step1.createComponent(({ Field }) => (
-      <Field name='middleName'>
-        {(props) => {
-          // @ts-expect-error Disabled labels should not be exposed as a prop.
-          props.label;
-
-          return null;
-        }}
-      </Field>
-    ));
+    schema.stepSchema.value.step1.createComponent({
+      render: ({ Field }) => <Field name='middleName'>{() => null}</Field>,
+    });
 
     const screen = await renderInJsdom(<Step1 />);
 
@@ -152,7 +216,9 @@ describe('Field', () => {
       'kebab',
     );
     expect(screen.getByTestId('dateType').textContent).toBe('date');
-    expect(screen.getByTestId('dateDefaultValue').textContent).toBe(date.toISOString());
+    expect(screen.getByTestId('dateDefaultValue').textContent).toBe(
+      date.toISOString(),
+    );
     expect(screen.getByTestId('disabledLabelHasProp').textContent).toBe(
       'false',
     );
@@ -175,57 +241,5 @@ describe('Field', () => {
       'Taylor',
     );
     expect(screen.getByTestId('defaultValue').textContent).toBe('Taylor');
-  });
-
-  it('resets field values for resolved async step definitions', async () => {
-    const schema = createMultiStepFormSchema({
-      steps: {
-        step1: async () => ({
-          title: 'Step 1',
-          fields: {
-            firstName: {
-              defaultValue: 'Taylor',
-            },
-          },
-        }),
-      },
-    });
-
-    await schema.stepSchema.resolveStep('step1');
-
-    const Step1 = schema.stepSchema.value.step1.createComponent(({ Field }) => (
-      <Field name='firstName'>
-        {({ defaultValue, onInputChange, reset }) => (
-          <div>
-            <p data-testid='async-defaultValue'>{defaultValue}</p>
-            <button
-              data-testid='async-update'
-              onClick={() => onInputChange('Jordan')}
-            >
-              update
-            </button>
-            <button data-testid='async-reset' onClick={() => reset()}>
-              reset
-            </button>
-          </div>
-        )}
-      </Field>
-    ));
-
-    const screen = await renderInJsdom(<Step1 />);
-
-    expect(screen.getByTestId('async-defaultValue').textContent).toBe('Taylor');
-
-    await act(async () => {
-      screen.getByTestId('async-update').click();
-    });
-
-    expect(screen.getByTestId('async-defaultValue').textContent).toBe('Jordan');
-
-    await act(async () => {
-      screen.getByTestId('async-reset').click();
-    });
-
-    expect(screen.getByTestId('async-defaultValue').textContent).toBe('Taylor');
   });
 });

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { type } from 'arktype';
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 
 describe('multi step form step schema: field validation', () => {
   it('should validate fields for a step', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           title: 'Validated Step 1',
@@ -22,7 +22,7 @@ describe('multi step form step schema: field validation', () => {
           }),
         },
       },
-    });
+    }).configure()();
 
     expect(schema.stepSchema.value.step1).toMatchObject({
       title: 'Validated Step 1',
@@ -44,11 +44,11 @@ describe('multi step form step schema: field validation', () => {
     });
   });
 
-  it('should error if validated fields differ from config fields', () => {
+  it('does not validate field values while instantiating the form', () => {
     expect(
       // This function is needed so that vitest can intercept the value
       () =>
-        createMultiStepFormSchema({
+        defineMultiStepForm({
           steps: {
             step1: {
               title: 'Validated Step 1',
@@ -56,17 +56,13 @@ describe('multi step form step schema: field validation', () => {
                 firstName: {
                   defaultValue: '',
                 },
-                lastName: {
-                  defaultValue: '',
-                },
               },
               validateFields: type({
-                fName: 'string',
-                lName: 'string',
+                firstName: 'string > 0',
               }),
             },
           },
-        })
-    ).toThrowError(Error);
+        }).configure()()
+    ).not.toThrow();
   });
 });

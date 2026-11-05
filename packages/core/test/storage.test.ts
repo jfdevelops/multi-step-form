@@ -215,6 +215,18 @@ describe('MultiStepFormStorage', () => {
       expect(retrieved).toBeUndefined();
     });
 
+    it('removes malformed JSON and falls back to no stored value', () => {
+      mockStorage.setItem('test-key', '{"step1":');
+      const storage = new MultiStepFormStorage({
+        key: 'test-key',
+        data: {},
+        store: mockStorage,
+      });
+
+      expect(storage.get()).toBeUndefined();
+      expect(mockStorage.getItem('test-key')).toBeNull();
+    });
+
     it('should overwrite existing data when adding new data', () => {
       const storage = new MultiStepFormStorage({
         key: 'test-key',
@@ -228,6 +240,17 @@ describe('MultiStepFormStorage', () => {
 
       expect(retrieved).toEqual({ second: 'value' });
       expect(retrieved).not.toEqual({ first: 'value' });
+    });
+  });
+
+  describe('hasKey', () => {
+    it('returns false when storage is unavailable', () => {
+      const storage = new MultiStepFormStorage({
+        key: 'test-key',
+        data: {},
+      });
+
+      expect(storage.hasKey()).toBe(false);
     });
   });
 });

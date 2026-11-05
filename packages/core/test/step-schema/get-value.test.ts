@@ -1,9 +1,9 @@
-import { createMultiStepFormSchema } from '../../src';
+import { defineMultiStepForm } from '../../src';
 import { describe, it, expect } from 'vitest';
 
 describe('MultiStepFormStepSchema#getValue()', () => {
   describe('nested path resolution', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -20,7 +20,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     it('should get value at parent path', () => {
       expect(schema.stepSchema.getValue('step1', 'field')).toStrictEqual({
@@ -49,7 +49,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
 
   describe('different data types', () => {
     it('should handle primitive types', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -63,7 +63,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(schema.stepSchema.getValue('step1', 'string')).toBe('text');
       expect(schema.stepSchema.getValue('step1', 'number')).toBe(42);
@@ -74,7 +74,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
     });
 
     it('should handle null and undefined', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -84,14 +84,14 @@ describe('MultiStepFormStepSchema#getValue()', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(schema.stepSchema.getValue('step1', 'nullValue')).toBeNull();
       expect(schema.stepSchema.getValue('step1', 'undefinedValue')).toBeUndefined();
     });
 
     it('should handle arrays', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -101,14 +101,14 @@ describe('MultiStepFormStepSchema#getValue()', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(schema.stepSchema.getValue('step1', 'array')).toStrictEqual([1, 2, 3]);
       expect(schema.stepSchema.getValue('step1', 'emptyArray')).toStrictEqual([]);
     });
 
     it('should handle objects', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -117,7 +117,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       expect(schema.stepSchema.getValue('step1', 'object')).toStrictEqual({
         key: 'value',
@@ -125,7 +125,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
     });
 
     it('should handle empty objects', () => {
-      const schema = createMultiStepFormSchema({
+      const schema = defineMultiStepForm({
         steps: {
           step1: {
             fields: {
@@ -134,7 +134,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
             title: 'Step 1',
           },
         },
-      });
+      }).configure()();
 
       // @ts-expect-error - TypeScript can't infer types for empty object defaultValues
       expect(schema.stepSchema.getValue('step1', 'emptyObject')).toStrictEqual({});
@@ -142,7 +142,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
   });
 
   describe('nested structures with arrays', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -162,7 +162,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     it('should get nested array values', () => {
       expect(schema.stepSchema.getValue('step1', 'data.items')).toStrictEqual([
@@ -183,7 +183,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
   });
 
   describe('multiple steps', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -203,7 +203,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
           title: 'Step 2',
         },
       },
-    });
+    }).configure()();
 
     it('should get values from different steps', () => {
       expect(schema.stepSchema.getValue('step1', 'value')).toBe('step1');
@@ -213,7 +213,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
   });
 
   describe('multiple fields at same level', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -232,7 +232,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     it('should get values from different sibling fields', () => {
       expect(schema.stepSchema.getValue('step1', 'user.name')).toBe('John');
@@ -245,7 +245,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
   });
 
   describe('very deep nesting', () => {
-    const schema = createMultiStepFormSchema({
+    const schema = defineMultiStepForm({
       steps: {
         step1: {
           fields: {
@@ -268,7 +268,7 @@ describe('MultiStepFormStepSchema#getValue()', () => {
           title: 'Step 1',
         },
       },
-    });
+    }).configure()();
 
     it('should get value from very deep nested path', () => {
       expect(
