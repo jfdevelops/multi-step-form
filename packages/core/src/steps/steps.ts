@@ -512,7 +512,7 @@ export function instantiateSteps<
 
   let resolvedSteps: Record<string, unknown> = {};
 
-  for (const [stepKey, stepValue] of Object.entries(steps)) {
+  for (const [stepKey, definition] of Object.entries(steps)) {
     InvalidStepConfigError.invariant(
       typeof stepKey === 'string',
       {
@@ -532,6 +532,16 @@ export function instantiateSteps<
       },
     );
 
+    if (typeof definition === 'function') {
+      resolvedSteps[stepKey] = {
+        title: stepKey,
+        nameTransformCasing: schemaDefaultCasing,
+        fields: {},
+        isComplete: false,
+      };
+      continue;
+    }
+    const stepValue = definition;
     const {
       fields: fieldsDef,
       title,
@@ -704,3 +714,11 @@ export function isValidSteps(value: unknown): value is StepConfig {
 
   return true;
 }
+
+/** A step config or a lazy loader returning its complete definition. */
+export type AsyncStepMap = Record<`step${number}`, AnyConfig | (() => Promise<AnyConfig>)>;
+export type ResolvedStepMap<steps extends AsyncStepMap> = {
+  [key in keyof steps]: steps[key] extends () => Promise<infer config extends AnyConfig> ? config : Extract<steps[key], AnyConfig>;
+};
+
+export type RequireAsyncStep<steps extends AsyncStepMap> = Extract<steps[keyof steps], () => Promise<AnyConfig>> extends never ? never : unknown;

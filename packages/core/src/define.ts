@@ -12,6 +12,9 @@ import {
   type AnyConfig,
   type instantiateStepsConfig,
   type StepConfig,
+  type AsyncStepMap,
+  type RequireAsyncStep,
+  type ResolvedStepMap,
   type StepNumbers,
   type StepOverrides,
 } from '@/steps/steps';
@@ -141,10 +144,15 @@ export function mergeStepOverrides<TSteps extends StepConfig>(
       return [
         key,
         override
-          ? {
-              ...stepConfig,
-              overrides: override,
-            }
+          ? typeof stepConfig === 'function'
+            ? async () => ({
+                ...(await (stepConfig as () => Promise<object>)()),
+                overrides: override,
+              })
+            : {
+                ...stepConfig,
+                overrides: override,
+              }
           : stepConfig,
       ];
     }),
@@ -628,6 +636,25 @@ export class MultiStepFormDefinition<
  * const adminForm = createBookingForm({ instance: 'admin' });
  * ```
  */
+export function defineMultiStepForm<
+  const steps extends StepConfig,
+  const contextualSteps extends StepConfig,
+  const instances extends readonly string[] | undefined = undefined,
+>(
+  options: {
+    steps: steps;
+    instances?: instances;
+  } & DefineMultiStepFormOptions<contextualSteps, instances>,
+): MultiStepFormDefinition<steps, instances>;
+
+export function defineMultiStepForm<
+  const steps extends AsyncStepMap,
+  const instances extends readonly string[] | undefined = undefined,
+>(options: {
+  steps: steps & RequireAsyncStep<steps>;
+  instances?: instances;
+}): MultiStepFormDefinition<ResolvedStepMap<steps>, instances>;
+
 export function defineMultiStepForm<
   const steps extends StepConfig,
   const contextualSteps extends StepConfig,

@@ -420,6 +420,8 @@ export class MultiStepFormStepSchema<
    * The original config before any validation or transformations have been applied.
    */
   readonly original: def['steps'];
+  // Shared with internal helpers so loaded state, validation and reset definitions stay current.
+  protected readonly resolvedDefinitions: def['steps'];
   /**
    * The resolved step values.
    */
@@ -451,13 +453,14 @@ export class MultiStepFormStepSchema<
     ) as def['nameTransformCasing'];
 
     this.original = steps;
+    this.resolvedDefinitions = { ...steps };
 
     this.value = instantiateSteps({
       steps,
       nameTransformCasing: this.defaultNameTransformationCasing,
     } as never);
     this.#internal = new MultiStepFormStepSchemaInternal({
-      originalValue: this.original,
+      originalValue: this.resolvedDefinitions,
       defaultNameTransformationCasing: this.defaultNameTransformationCasing,
       getValue: () => this.value,
       setValue: (next) => this.handlePostUpdate(next),
@@ -549,7 +552,8 @@ export class MultiStepFormStepSchema<
     for (const stepKey of Object.keys(this.value) as StepNumbers<value>[]) {
       this.#overrideState.set(stepKey, {
         status:
-          this.hasOverrides(stepKey) && this.isStepUsingBaseDefaults(stepKey)
+          typeof this.resolvedDefinitions[stepKey] === 'function' ||
+          (this.hasOverrides(stepKey) && this.isStepUsingBaseDefaults(stepKey))
             ? 'idle'
             : 'resolved',
       });
@@ -586,7 +590,7 @@ export class MultiStepFormStepSchema<
   private getStepOverride<targetStep extends StepNumbers<value>>(
     step: targetStep,
   ) {
-    const current = this.original[step as keyof def['steps']];
+    const current = this.resolvedDefinitions[step as keyof def['steps']];
 
     if (!current || typeof current !== 'object') {
       return undefined;
@@ -695,6 +699,13 @@ export class MultiStepFormStepSchema<
         continue;
       }
 
+      if (
+        typeof this.resolvedDefinitions[stepKey as keyof def['steps']] === 'function'
+      ) {
+        // Keep persisted values until the loader supplies authoritative metadata.
+        continue;
+      }
+
       const currentFields = currentStep.fields;
       const storedFields = (
         storedStep as { fields: Record<string, Record<string, unknown>> }
@@ -800,10 +811,6 @@ export class MultiStepFormStepSchema<
   }
 
   async resolveStep<targetStep extends StepNumbers<value>>(step: targetStep) {
-    if (!this.hasOverrides(step)) {
-      return this.value[step];
-    }
-
     const currentState = this.getOverrideState(step);
 
     if (currentState.status === 'resolved') {
@@ -816,18 +823,47 @@ export class MultiStepFormStepSchema<
       return this.value[step];
     }
 
-    const override = this.getStepOverride(step);
-
-    InvalidInternalStateError.invariant(typeof override === 'function', {
-      reason: `"${step}" does not have a valid override resolver`,
-      operation: 'resolveStep',
-      value: override,
-    });
-
-    // Invoke the user resolver inside the chain so synchronous throws and rejected
-    // promises both pass through the same persisted error-state handler.
     const promise = Promise.resolve()
-      .then(() => override(this.getResolvedStepData(step)))
+      .then(async () => {
+        const definition: unknown = this.resolvedDefinitions[step];
+        if (typeof definition === 'function') {
+          const resolved = await (definition as () => Promise<AnyConfig>)();
+          const instantiated = instantiateSteps({
+            steps: { [step]: resolved },
+            nameTransformCasing: this.defaultNameTransformationCasing,
+          } as never) as Record<string, unknown>;
+          const loadedStep = instantiated[step] as {
+            fields: Record<string, Record<string, unknown>>;
+          };
+          const storedFields = (this.value[step] as {
+            fields?: Record<string, Record<string, unknown>>;
+          }).fields;
+          const nextFields = { ...loadedStep.fields };
+
+          for (const [name, field] of Object.entries(nextFields)) {
+            const storedField = storedFields?.[name];
+
+            if (storedField && 'defaultValue' in storedField) {
+              nextFields[name] = { ...field, defaultValue: storedField.defaultValue };
+            }
+          }
+          const next = {
+            ...this.value,
+            [step]: { ...loadedStep, fields: nextFields },
+          } as value;
+          this.resolvedDefinitions[step] = resolved as def['steps'][targetStep];
+          this.#baseDefaultValues.set(
+            step,
+            getDefaultValues(instantiated as value, step) as Record<string, unknown>,
+          );
+          this.handlePostUpdate(this.#internal.enrichValues(next));
+        }
+        const override = this.getStepOverride(step);
+
+        return typeof override === 'function' && this.isStepUsingBaseDefaults(step)
+          ? override(this.getResolvedStepData(step))
+          : {};
+      })
       .then((overrides) => {
         this.#overrideState.set(step, {
           status: 'resolved',
@@ -867,6 +903,11 @@ export class MultiStepFormStepSchema<
 
   resolveOverrides(steps = Object.keys(this.value) as StepNumbers<value>[]) {
     for (const step of steps) {
+      // Factory setup resolves value overrides; full definitions stay lazy.
+      if (typeof this.resolvedDefinitions[step] === 'function') {
+        continue;
+      }
+
       void this.resolveStep(step).catch(() => {
         // Resolution errors remain available through the public step error state.
       });
@@ -874,10 +915,6 @@ export class MultiStepFormStepSchema<
   }
 
   suspendStep<targetStep extends StepNumbers<value>>(step: targetStep) {
-    if (!this.hasOverrides(step)) {
-      return this.value[step];
-    }
-
     const state = this.getOverrideState(step);
 
     if (state.status === 'resolved') {

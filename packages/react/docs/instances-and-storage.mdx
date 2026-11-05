@@ -143,3 +143,24 @@ function AdminBookingPage() {
 If a shared helper is called before any instance has been created, it throws
 `NoActiveInstanceError` — make sure the owning route/provider has built its instance before any
 descendant calls a shared helper.
+
+## Async step definitions
+
+A step may be a zero-argument async function returning its full definition. Sync and async steps can be mixed. `defineMultiStepForm`, `.configure()`, and factory calls remain synchronous; creating a schema does not invoke its loaders.
+
+```ts
+const createForm = defineMultiStepForm({
+  steps: {
+    step1: { title: 'Contact', fields: { name: { defaultValue: '' } } },
+    step2: async () => ({
+      title: 'Preferences',
+      fields: { language: { defaultValue: await loadPreferredLanguage() } },
+    }),
+  },
+}).configure();
+
+const form = createForm();
+await form.stepSchema.resolveStep('step2');
+```
+
+Before resolution, the step has no fields. Check `getStepStatus` before reading them, or use the React `Suspend` helper around field content. Concurrent resolution calls share the loader result. Failures appear in `getStepError`; calling `resolveStep` again retries. Loaded definitions are cached per instance, and resets restore their original defaults without calling the loader again.

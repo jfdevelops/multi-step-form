@@ -135,12 +135,12 @@ describe('react defineMultiStepForm: definition schema surface', () => {
 
   it('restricts state selectors to fields on their step', () => {
     function defineInvalidSelector() {
+      // @ts-expect-error State selectors must reference a field on this step.
       return defineMultiStepForm({
         steps: {
           step1: {
             title: 'Step 1',
             fields: { firstName: { defaultValue: '' } },
-            // @ts-expect-error State selectors must reference a field on this step.
             state: {
               greeting: {
                 select: 'lastName',
@@ -158,11 +158,11 @@ describe('react defineMultiStepForm: definition schema surface', () => {
 
 describe('react defineMultiStepForm: nameTransformCasing', () => {
   it('is not accepted at define time and threads through .configure() instead', () => {
+    // @ts-expect-error "nameTransformCasing" moved to .configure()
     defineMultiStepForm({
       steps: {
         step1: { title: 'Step 1', fields: { firstName: { defaultValue: '' } } },
       },
-      // @ts-expect-error "nameTransformCasing" moved to .configure()
       nameTransformCasing: 'camel',
     });
 

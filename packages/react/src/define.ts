@@ -19,6 +19,9 @@ import {
   type MultiStepFormFactoryCreateValueOverrideFn,
   scheduleOverrideResolution,
   type StepConfig,
+  type AsyncStepMap,
+  type RequireAsyncStep,
+  type ResolvedStepMap,
   type StepNumbers,
   type StepSpecificHelperFn,
   type WithOverridesMap,
@@ -916,6 +919,25 @@ export class MultiStepFormReactDefinition<
  *   .withContext();
  * ```
  */
+export function defineMultiStepForm<
+  const steps extends StepConfig,
+  const contextualSteps extends StepConfig,
+  const instances extends readonly string[] | undefined = undefined,
+>(
+  options: {
+    steps: steps;
+    instances?: instances;
+  } & DefineMultiStepFormOptions<contextualSteps, instances>,
+): MultiStepFormReactDefinition<steps, instances>;
+
+export function defineMultiStepForm<
+  const steps extends AsyncStepMap,
+  const instances extends readonly string[] | undefined = undefined,
+>(options: {
+  steps: steps & RequireAsyncStep<steps>;
+  instances?: instances;
+}): MultiStepFormReactDefinition<ResolvedStepMap<steps>, instances>;
+
 export function defineMultiStepForm<
   const steps extends StepConfig,
   const contextualSteps extends StepConfig,

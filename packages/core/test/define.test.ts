@@ -34,11 +34,11 @@ describe('defineMultiStepForm: factory call typing', () => {
   });
 
   it('does not accept "nameTransformCasing" at define time', () => {
+    // @ts-expect-error "nameTransformCasing" moved to .configure()
     defineMultiStepForm({
       steps: {
         step1: { title: 'Step 1', fields: { firstName: { defaultValue: '' } } },
       },
-      // @ts-expect-error "nameTransformCasing" moved to .configure()
       nameTransformCasing: 'camel',
     });
   });
