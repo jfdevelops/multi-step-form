@@ -19,7 +19,10 @@ describe('async step definitions', () => {
         step2: loader,
       },
     }).configure({ nameTransformCasing: 'camel' })();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
     expect(loader).not.toHaveBeenCalled();
+    expect(schema.stepSchema.isStepComplete('step2')).toBe(false);
+    expect(schema.stepSchema.value.step2.isComplete).toBe(false);
     expect(schema.stepSchema.getStepStatus('step2')).toBe('idle');
     await Promise.all([
       schema.stepSchema.resolveStep('step2'),
@@ -31,6 +34,7 @@ describe('async step definitions', () => {
     expect(step.fields.firstName.name).toBe('firstName');
     expect(step.state.length.value).toBe(7);
     expect(step.validate().success).toBe(true);
+    expect(schema.stepSchema.isStepComplete('step2')).toBe(true);
     step.update({
       fields: 'all',
       updater: ({ ctx }) => ({
@@ -63,6 +67,7 @@ describe('async step definitions', () => {
     }).configure()();
     await expect(schema.stepSchema.resolveStep('step1')).rejects.toBe(error);
     expect(schema.stepSchema.getStepError('step1')).toBe(error);
+    expect(schema.stepSchema.isStepComplete('step1')).toBe(false);
     expect(() => schema.stepSchema.suspendStep('step1')).toThrow(error);
     await schema.stepSchema.resolveStep('step1');
     expect(schema.stepSchema.getStepStatus('step1')).toBe('resolved');

@@ -903,6 +903,11 @@ export class MultiStepFormStepSchema<
 
   resolveOverrides(steps = Object.keys(this.value) as StepNumbers<value>[]) {
     for (const step of steps) {
+      // Factory setup resolves value overrides; full definitions stay lazy.
+      if (typeof this.resolvedDefinitions[step] === 'function') {
+        continue;
+      }
+
       void this.resolveStep(step).catch(() => {
         // Resolution errors remain available through the public step error state.
       });

@@ -599,13 +599,18 @@ export class MultiStepFormStepSchema<
       );
       const useStep = this.createUseStep(step);
       const SuspendStep = this.createStepSuspend(step);
+      const getValidation = () => (
+        this.resolvedDefinitions[step] as { validateFields?: unknown } | undefined
+      )?.validateFields;
+      const getValues = () =>
+        this.createDefaultValues(step as never) as FormLibraryValues;
       const formLibraryBinding: FormLibraryBinding = {
-        defaultValues: this.createDefaultValues(
-          step as never,
-        ) as FormLibraryValues,
-        validation: (
-          this.resolvedDefinitions[step] as { validateFields?: unknown } | undefined
-        )?.validateFields,
+        get defaultValues() {
+          return getValues();
+        },
+        get validation() {
+          return getValidation();
+        },
         getValues: () =>
           this.createDefaultValues(step as never) as FormLibraryValues,
         setValues: (values) => {
@@ -639,7 +644,19 @@ export class MultiStepFormStepSchema<
         subscribe: this.subscribe,
       };
 
+      const subscribeToFormLibrary = extraConfig?.formLibrary
+        ? this.subscribe
+        : () => () => {};
+
       return ((props: props) => {
+        // Adapter options must be recomputed when a lazy definition supplies validation.
+        // Other step components keep their existing selector-based subscriptions.
+        useSyncExternalStoreWithSelector(
+          subscribeToFormLibrary,
+          () => this.value,
+          () => this.value,
+          (value) => extraConfig?.formLibrary ? value[step] : undefined,
+        );
         const resolvedCtx = this.createResolvedCtx({
           stepData,
           ctxData,

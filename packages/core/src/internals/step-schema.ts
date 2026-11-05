@@ -858,6 +858,10 @@ export class MultiStepFormStepSchemaInternal<
           validateFields?: StandardSchemaValidator;
         }
       | undefined;
+    if (typeof original === 'function') {
+      return false;
+    }
+
     const currentStep = stepValue as {
       fields: Record<string, { defaultValue: unknown }>;
     };

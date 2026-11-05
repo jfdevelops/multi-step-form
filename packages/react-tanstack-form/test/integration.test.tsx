@@ -267,3 +267,33 @@ describe('TanStack Form integration', () => {
     expect(screen.getByTestId('value').textContent).toBe('empty');
   });
 });
+
+it('refreshes adapter validation after an async definition resolves', async () => {
+  const validation = { '~standard': {
+    version: 1 as const,
+    vendor: 'test',
+    validate: (value: unknown) => ({ value: value as { firstName: string } }),
+  } };
+  const formOptions = vi.fn(() => ({}));
+  const createForm = defineMultiStepForm({ steps: {
+    step1: async () => ({
+      title: 'Loaded',
+      fields: { firstName: { defaultValue: 'Taylor' } },
+      validateFields: validation,
+    }),
+  } }).configure({ formLibrary: tanstackForm({ formOptions }) });
+  const schema = createForm();
+  const Step = schema.stepSchema.value.step1.createComponent({
+    formLibrary: true,
+    render: ({ form }) => <form.Subscribe selector={(state) => state.values.firstName}>
+      {(value) => <output data-testid="loaded-value">{value}</output>}
+    </form.Subscribe>,
+  });
+  const screen = await renderInJsdom(<Step />);
+  await act(async () => { await schema.stepSchema.resolveStep('step1'); });
+  expect(screen.getByTestId('loaded-value').textContent).toBe('Taylor');
+  expect(formOptions).toHaveBeenLastCalledWith({
+    defaultValues: { firstName: 'Taylor' },
+    validation,
+  });
+});

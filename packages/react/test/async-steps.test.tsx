@@ -16,6 +16,9 @@ it('preserves React factories and useStep across lazy resolution and updates', a
     steps: { step1: loader },
   }).configure();
   const form = createForm();
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  expect(loader).not.toHaveBeenCalled();
+  expect(form.stepSchema.isStepComplete('step1')).toBe(false);
   const factory = form.stepSchema.value.step1.createComponent;
   const Step = factory({
     render: ({ useStep }) => {
