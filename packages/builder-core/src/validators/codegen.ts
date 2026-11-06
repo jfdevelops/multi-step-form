@@ -9,8 +9,9 @@ export interface CheckPredicate {
   code: string;
 }
 
+/** Generated code is a TypeScript module, so helpers are typed. */
 const IS_URL_CODE =
-  '(value) => {\n  try {\n    new URL(value);\n    return true;\n  } catch {\n    return false;\n  }\n}';
+  "(value: unknown): boolean => {\n  if (typeof value !== 'string') return false;\n\n  try {\n    new URL(value);\n    return true;\n  } catch {\n    return false;\n  }\n}";
 
 function toTime(value: unknown) {
   if (value instanceof Date) return value.getTime();

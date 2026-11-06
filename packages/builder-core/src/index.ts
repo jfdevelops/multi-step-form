@@ -49,7 +49,10 @@ export {
   type SchemaPath,
   type SchemaPathSegment,
 } from './schema.js';
-export { FormBuilderError, type FormBuilderErrorContext } from './errors.js';
+export {
+  FormBuilderError,
+  type FormBuilderErrorContext,
+} from './errors.js';
 export {
   BUILTIN_FIELD_TYPES,
   createRegistry,
@@ -77,11 +80,26 @@ export {
   createValidatorAdapter,
   type ValidatorAdapterOptions,
 } from './validators/adapter.js';
-export { createCodegen, type CheckPredicate, type Codegen } from './validators/codegen.js';
 export {
+  createCodegen,
+  type CheckPredicate,
+  type Codegen,
+} from './validators/codegen.js';
+export {
+  createImportBinding,
   createImportStatement,
-  createSchemaBuilder,
   type ImportReference,
+} from './validators/import-bindings/binding.js';
+export {
+  InvalidImportBindingError,
+  type InvalidImportBindingContext,
+} from './validators/import-bindings/error.js';
+export {
+  IMPORT_BINDING_KINDS,
+  type ImportBindingKind,
+} from './validators/import-bindings/schema.js';
+export {
+  createSchemaBuilder,
   type ActionHandlers,
   type ActionOf,
   type ChainHandlers,
@@ -94,7 +112,12 @@ export {
   type SchemaBuilderDefinition,
   type SchemaKindBuilders,
 } from './validators/schema-builder.js';
-export { createExpr, isExpr, printExpr, unwrapExpr } from './validators/expr.js';
+export {
+  createExpr,
+  isExpr,
+  printExpr,
+  unwrapExpr,
+} from './validators/expr.js';
 export {
   allowsEmptyString,
   compilePattern,
@@ -132,6 +155,9 @@ export {
   type CompiledDefinition,
   type CompiledField,
   type CompiledStep,
+  type DefinitionForm,
+  type DefinitionFormField,
+  type DefinitionFormStep,
   type FromStepsConfigOptions,
   type GenerateCodeOptions,
   type GeneratedCode,

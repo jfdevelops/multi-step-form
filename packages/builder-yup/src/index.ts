@@ -29,11 +29,9 @@ export function toStandardSchema(schema: yup.Schema) {
         try {
           return { value: schema.validateSync(value, { abortEarly: false, strict: true }) };
         } catch (error) {
-          const yupError = error as YupError;
+          if (!(error instanceof yup.ValidationError)) throw error;
 
-          if (!yupError || !Array.isArray(yupError.inner)) throw error;
-
-          const errors = yupError.inner.length > 0 ? yupError.inner : [yupError];
+          const errors = error.inner.length > 0 ? error.inner : [error];
 
           return {
             issues: errors.map((entry) => ({ message: entry.message, path: toPath(entry.path) })),
@@ -44,16 +42,19 @@ export function toStandardSchema(schema: yup.Schema) {
   };
 }
 
-const TO_STANDARD_CODE = `(schema) => ({
+/** The same wrapper, as typed source for generated modules. */
+const TO_STANDARD_CODE = `<T extends yup.Schema>(schema: T) => ({
   '~standard': {
-    version: 1,
+    version: 1 as const,
     vendor: 'yup',
-    validate(value) {
+    validate(value: unknown) {
       try {
-        return { value: schema.validateSync(value, { abortEarly: false, strict: true }) };
+        return { value: schema.validateSync(value, { abortEarly: false, strict: true }) as yup.InferType<T> };
       } catch (error) {
-        if (!error || !Array.isArray(error.inner)) throw error;
+        if (!(error instanceof yup.ValidationError)) throw error;
+
         const errors = error.inner.length > 0 ? error.inner : [error];
+
         return {
           issues: errors.map((entry) => ({
             message: entry.message,
@@ -131,7 +132,7 @@ export const yupSchemaBuilder = createSchemaBuilder({
 
             return true;
           },
-          `(input, test) => {\n  for (const [key, item] of Object.entries(input ?? {})) {\n    try {\n      ${printExpr(value).replace(/\n/g, '\n      ')}.validateSync(item, { strict: true });\n    } catch (error) {\n      return test.createError({ path: \`\${test.path}.\${key}\`, message: error.message });\n    }\n  }\n  return true;\n}`,
+          `(input, test) => {\n  for (const [key, item] of Object.entries(input ?? {})) {\n    try {\n      ${printExpr(value).replace(/\n/g, '\n      ')}.validateSync(item, { strict: true });\n    } catch (error) {\n      return test.createError({ path: \`\${test.path}.\${key}\`, message: (error as yup.ValidationError).message });\n    }\n  }\n  return true;\n}`,
         ),
       );
     },

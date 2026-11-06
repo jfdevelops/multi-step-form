@@ -26,7 +26,12 @@ export const valibotSchemaBuilder = createSchemaBuilder({
           length: (check, message) => ctx.lib.length(check.value, message),
           email: (_check, message) => ctx.lib.regex(ctx.email, message),
           uuid: (_check, message) => ctx.lib.regex(ctx.uuid, message),
-          url: (_check, message) => ctx.lib.check(ctx.isUrl, message),
+          url: (check, message) => {
+            const predicate = ctx.predicate(check, node);
+
+            // An inline function, so the pipe types its input as the string being checked.
+            return ctx.lib.check(ctx.fn((value: string) => predicate.test(value), `(value) => ${predicate.code}`), message);
+          },
           pattern: (check, message) => ctx.lib.regex(ctx.pattern(check), message),
         }),
       ),

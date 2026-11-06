@@ -8,6 +8,10 @@ import type {
   ValidatorAdapter,
 } from './types.js';
 
+export type CreateValidatorAdapterBuildFn<TReturn> = (
+  spec: ResolvedStepSchema,
+) => TReturn;
+
 /**
  * The options for one adapter. `compile` and `emit` receive what the adapter's build callback
  * returned for the same spec, so a step is only built once.
@@ -28,10 +32,17 @@ export interface ValidatorAdapterOptions<TBuilt> {
    */
   supports?(node: SchemaNode): true | string;
   /** Returns the runtime validator. */
-  compile(spec: ResolvedStepSchema, built: TBuilt): StandardSchemaV1<StepValues, StepValues>;
+  compile(
+    spec: ResolvedStepSchema,
+    built: TBuilt,
+  ): StandardSchemaV1<StepValues, StepValues>;
   /** Returns the validator's source code. */
   emit(spec: ResolvedStepSchema, built: TBuilt): EmittedValidator;
 }
+
+export type CreatedValidatorAdapter<TBuilt> = (
+  options: ValidatorAdapterOptions<TBuilt>,
+) => ValidatorAdapter;
 
 function genericSupport(node: SchemaNode): true | string {
   for (const check of node.checks ?? []) {
@@ -65,27 +76,40 @@ function genericSupport(node: SchemaNode): true | string {
  * });
  * ```
  */
-export function createValidatorAdapter<TBuilt>(build: (spec: ResolvedStepSchema) => TBuilt) {
-  return (options: ValidatorAdapterOptions<TBuilt>): ValidatorAdapter => {
+export function createValidatorAdapter<TBuilt>(
+  build: CreateValidatorAdapterBuildFn<TBuilt>,
+) {
+  const createValidatorAdapter: CreatedValidatorAdapter<TBuilt> = ({
+    library,
+    label,
+    packages,
+    supports,
+    compile,
+    emit,
+  }) => {
     const cache = new WeakMap<ResolvedStepSchema, TBuilt>();
-    const built = (spec: ResolvedStepSchema) => {
+    // `compile` and `emit` are usually called with the same spec; the cache runs `build` once per spec.
+    const built: CreateValidatorAdapterBuildFn<NonNullable<TBuilt>> = (
+      spec,
+    ) => {
       if (!cache.has(spec)) cache.set(spec, build(spec));
 
       return cache.get(spec)!;
     };
 
     return {
-      library: options.library,
-      label: options.label,
-      packages:
-        typeof options.packages === 'function' ? options.packages(options.library) : options.packages,
+      library,
+      label,
+      packages: typeof packages === 'function' ? packages(library) : packages,
       supports(node) {
         const generic = genericSupport(node);
 
-        return generic === true ? (options.supports?.(node) ?? true) : generic;
+        return generic === true ? (supports?.(node) ?? true) : generic;
       },
-      compile: (spec) => options.compile(spec, built(spec)),
-      emit: (spec) => options.emit(spec, built(spec)),
+      compile: (spec) => compile(spec, built(spec)),
+      emit: (spec) => emit(spec, built(spec)),
     };
   };
+
+  return createValidatorAdapter;
 }

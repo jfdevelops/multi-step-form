@@ -3,6 +3,7 @@
  * compiles it: the same fields fail, with the messages the builder controls.
  */
 import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import {
   compileDefinition,
@@ -260,10 +261,14 @@ export function describeConformance(adapter: ValidatorAdapter) {
         else if (fallback) bindings[fallback[1]!] = mod.default ?? mod;
       });
 
-      const validator = new Function(
-        ...Object.keys(bindings),
-        `${emitted.declarations.join('\n')}\nreturn ${emitted.code};`,
-      )(...Object.values(bindings)) as { '~standard': { validate(value: unknown): { issues?: unknown[] } } };
+      // Emitted code is TypeScript; strip the types before running it.
+      const { outputText } = ts.transpileModule(
+        `(() => {\n${emitted.declarations.join('\n')}\nreturn ${emitted.code};\n})()`,
+        { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+      );
+      const validator = new Function(...Object.keys(bindings), `return ${outputText}`)(
+        ...Object.values(bindings),
+      ) as { '~standard': { validate(value: unknown): { issues?: unknown[] } } };
 
       expect(validator['~standard'].validate(valid).issues ?? []).toEqual([]);
       expect((validator['~standard'].validate({ ...valid, email: 'nope' }).issues ?? []).length).toBeGreaterThan(0);

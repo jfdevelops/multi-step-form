@@ -46,7 +46,9 @@ export function isEmptyValue(value: unknown) {
 }
 
 function describeBound(node: SchemaNode | undefined, value: number | string) {
-  return node?.kind === 'date' ? new Date(value).toLocaleDateString('en-US') : String(value);
+  return node?.kind === 'date'
+    ? new Date(value).toLocaleDateString('en-US')
+    : String(value);
 }
 
 /** The message a check reports when it has no `message` of its own. */
@@ -89,7 +91,8 @@ export function defaultCheckMessage(check: SchemaCheck, node?: SchemaNode) {
 export function allowsEmptyString(node: SchemaNode) {
   return (
     node.kind === 'string' ||
-    (node.kind === 'enum' && node.values.some((value) => typeof value === 'string')) ||
+    (node.kind === 'enum' &&
+      node.values.some((value) => typeof value === 'string')) ||
     (node.kind === 'literal' && typeof node.value === 'string')
   );
 }

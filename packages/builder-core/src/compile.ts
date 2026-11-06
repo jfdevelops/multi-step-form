@@ -159,6 +159,36 @@ export function getConfigureOptions(definition: FormDefinition): CompiledConfigu
   };
 }
 
+/** A field of a form made from a definition, as the multi-step form resolves it. */
+export interface DefinitionFormField {
+  name: string;
+  defaultValue: unknown;
+  label?: string;
+  type?: string;
+  placeholder?: string;
+  description?: string;
+  isRequired: boolean;
+  props?: JsonObject;
+}
+
+/** A step of a form made from a definition. */
+export interface DefinitionFormStep {
+  title: string;
+  description?: string;
+  isComplete: boolean;
+  fields: Record<string, DefinitionFormField>;
+  update(options: { fields: string[]; updater: () => unknown }): void;
+}
+
+/**
+ * A form made from a definition. Its steps are only known at runtime, so this describes what every
+ * such form has rather than a specific form's fields.
+ */
+export interface DefinitionForm {
+  stepSchema: { value: Record<string, DefinitionFormStep> };
+  subscribe(listener: () => void): () => void;
+}
+
 /**
  * Turns a definition into a configured multi-step form factory: the same thing the generated
  * source code exports as `createForm`.
@@ -167,9 +197,9 @@ export function createFormFromDefinition(
   definition: FormDefinition,
   options: CompileDefinitionOptions = {},
 ) {
-  // The compiled shape is only known at runtime, so the factory is untyped.
+  // The compiled shape is only known at runtime; `DefinitionForm` describes what every form has.
   const defined = defineMultiStepForm(compileDefinition(definition, options) as never) as unknown as {
-    configure(options: CompiledConfigureOptions): (options?: { instance?: string }) => unknown;
+    configure(options: CompiledConfigureOptions): (options?: { instance?: string }) => DefinitionForm;
   };
 
   return defined.configure(getConfigureOptions(definition));
@@ -319,6 +349,11 @@ export interface GenerateCodeOptions {
   factoryName?: string;
   /** The exported instance's name, for forms without named instances. @default 'form' */
   instanceName?: string;
+  /**
+   * The exported field settings a hand-written form doesn't type (help text, choice options).
+   * @default 'fieldMetadata'
+   */
+  metadataName?: string;
 }
 
 export interface GeneratedStep {
@@ -342,6 +377,11 @@ export interface GeneratedType {
 export interface GeneratedCode {
   /** The whole TypeScript module. */
   source: string;
+  /**
+   * Just the steps' Standard Schema validators, with their imports and helpers, as a module of
+   * its own. Empty when no step has builder-managed validation.
+   */
+  validatorsSource: string;
   /** npm packages the module imports, so an editor can load their types. */
   packages: string[];
   steps: GeneratedStep[];
@@ -382,6 +422,8 @@ export function generateCode(
   const validators: string[] = [];
   const steps: GeneratedStep[] = [];
   const stepBlocks: string[] = [];
+  // Field settings a hand-written multi-step form doesn't type (help text, choice options).
+  const metadataBlocks: string[] = [];
 
   definition.steps.forEach((step, index) => {
     const key = getStepKey(index);
@@ -393,6 +435,7 @@ export function generateCode(
       entries.push(`nameTransformCasing: ${JSON.stringify(step.nameTransformCasing)},`);
     }
 
+    const metadata: string[] = [];
     const fieldBlocks = step.fields.map((field) => {
       const lines: string[] = [];
       let value = toValueSource(field.schema, field.defaultValue);
@@ -416,17 +459,22 @@ export function generateCode(
         lines.push(`nameTransformCasing: ${JSON.stringify(field.nameTransformCasing)},`);
       }
       if (field.placeholder !== undefined) lines.push(`placeholder: ${JSON.stringify(field.placeholder)},`);
-      if (field.description !== undefined) lines.push(`description: ${JSON.stringify(field.description)},`);
       if (field.isRequired !== undefined) lines.push(`isRequired: ${field.isRequired},`);
       if (field.errorMessage !== undefined) lines.push(`errorMessage: ${JSON.stringify(field.errorMessage)},`);
+
+      const meta: string[] = [];
+
+      if (field.description !== undefined) meta.push(`description: ${JSON.stringify(field.description)},`);
       if (field.props && Object.keys(field.props).length > 0) {
-        lines.push(`props: ${toValueSource(undefined, field.props)},`);
+        meta.push(`props: ${toValueSource(undefined, field.props)},`);
       }
+      if (meta.length > 0) metadata.push(`${formatPropertyKey(field.key)}: ${block(meta)},`);
 
       return `${formatPropertyKey(field.key)}: ${block(lines)},`;
     });
 
     entries.push(`fields: ${block(fieldBlocks)},`);
+    if (metadata.length > 0) metadataBlocks.push(`${key}: ${block(metadata)},`);
 
     if (step.validation?.kind === 'code') {
       entries.push(`// validateFields lives in application code (${step.validation.ref}).`);
@@ -465,6 +513,7 @@ export function generateCode(
 
   const factoryName = options.factoryName ?? 'createForm';
   const instanceName = options.instanceName ?? 'form';
+  const metadataName = options.metadataName ?? 'fieldMetadata';
   const factory = `export const ${factoryName} = defineMultiStepForm(${block(defineEntries)}).configure(${
     configureEntries.length > 0 ? block(configureEntries) : ''
   });`;
@@ -475,16 +524,31 @@ export function generateCode(
       ...(declarations.size > 0 ? [[...declarations].join('\n\n')] : []),
       ...(types.length > 0 ? [types.map(({ name, type }) => `export type ${name} = ${type};`).join('\n\n')] : []),
       ...(validators.length > 0 ? [validators.join('\n\n')] : []),
+      ...(metadataBlocks.length > 0
+        ? [
+            `/** Field settings for rendering, such as help text and choice options. */\nexport const ${metadataName} = ${block(metadataBlocks)} as const;`,
+          ]
+        : []),
       factory,
       ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
     ].join('\n\n') + '\n';
+
+  const validatorImports = [...imports].filter((line) => !line.includes('defineMultiStepForm'));
+  const validatorsSource =
+    validators.length > 0
+      ? [
+          validatorImports.join('\n'),
+          ...(declarations.size > 0 ? [[...declarations].join('\n\n')] : []),
+          validators.join('\n\n'),
+        ].join('\n\n') + '\n'
+      : '';
 
   const packages = [...imports].flatMap((line) => {
     const match = PACKAGE_PATTERN.exec(line);
     return match ? [match[1]!] : [];
   });
 
-  return { source, packages: [...new Set(packages)], steps, types };
+  return { source, validatorsSource, packages: [...new Set(packages)], steps, types };
 }
 
 /** {@linkcode generateCode}'s module source. */
