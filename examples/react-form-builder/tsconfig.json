@@ -1,11 +1,11 @@
 {
-  "include": ["src", "vite.config.ts"],
+  "include": ["src", "test", "vite.config.ts", "editor-types.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
     "noEmit": true,

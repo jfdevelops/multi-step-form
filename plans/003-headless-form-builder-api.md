@@ -1,21 +1,36 @@
 # Draft 003: Headless form builder UI API
 
-> **Status**: IN PROGRESS. The first slice is implemented in `packages/builder-core`,
-> `packages/builder-zod` and `packages/builder-react`. Decisions made during implementation:
+> **Status**: IN PROGRESS. Implemented in `packages/builder-core`, `packages/builder-react`, one
+> adapter package per Standard Schema library (`builder-zod`, `-valibot`, `-arktype`, `-effect`,
+> `-yup`, `-joi`) and `examples/react-form-builder`. Where the sections below differ, this note
+> wins. Decisions made during implementation:
 >
-> - Each validator library is its own package (`@jfdevelops/multi-step-form-builder-zod`, …), not
->   a subpath, so consumers only install what they use.
-> - Steps have no stored key. Core treats `step{number}` as the step's position (progress uses it),
->   so a step compiles to `step{index + 1}` and is renumbered when reordered. `steps.add()` /
->   `<AddStepButton>` just append a step.
-> - Builder packages reuse core helpers instead of copying them (e.g. `changeCasing` for field
->   keys).
-> - Field `type` uses core's vocabulary (`string.email`, `boolean.switch`, …); the segment before
->   `.` is the value type.
-> - Drag and drop uses `@dnd-kit/react` in the React package; `builder-core` only exposes
->   `canDrop`/`drop`.
-> - Not built yet: conditions/branching (§7), preview runtime (§9), vanilla DOM bindings, nested
->   group/repeater fields.
+> - **Schema tree.** Every field has a `schema`: a recursive, library-agnostic description of its
+>   value (`string`, `number`, `boolean`, `date`, `literal`, `enum`, `object`, `array`, `record`,
+>   `union`, `unknown`; `optional`/`nullable`; checks on any node). It types the default value,
+>   drives the default value editor, and compiles to each step's validator. This replaces the
+>   per-step `validation.fields` rules of §1.1.
+> - **Validation.** A step uses the form's default library (`settings.validator`), its own, none,
+>   or code-owned validation. Each library is its own package. Adapters are written with
+>   `createSchemaBuilder` (one function per kind; calls on the library are recorded as source, so
+>   runtime and generated code can't drift) and `createValidatorAdapter` (builds once per spec for
+>   `compile` and `emit`). All adapters run one conformance suite.
+> - **Palette vs input type.** One palette entry per kind of value (Text, Number, Checkbox, Date,
+>   Choice, Multiple choice, Group, List). The input type (`string.email`, `boolean.switch`, …) is
+>   picked in the inspector and may add checks.
+> - **Labels** use core's `createFieldLabel` and `nameTransformCasing` (form, step and field).
+> - **Steps have no stored key.** Core treats `step{number}` as the step's position, so a step
+>   compiles to `step{index + 1}` and is renumbered when reordered.
+> - **Generated code** is a typed TypeScript module: value types for anything TypeScript can't
+>   infer, each step's validator, `fieldMetadata` (help text and options, which core's field types
+>   don't accept), and `createForm` with instances, casing and storage. The example typechecks it
+>   with every library.
+> - **Preview (§9)** runs the real multi-step form (`useFormPreview`), keeping entered values across
+>   edits. The code editor is not part of the packages: `useGeneratedCode` returns the source and
+>   the packages to load types for; the example wires Monaco.
+> - Builder packages reuse core helpers instead of copying them.
+> - Not built yet: conditions/branching (§7), vanilla DOM bindings, making an existing app's form
+>   editable in place.
 
 ## Goal
 

@@ -178,3 +178,13 @@ jobs:
           pnpm --filter=@jfdevelops/react-multi-step-form-builder typecheck
           pnpm --filter=@jfdevelops/react-multi-step-form-builder test
           pnpm --filter=@jfdevelops/react-multi-step-form-builder build
+
+      # The example checks that generated code typechecks with every library, and walks the UI.
+      # Generated code imports the React bindings, so their declarations must be built.
+      - name: Test & build (form builder example)
+        env:
+          CI: true
+        run: |
+          pnpm --filter=@jfdevelops/react-multi-step-form build
+          pnpm --filter=react-form-builder test
+          pnpm --filter=react-form-builder build
