@@ -161,13 +161,15 @@ jobs:
           pnpm --filter=@jfdevelops/multi-step-form-builder-core test
           pnpm --filter=@jfdevelops/multi-step-form-builder-core build
 
-      - name: Typecheck, test & build (builder-zod)
+      # One package per Standard Schema library: zod, valibot, arktype, effect, yup, joi.
+      - name: Typecheck, test & build (validator adapters)
         env:
           CI: true
         run: |
-          pnpm --filter=@jfdevelops/multi-step-form-builder-zod typecheck
-          pnpm --filter=@jfdevelops/multi-step-form-builder-zod test
-          pnpm --filter=@jfdevelops/multi-step-form-builder-zod build
+          ADAPTERS='--filter=./packages/builder-* --filter=!@jfdevelops/multi-step-form-builder-core --filter=!@jfdevelops/react-multi-step-form-builder'
+          pnpm $ADAPTERS typecheck
+          pnpm $ADAPTERS test
+          pnpm $ADAPTERS build
 
       - name: Typecheck, test & build (builder-react)
         env:

@@ -11,7 +11,7 @@
     "build:core": "pnpm -r --filter=@jfdevelops/multi-step-form-core run build",
     "build:react": "pnpm -r --filter=@jfdevelops/react-multi-step-form run build",
     "build:tanstack-form": "pnpm -r --filter=@jfdevelops/react-multi-step-form-tanstack run build",
-    "build:builder": "pnpm --filter=@jfdevelops/multi-step-form-builder-core run build && pnpm --filter=@jfdevelops/multi-step-form-builder-zod --filter=@jfdevelops/react-multi-step-form-builder run build",
+    "build:builder": "pnpm --filter=./packages/builder-* run build",
     "build:packages": "pnpm run build:core && pnpm run build:react && pnpm run build:tanstack-form && pnpm run build:builder",
     "dev": "pnpm -r dev",
     "test": "pnpm -r test",
