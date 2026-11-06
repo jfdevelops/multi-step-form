@@ -119,3 +119,72 @@ jobs:
       # declaration regressions that package-internal tests cannot expose.
       - name: Build example
         run: pnpm --filter=react-basic build
+
+  # ------------------------------------------------------------------
+  # JOB 3: Form builder packages (Downloads Core, then Runs)
+  # ------------------------------------------------------------------
+  builder:
+    name: Builder Build & Test
+    runs-on: ubuntu-latest
+    needs: core
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download Core Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: core-build
+          path: packages/core/dist
+
+      # The adapters and React bindings resolve builder-core through its package exports,
+      # so builder-core is typechecked, tested and built first.
+      - name: Typecheck, test & build (builder-core)
+        env:
+          CI: true
+        run: |
+          pnpm --filter=@jfdevelops/multi-step-form-builder-core typecheck
+          pnpm --filter=@jfdevelops/multi-step-form-builder-core test
+          pnpm --filter=@jfdevelops/multi-step-form-builder-core build
+
+      # One package per Standard Schema library: zod, valibot, arktype, effect, yup, joi.
+      - name: Typecheck, test & build (validator adapters)
+        env:
+          CI: true
+        run: |
+          ADAPTERS='--filter=./packages/builder-* --filter=!@jfdevelops/multi-step-form-builder-core --filter=!@jfdevelops/react-multi-step-form-builder'
+          pnpm $ADAPTERS typecheck
+          pnpm $ADAPTERS test
+          pnpm $ADAPTERS build
+
+      - name: Typecheck, test & build (builder-react)
+        env:
+          CI: true
+        run: |
+          pnpm --filter=@jfdevelops/react-multi-step-form-builder typecheck
+          pnpm --filter=@jfdevelops/react-multi-step-form-builder test
+          pnpm --filter=@jfdevelops/react-multi-step-form-builder build
+
+      # The example checks that generated code typechecks with every library, and walks the UI.
+      # Generated code imports the React bindings, so their declarations must be built.
+      - name: Test & build (form builder example)
+        env:
+          CI: true
+        run: |
+          pnpm --filter=@jfdevelops/react-multi-step-form build
+          pnpm --filter=react-form-builder test
+          pnpm --filter=react-form-builder build

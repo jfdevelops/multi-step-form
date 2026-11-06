@@ -1,0 +1,52 @@
+{
+  "name": "@jfdevelops/multi-step-form-builder-effect",
+  "version": "0.0.0",
+  "description": "Effect validator adapter for @jfdevelops/multi-step-form-builder-core",
+  "repository": "https://github.com/jfdevelops/multi-step-form",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "watch": "tsdown --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "forms",
+    "form-builder",
+    "effect",
+    "standard-schema",
+    "multi-step-form"
+  ],
+  "author": "Joey Finkel",
+  "license": "MIT",
+  "dependencies": {
+    "@jfdevelops/multi-step-form-builder-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0"
+  },
+  "devDependencies": {
+    "@jfdevelops/multi-step-form-core": "workspace:*",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.11",
+    "vitest": "^4.0.8",
+    "effect": "^4.1.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

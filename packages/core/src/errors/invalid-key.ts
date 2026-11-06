@@ -1,31 +1,31 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'invalidKey' as const;
+const context = type({
+  scope: "'invalidKey'",
+  invalidKeys: 'unknown[]',
+  validKeys: 'unknown[]',
+});
 
-export interface InvalidKeyContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  invalidKeys: unknown[];
-  validKeys: unknown[];
-}
+export type InvalidKeyContext = typeof context.infer;
 
-export class InvalidKeyError extends createMultiStepFormError(
-  { code: 'invalidKey', scope },
-)(
-  (scope, { invalidKeys, validKeys }: InvalidKeyContext) => {
+/** Thrown when an object has keys its step or field does not declare. */
+export class InvalidKeyError extends createMultiStepFormError({
+  code: 'invalidKey',
+  scope: 'invalidKey',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => {
     const formatter = new Intl.ListFormat('en', {
       style: 'long',
       type: 'conjunction',
     });
     const invalidMessage = `Invalid keys were found (${formatter.format(
-      invalidKeys.map(String),
+      context.invalidKeys.map(String),
     )}). Please remove them to continue.`;
     const validMessage = `The available keys are ${formatter.format(
-      validKeys.map(String),
+      context.validKeys.map(String),
     )}`;
 
     return `[${scope}]: ${invalidMessage} ${validMessage}`;
-  },
-) {}
+  }) {}

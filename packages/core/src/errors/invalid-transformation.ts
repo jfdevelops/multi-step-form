@@ -1,20 +1,20 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'transformation' as const;
+const context = type({
+  scope: "'transformation'",
+  reason: 'string',
+  'value?': 'unknown',
+  'transformation?': 'unknown',
+  'validValues?': 'unknown[]',
+});
 
-export interface InvalidTransformationContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  value?: unknown;
-  transformation?: unknown;
-  validValues?: unknown[];
-}
+export type InvalidTransformationContext = typeof context.infer;
 
-export class InvalidTransformationError extends createMultiStepFormError(
-  { code: 'invalidTransformation', scope },
-)(
-  (scope, { reason }: InvalidTransformationContext) => `[${scope}]: ${reason}`,
-) {}
+/** Thrown when a name transformation is invalid. */
+export class InvalidTransformationError extends createMultiStepFormError({
+  code: 'invalidTransformation',
+  scope: 'transformation',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

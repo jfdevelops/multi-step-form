@@ -1,19 +1,19 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'internal' as const;
+const context = type({
+  scope: "'internal'",
+  reason: 'string',
+  'operation?': 'string',
+  'value?': 'unknown',
+});
 
-export interface InvalidInternalStateContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  operation?: string;
-  value?: unknown;
-}
+export type InvalidInternalStateContext = typeof context.infer;
 
-export class InvalidInternalStateError extends createMultiStepFormError(
-  { code: 'invalidInternalState', scope },
-)(
-  (scope, { reason }: InvalidInternalStateContext) => `[${scope}]: ${reason}`,
-) {}
+/** Thrown when the form's internal state is inconsistent. */
+export class InvalidInternalStateError extends createMultiStepFormError({
+  code: 'invalidInternalState',
+  scope: 'internal',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

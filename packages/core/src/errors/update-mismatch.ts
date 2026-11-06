@@ -1,34 +1,29 @@
 import type { path } from '@/utils/path';
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'update' as const;
+const context = type({
+  scope: "'update'",
+  targetStep: 'string',
+  fields: 'unknown',
+  strict: 'boolean',
+  partial: 'boolean',
+  mismatches: type('object[]').as<path.Mismatch[]>(),
+  mismatchDetails: 'string',
+});
 
-export interface UpdateMismatchContext extends MultiStepFormErrorContext<typeof scope> {
-  targetStep: string;
-  fields: unknown;
-  strict: boolean;
-  partial: boolean;
-  mismatches: path.Mismatch[];
-  mismatchDetails: string;
-}
+export type UpdateMismatchContext = typeof context.infer;
 
-export class UpdateMismatchError extends createMultiStepFormError(
-  { code: 'updateMismatch', scope },
-)(
-  (
-    scope,
-    {
-      targetStep,
-      fields,
-      strict,
-      partial,
-      mismatchDetails,
-    }: UpdateMismatchContext,
-  ) =>
-    `[${scope}]: value mismatches for targetStep="${targetStep}", fields=${JSON.stringify(
-      fields,
-    )}, strict=${strict}, partial=${partial}\n${mismatchDetails}`,
-) {}
+/** Thrown when an update's values do not match the step's current shape. */
+export class UpdateMismatchError extends createMultiStepFormError({
+  code: 'updateMismatch',
+  scope: 'update',
+})
+  .defineContext(context)
+  .implement(
+    ({ context, scope }) =>
+      `[${scope}]: value mismatches for targetStep="${context.targetStep}", fields=${JSON.stringify(
+        context.fields,
+      )}, strict=${context.strict}, partial=${context.partial}
+${context.mismatchDetails}`,
+  ) {}
