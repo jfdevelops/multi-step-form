@@ -60,9 +60,11 @@ describe('createFormBuilder', () => {
     const second = builder.fields.add('string.email');
 
     expect(fieldKeys(builder)).toEqual(['email', 'email2']);
-    expect(builder.getField(first)).toMatchObject({
+    expect(builder.getField(first)).toEqual({
+      id: expect.any(String),
+      key: 'email',
       type: 'string.email',
-      label: 'Email',
+      schema: { kind: 'string', checks: [{ check: 'email' }] },
       defaultValue: '',
     });
     expect(builder.getSnapshot().selection).toMatchObject({
@@ -105,7 +107,7 @@ describe('history', () => {
 
     builder.fields.update(id, { label: 'Name' });
     builder.history.undo();
-    expect(builder.getField(id)?.label).toBe('Short text');
+    expect(builder.getField(id)?.label).toBeUndefined();
 
     builder.history.undo();
     expect(builder.getField(id)).toBeUndefined();
@@ -126,7 +128,7 @@ describe('history', () => {
     clock.advance(100);
     builder.fields.update(id, { label: 'Name' });
     builder.history.undo();
-    expect(builder.getField(id)?.label).toBe('Short text');
+    expect(builder.getField(id)?.label).toBeUndefined();
 
     builder.history.redo();
     clock.advance(1000);
@@ -146,7 +148,7 @@ describe('history', () => {
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(fieldKeys(builder)).toEqual(['shortText', 'number']);
+    expect(fieldKeys(builder)).toEqual(['text', 'number']);
     builder.history.undo();
     expect(fieldKeys(builder)).toEqual([]);
   });
@@ -192,51 +194,97 @@ describe('steps', () => {
 });
 
 describe('fields', () => {
-  it('sets nested properties by path', () => {
+  it('sets nested properties by path and keeps choice values in sync with options', () => {
     const { builder } = setup();
-    const id = builder.fields.add('string.select');
+    const id = builder.fields.add('choice');
+
+    expect(builder.getField(id)).toMatchObject({
+      type: 'string.select',
+      schema: { kind: 'enum', values: ['option1', 'option2'] },
+      defaultValue: '',
+    });
 
     builder.fields.setProperty(id, 'props.options', [{ value: 'a', label: 'A' }]);
     expect(builder.getField(id)?.props?.options).toEqual([{ value: 'a', label: 'A' }]);
+    expect(builder.getField(id)?.schema).toEqual({ kind: 'enum', values: ['a'] });
+    expect(builder.getField(id)?.defaultValue).toBe('');
 
     builder.fields.setProperty(id, 'placeholder', 'Pick one');
     builder.fields.setProperty(id, 'placeholder', undefined);
     expect(builder.getField(id)).not.toHaveProperty('placeholder');
   });
 
-  it('resets the default value and rules when the value type changes', () => {
-    const { builder, step } = setup();
-    const id = builder.fields.add('string', undefined, { key: 'age' });
-    builder.validation.useLibrary(step().id, 'builtin');
-    builder.validation.setFieldRules(step().id, 'age', { type: 'string', checks: [{ check: 'minLength', value: 2 }] });
+  it('swaps input type checks within a field type, keeping the rest of the schema', () => {
+    const { builder } = setup();
+    const id = builder.fields.add('text');
+
+    builder.fields.updateSchema(id, [], (node) => ({ ...node, checks: [{ check: 'minLength', value: 3 }] }));
+    builder.fields.update(id, { type: 'string.email' });
+    expect(builder.getField(id)?.schema).toEqual({
+      kind: 'string',
+      checks: [{ check: 'minLength', value: 3 }, { check: 'email' }],
+    });
+
+    builder.fields.update(id, { type: 'string.url' });
+    expect(builder.getField(id)?.schema.checks).toEqual([{ check: 'minLength', value: 3 }, { check: 'url' }]);
+  });
+
+  it('resets the schema and default value when the field type changes', () => {
+    const { builder } = setup();
+    const id = builder.fields.add('text', undefined, { key: 'age', defaultValue: 'old' });
 
     builder.fields.update(id, { type: 'number' });
 
-    expect(builder.getField(id)?.defaultValue).toBe(0);
-    expect(step().validation).toEqual({ kind: 'schema', library: 'builtin', fields: {} });
+    expect(builder.getField(id)).toMatchObject({ schema: { kind: 'number' }, defaultValue: 0 });
   });
 
-  it('renames rule entries and equalsField references with the key', () => {
+  it('fits the default value to schema edits', () => {
+    const { builder } = setup();
+    const id = builder.fields.add('object', undefined, { key: 'faces' });
+
+    builder.fields.updateSchema(id, [], (node) =>
+      node.kind === 'object'
+        ? {
+            ...node,
+            properties: [
+              { key: 'min', schema: { kind: 'number' } },
+              { key: 'faces', schema: { kind: 'array', item: { kind: 'string' } } },
+            ],
+          }
+        : node,
+    );
+    expect(builder.getField(id)?.defaultValue).toEqual({ min: 0, faces: [] });
+
+    builder.fields.setProperty(id, 'defaultValue', { min: 2, faces: ['a'] });
+    builder.fields.updateSchema(id, ['min'], () => ({ kind: 'string' }));
+    expect(builder.getField(id)?.defaultValue).toEqual({ min: '', faces: ['a'] });
+  });
+
+  it('renames equalsField references with the key', () => {
     const { builder, step } = setup();
-    builder.fields.add('string.password', undefined, { key: 'password' });
-    const confirm = builder.fields.add('string.password', undefined, { key: 'confirm' });
-    builder.validation.useLibrary(step().id, 'builtin');
-    builder.validation.setFieldRules(step().id, 'confirm', {
-      type: 'string',
-      checks: [{ check: 'equalsField', field: 'password' }],
+    const password = builder.fields.add('text', undefined, { key: 'password' });
+    builder.fields.add('text', undefined, {
+      key: 'confirm',
+      schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] },
     });
 
-    const password = step().fields[0]!.id;
     builder.fields.update(password, { key: 'secret' });
-    builder.fields.update(confirm, { key: 'secretConfirm' });
 
-    expect(step().validation).toEqual({
-      kind: 'schema',
-      library: 'builtin',
-      fields: {
-        secretConfirm: { type: 'string', checks: [{ check: 'equalsField', field: 'secret' }] },
-      },
+    expect(step().fields[1]!.schema.checks).toEqual([{ check: 'equalsField', field: 'secret' }]);
+  });
+
+  it('updates form settings, removing undefined ones', () => {
+    const { builder } = setup();
+
+    builder.settings.update({ nameTransformCasing: 'sentence', validator: 'builtin' });
+    expect(builder.getSnapshot().definition.settings).toEqual({
+      nameTransformCasing: 'sentence',
+      validator: 'builtin',
     });
+
+    builder.settings.update({ nameTransformCasing: undefined, validator: undefined });
+    expect(builder.getSnapshot().definition).not.toHaveProperty('settings');
+    expect(() => builder.settings.update({ validator: 'nope' })).toThrow(FormBuilderError);
   });
 
   it('removes fields and moves focus to the next field', () => {
@@ -265,25 +313,18 @@ describe('fields', () => {
     expect(fieldKeys(builder)).toEqual(['b', 'c', 'a']);
   });
 
-  it('moves fields across steps, keeping keys unique and carrying rules', () => {
-    const { builder, step } = setup();
-    const first = step().id;
+  it('moves fields across steps, keeping keys unique and carrying the schema', () => {
+    const { builder } = setup();
     const email = builder.fields.add('string.email', undefined, { key: 'email' });
-    builder.validation.useLibrary(first, 'builtin');
-    builder.validation.setFieldRules(first, 'email', { type: 'string', checks: [{ check: 'email' }] });
 
     const second = builder.steps.add();
-    builder.validation.useLibrary(second, 'builtin');
     builder.fields.add('string', { stepId: second }, { key: 'email' });
 
     builder.fields.move(email, { stepId: second, index: 0 });
 
     expect(fieldKeys(builder, 0)).toEqual([]);
     expect(fieldKeys(builder, 1)).toEqual(['email2', 'email']);
-    expect(builder.getStep(first)?.validation).toEqual({ kind: 'schema', library: 'builtin', fields: {} });
-    expect(builder.getStep(second)?.validation).toMatchObject({
-      fields: { email2: { type: 'string', checks: [{ check: 'email' }] } },
-    });
+    expect(builder.getField(email)?.schema).toEqual({ kind: 'string', checks: [{ check: 'email' }] });
   });
 
   it('duplicates fields right after the originals', () => {
@@ -381,15 +422,30 @@ describe('issues', () => {
         {
           id: 's1',
           title: 'One',
-          validation: {
-            kind: 'schema',
-            library: 'valibot',
-            fields: { b: { type: 'string', checks: [{ check: 'equalsField', field: 'gone' }] } },
-          },
+          validation: { kind: 'schema', library: 'valibot' },
           fields: [
-            { id: 'f1', key: 'a', type: 'string', defaultValue: '' },
-            { id: 'f2', key: 'a', type: 'mystery', defaultValue: '' },
-            { id: 'f3', key: 'b', type: 'string', defaultValue: '' },
+            { id: 'f1', key: 'a', type: 'string', schema: { kind: 'string' }, defaultValue: '' },
+            { id: 'f2', key: 'a', type: 'mystery', schema: { kind: 'string' }, defaultValue: '' },
+            {
+              id: 'f3',
+              key: 'b',
+              type: 'string',
+              schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'gone' }] },
+              defaultValue: 1,
+            },
+            {
+              id: 'f4',
+              key: 'c',
+              type: 'object',
+              schema: {
+                kind: 'object',
+                properties: [
+                  { key: 'x', schema: { kind: 'boolean', checks: [{ check: 'email' }] } },
+                  { key: 'x', schema: { kind: 'enum', values: [] } },
+                ],
+              },
+              defaultValue: {},
+            },
           ],
         },
         { id: 's2', title: '', fields: [] },
@@ -404,9 +460,25 @@ describe('issues', () => {
         'f2:unknown-field-type',
         's1:unknown-validator',
         'f3:dangling-field-reference',
+        'f3:default-value-mismatch',
+        'f4:duplicate-property-key',
+        'f4:empty-choice',
         's2:empty-step-title',
+        's2:empty-step',
       ]),
     );
+  });
+
+  it('reports checks a node can’t use against the step’s library', () => {
+    const { builder } = setup();
+    const id = builder.fields.add('boolean');
+
+    builder.settings.update({ validator: 'builtin' });
+    builder.fields.updateSchema(id, [], (node) => ({ ...node, checks: [{ check: 'email' }] }));
+
+    expect(builder.getSnapshot().issues).toEqual([
+      expect.objectContaining({ code: 'unsupported-schema', nodeId: id, schemaPath: [] }),
+    ]);
   });
 });
 
@@ -460,13 +532,16 @@ describe('registry', () => {
   it('is immutable and lets later registrations replace built-ins', () => {
     const registry = createRegistry();
     const extended = registry.withFieldType({
-      type: 'string',
-      label: 'Text',
-      defaultValue: '',
+      id: 'text',
+      label: 'Plain text',
+      inputTypes: [{ type: 'string', label: 'Text' }],
+      schema: { kind: 'string' },
     });
 
-    expect(registry.getFieldType('string')?.label).toBe('Short text');
-    expect(extended.getFieldType('string')?.label).toBe('Text');
+    expect(registry.getFieldType('string')?.label).toBe('Text');
+    expect(registry.getFieldType('string.email')?.id).toBe('text');
+    expect(extended.getFieldType('text')?.label).toBe('Plain text');
+    expect(extended.getFieldType('string.email')).toBeUndefined();
     expect(createRegistry({ builtins: false }).fieldTypes).toEqual([]);
     expect(registry.getValidator('builtin')).toBeDefined();
   });

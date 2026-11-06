@@ -1,18 +1,34 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import {
+  changeCasing,
+  defineMultiStepForm,
+  isCasingValid,
+  type CasingType,
+} from '@jfdevelops/multi-step-form-core';
+import {
   createId,
   DEFINITION_SCHEMA_VERSION,
   getStepKey,
-  getValueTypeFromFieldType,
   type FieldDefinition,
   type FormDefinition,
+  type FormSettings,
   type JsonObject,
-  type JsonValue,
   type StepDefinition,
 } from './definition.js';
 import { FormBuilderError } from './errors.js';
 import { createRegistry, type FormRegistry } from './registry.js';
-import { compileStepValidator, emitStepValidator } from './validation.js';
+import {
+  formatPropertyKey,
+  inferSchema,
+  matchesSchema,
+  needsTypeAnnotation,
+  toJsonValue,
+  toRuntimeValue,
+  toTypeScript,
+  toValueSource,
+  type SchemaNode,
+} from './schema.js';
+import { buildStepValidator, compileStepValidator } from './validation.js';
 import type { StepValues } from './validators/types.js';
 
 /** A field in the shape `defineMultiStepForm` accepts. */
@@ -20,6 +36,7 @@ export interface CompiledField {
   defaultValue: unknown;
   type?: string;
   label?: string | false;
+  nameTransformCasing?: CasingType;
   placeholder?: string;
   isRequired?: boolean;
   errorMessage?: string;
@@ -31,13 +48,22 @@ export interface CompiledField {
 export interface CompiledStep {
   title: string;
   description?: string;
+  nameTransformCasing?: CasingType;
   fields: Record<string, CompiledField>;
   validateFields?: StandardSchemaV1<StepValues, StepValues>;
   isComplete?: (values: StepValues) => boolean;
 }
 
+/** The options `defineMultiStepForm` accepts. */
 export interface CompiledDefinition {
   steps: Record<string, CompiledStep>;
+  instances?: string[];
+}
+
+/** The options `configure` accepts. */
+export interface CompiledConfigureOptions {
+  nameTransformCasing?: CasingType;
+  storage?: { key: string };
 }
 
 /** Code-owned step logic that a definition can only reference (`validation.kind: 'code'`). */
@@ -58,41 +84,36 @@ export interface CompileDefinitionOptions {
   ) => CodeStepLogic | undefined;
 }
 
-function isDateField(field: FieldDefinition, registry: FormRegistry) {
-  const valueType =
-    registry.getFieldType(field.type)?.valueType ??
-    getValueTypeFromFieldType(field.type);
-
-  return valueType === 'date';
+/** A date field's `type` must be `'date'` in a multi-step form. */
+function fieldType(field: FieldDefinition) {
+  return field.schema.kind === 'date' ? 'date' : field.type;
 }
 
-function compileField(field: FieldDefinition, registry: FormRegistry): CompiledField {
-  const date = isDateField(field, registry);
+function compileField(field: FieldDefinition): CompiledField {
   const compiled: CompiledField = {
-    defaultValue:
-      date && typeof field.defaultValue === 'string'
-        ? new Date(field.defaultValue)
-        : field.defaultValue,
-    // Date fields use core's narrower `'date' | 'string'` type option.
-    type: date ? 'date' : field.type,
+    defaultValue: toRuntimeValue(field.schema, field.defaultValue),
+    type: fieldType(field),
   };
 
   if (field.label !== undefined) compiled.label = field.label;
+  if (field.nameTransformCasing !== undefined) compiled.nameTransformCasing = field.nameTransformCasing;
   if (field.placeholder !== undefined) compiled.placeholder = field.placeholder;
+  if (field.description !== undefined) compiled.description = field.description;
   if (field.isRequired !== undefined) compiled.isRequired = field.isRequired;
   if (field.errorMessage !== undefined) compiled.errorMessage = field.errorMessage;
-  if (field.description !== undefined) compiled.description = field.description;
   if (field.props && Object.keys(field.props).length > 0) compiled.props = field.props;
 
   return compiled;
 }
 
 /**
- * Compiles a definition into the configuration `defineMultiStepForm` accepts, including
- * compiled step validators.
+ * Compiles a definition into the options `defineMultiStepForm` accepts, including compiled step
+ * validators. Use {@linkcode getConfigureOptions} for `configure`, or
+ * {@linkcode createFormFromDefinition} to do both.
  *
  * ```ts
- * const form = defineMultiStepForm(compileDefinition(definition, { registry })).configure()();
+ * const form = defineMultiStepForm(compileDefinition(definition, { registry }))
+ *   .configure(getConfigureOptions(definition))();
  * ```
  */
 export function compileDefinition(
@@ -106,17 +127,16 @@ export function compileDefinition(
     const key = getStepKey(index);
     const compiled: CompiledStep = {
       title: step.title,
-      fields: Object.fromEntries(
-        step.fields.map((field) => [field.key, compileField(field, registry)]),
-      ),
+      fields: Object.fromEntries(step.fields.map((field) => [field.key, compileField(field)])),
     };
 
     if (step.description !== undefined) compiled.description = step.description;
+    if (step.nameTransformCasing !== undefined) compiled.nameTransformCasing = step.nameTransformCasing;
 
     if (step.validation?.kind === 'code') {
       Object.assign(compiled, options.resolveCode?.(step, { key, index }) ?? {});
     } else {
-      const validator = compileStepValidator(step, registry);
+      const validator = compileStepValidator(step, registry, definition.settings);
 
       if (validator) compiled.validateFields = validator;
     }
@@ -124,7 +144,35 @@ export function compileDefinition(
     steps[key] = compiled;
   });
 
-  return { steps };
+  const instances = definition.settings?.instances?.filter((name) => name.trim());
+
+  return { steps, ...(instances && instances.length > 0 ? { instances } : {}) };
+}
+
+/** The `configure` options for a definition's form settings. */
+export function getConfigureOptions(definition: FormDefinition): CompiledConfigureOptions {
+  const settings = definition.settings;
+
+  return {
+    ...(settings?.nameTransformCasing ? { nameTransformCasing: settings.nameTransformCasing } : {}),
+    ...(settings?.storageKey ? { storage: { key: settings.storageKey } } : {}),
+  };
+}
+
+/**
+ * Turns a definition into a configured multi-step form factory: the same thing the generated
+ * source code exports as `createForm`.
+ */
+export function createFormFromDefinition(
+  definition: FormDefinition,
+  options: CompileDefinitionOptions = {},
+) {
+  // The compiled shape is only known at runtime, so the factory is untyped.
+  const defined = defineMultiStepForm(compileDefinition(definition, options) as never) as unknown as {
+    configure(options: CompiledConfigureOptions): (options?: { instance?: string }) => unknown;
+  };
+
+  return defined.configure(getConfigureOptions(definition));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -134,42 +182,44 @@ export function compileDefinition(
 export interface FromStepsConfigOptions {
   id?: string;
   idGenerator?: (kind: 'form' | 'step' | 'field') => string;
+  /** Form settings, e.g. the casing passed to `configure`. */
+  settings?: FormSettings;
+  /** Field types, to tell choice fields apart. Defaults to the built-ins. */
+  registry?: FormRegistry;
 }
 
-function toJson(value: unknown): JsonValue {
-  if (value instanceof Date) return value.toISOString();
-
-  return JSON.parse(JSON.stringify(value ?? null)) as JsonValue;
-}
-
-function inferType(config: Record<string, unknown>) {
-  const value = config.defaultValue;
-
-  if (value instanceof Date) return 'date';
+function inferFieldType(config: Record<string, unknown>, schema: SchemaNode) {
+  if (schema.kind === 'date') return 'date';
   if (typeof config.type === 'string') return config.type;
-  if (typeof value === 'string') return 'string';
-  if (typeof value === 'number') return 'number';
-  if (typeof value === 'boolean') return 'boolean';
-  if (Array.isArray(value)) return 'array';
-  if (value && typeof value === 'object') return 'object';
 
-  return 'string';
+  switch (schema.kind) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'array':
+    case 'object':
+      return schema.kind;
+    default:
+      return 'object';
+  }
 }
 
 /**
  * Reads a hand-written steps config (the `steps` passed to `defineMultiStepForm`, also available
  * as `schema.stepSchema.original`) into a definition the builder can edit.
  *
- * Plain data (titles, labels, placeholders, defaults, field types) becomes editable. Step logic
- * written as functions or validator objects (`isComplete`, `validateFields`) is kept as
- * `validation: { kind: 'code' }`, which the builder shows but cannot edit. Use
- * `compileDefinition(definition, { resolveCode })` to reattach it.
+ * Plain data (titles, labels, placeholders, defaults, field types, casing) becomes editable, and
+ * each field's schema is inferred from its default value. Step logic written as functions or
+ * validator objects (`isComplete`, `validateFields`) is kept as `validation: { kind: 'code' }`,
+ * which the builder shows but cannot edit. Use `compileDefinition(definition, { resolveCode })`
+ * to reattach it.
  */
 export function fromStepsConfig(
   steps: Record<string, unknown>,
   options: FromStepsConfigOptions = {},
 ): FormDefinition {
   const id = options.idGenerator ?? createId;
+  const registry = options.registry ?? createRegistry();
   const result: StepDefinition[] = [];
 
   // Steps run in step-number order, which is also how a multi-step form orders them.
@@ -192,29 +242,52 @@ export function fromStepsConfig(
       id: id('step'),
       title: typeof config.title === 'string' ? config.title : stepKey,
       fields: Object.entries(fields).map(([fieldKey, fieldConfig]) => {
+        let schema = inferSchema(fieldConfig.defaultValue);
+        const type = inferFieldType(fieldConfig, schema);
+        const props =
+          fieldConfig.props && typeof fieldConfig.props === 'object'
+            ? (toJsonValue(fieldConfig.props) as JsonObject)
+            : undefined;
+        const options = Array.isArray(props?.options) ? props.options : undefined;
+
+        // Choice fields: their options are the allowed values.
+        if (options && registry.getFieldType(type)?.id === 'choice') {
+          schema = {
+            kind: 'enum',
+            values: options.flatMap((option) =>
+              option && typeof option === 'object' && !Array.isArray(option) && typeof option.value === 'string'
+                ? [option.value]
+                : [],
+            ),
+          };
+        }
+
         const field: FieldDefinition = {
           id: id('field'),
           key: fieldKey,
-          type: inferType(fieldConfig),
-          defaultValue: toJson(fieldConfig.defaultValue),
+          type,
+          schema,
+          defaultValue: toJsonValue(fieldConfig.defaultValue),
         };
 
         if (typeof fieldConfig.label === 'string' || fieldConfig.label === false) {
           field.label = fieldConfig.label;
         }
+        if (isCasingValid(fieldConfig.nameTransformCasing)) {
+          field.nameTransformCasing = fieldConfig.nameTransformCasing;
+        }
         if (typeof fieldConfig.placeholder === 'string') field.placeholder = fieldConfig.placeholder;
         if (typeof fieldConfig.description === 'string') field.description = fieldConfig.description;
         if (typeof fieldConfig.isRequired === 'boolean') field.isRequired = fieldConfig.isRequired;
         if (typeof fieldConfig.errorMessage === 'string') field.errorMessage = fieldConfig.errorMessage;
-        if (fieldConfig.props && typeof fieldConfig.props === 'object') {
-          field.props = toJson(fieldConfig.props) as JsonObject;
-        }
+        if (props) field.props = props;
 
         return field;
       }),
     };
 
     if (typeof config.description === 'string') step.description = config.description;
+    if (isCasingValid(config.nameTransformCasing)) step.nameTransformCasing = config.nameTransformCasing;
 
     if (config.validateFields !== undefined) {
       step.validation = { kind: 'code', ref: `${stepKey}.validateFields` };
@@ -229,6 +302,7 @@ export function fromStepsConfig(
     schemaVersion: DEFINITION_SCHEMA_VERSION,
     id: options.id ?? id('form'),
     revision: 0,
+    ...(options.settings ? { settings: options.settings } : {}),
     steps: result,
   };
 }
@@ -237,76 +311,183 @@ export function fromStepsConfig(
 // Definition → source code
 // ---------------------------------------------------------------------------------------------
 
-export interface ToSourceOptions {
+export interface GenerateCodeOptions {
   registry?: FormRegistry;
   /** The package `defineMultiStepForm` is imported from. @default '@jfdevelops/react-multi-step-form' */
   importFrom?: string;
-  /** The exported constant's name. @default 'form' */
-  exportName?: string;
+  /** The exported factory's name. @default 'createForm' */
+  factoryName?: string;
+  /** The exported instance's name, for forms without named instances. @default 'form' */
+  instanceName?: string;
 }
 
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
-const propertyKey = (key: string) => (IDENTIFIER.test(key) ? key : JSON.stringify(key));
+export interface GeneratedStep {
+  key: `step${number}`;
+  title: string;
+  /** The validator library, when the step has builder-managed validation. */
+  library?: string;
+  /** The step's Standard Schema validator, as an exported constant. */
+  validator?: { name: string; code: string };
+}
+
+export interface GeneratedType {
+  /** The exported type alias, e.g. `Step2Faces`. */
+  name: string;
+  /** The type, e.g. `Array<{ id: string }>`. */
+  type: string;
+  stepKey: string;
+  fieldKey: string;
+}
+
+export interface GeneratedCode {
+  /** The whole TypeScript module. */
+  source: string;
+  /** npm packages the module imports, so an editor can load their types. */
+  packages: string[];
+  steps: GeneratedStep[];
+  /** Exported type aliases for field values TypeScript can't infer from the default value. */
+  types: GeneratedType[];
+}
 
 function indent(text: string, spaces: number) {
   const pad = ' '.repeat(spaces);
 
   return text
     .split('\n')
-    .map((line, index) => (index === 0 ? line : pad + line))
+    .map((line, index) => (index === 0 || line === '' ? line : pad + line))
     .join('\n');
 }
 
+function block(entries: readonly string[]) {
+  return `{\n${entries.map((entry) => `  ${indent(entry, 2)}`).join('\n')}\n}`;
+}
+
+const PACKAGE_PATTERN = /from '([^']+)'/;
+
 /**
- * Writes a TypeScript module that defines the form by hand, so a form designed in a builder can
- * be committed to an application with full type inference.
+ * Writes the definition as a TypeScript module that defines the form by hand, so a form designed
+ * in a builder can be committed to an application with full type inference. Also returns each
+ * step's validator and the value types on their own, for showing next to the builder.
  */
-export function toSource(definition: FormDefinition, options: ToSourceOptions = {}) {
+export function generateCode(
+  definition: FormDefinition,
+  options: GenerateCodeOptions = {},
+): GeneratedCode {
   const registry = options.registry ?? createRegistry();
-  const imports = new Set<string>([
-    `import { defineMultiStepForm } from '${options.importFrom ?? '@jfdevelops/react-multi-step-form'}';`,
-  ]);
+  const settings = definition.settings;
+  const importFrom = options.importFrom ?? '@jfdevelops/react-multi-step-form';
+  const imports = new Set<string>([`import { defineMultiStepForm } from '${importFrom}';`]);
   const declarations = new Set<string>();
+  const types: GeneratedType[] = [];
+  const validators: string[] = [];
+  const steps: GeneratedStep[] = [];
   const stepBlocks: string[] = [];
 
   definition.steps.forEach((step, index) => {
-    const lines: string[] = [`title: ${JSON.stringify(step.title)},`];
+    const key = getStepKey(index);
+    const generated: GeneratedStep = { key, title: step.title };
+    const entries: string[] = [`title: ${JSON.stringify(step.title)},`];
 
-    if (step.description !== undefined) {
-      lines.push(`description: ${JSON.stringify(step.description)},`);
+    if (step.description !== undefined) entries.push(`description: ${JSON.stringify(step.description)},`);
+    if (step.nameTransformCasing !== undefined) {
+      entries.push(`nameTransformCasing: ${JSON.stringify(step.nameTransformCasing)},`);
     }
 
     const fieldBlocks = step.fields.map((field) => {
-      const compiled = compileField(field, registry);
-      const entries = Object.entries(compiled).map(([key, value]) =>
-        key === 'defaultValue' && value instanceof Date
-          ? `defaultValue: new Date(${JSON.stringify(value.toISOString())}),`
-          : `${key}: ${indent(JSON.stringify(value, null, 2), 2)},`,
-      );
+      const lines: string[] = [];
+      let value = toValueSource(field.schema, field.defaultValue);
+      const matches = matchesSchema({ ...field.schema, optional: false }, field.defaultValue);
+      const primitive = field.defaultValue === null || typeof field.defaultValue !== 'object';
 
-      return `${propertyKey(field.key)}: {\n  ${entries.join('\n  ')}\n},`;
+      if ((needsTypeAnnotation(field.schema) || !matches) && (matches || primitive)) {
+        const name = changeCasing(`${key} ${field.key}`, 'pascal');
+        const type = matches
+          ? toTypeScript(field.schema)
+          : `${toTypeScript(field.schema)} | ${JSON.stringify(field.defaultValue)}`;
+
+        types.push({ name, type, stepKey: key, fieldKey: field.key });
+        value = `${value} as ${name}`;
+      }
+
+      lines.push(`defaultValue: ${value},`);
+      lines.push(`type: ${JSON.stringify(fieldType(field))},`);
+      if (field.label !== undefined) lines.push(`label: ${JSON.stringify(field.label)},`);
+      if (field.nameTransformCasing !== undefined) {
+        lines.push(`nameTransformCasing: ${JSON.stringify(field.nameTransformCasing)},`);
+      }
+      if (field.placeholder !== undefined) lines.push(`placeholder: ${JSON.stringify(field.placeholder)},`);
+      if (field.description !== undefined) lines.push(`description: ${JSON.stringify(field.description)},`);
+      if (field.isRequired !== undefined) lines.push(`isRequired: ${field.isRequired},`);
+      if (field.errorMessage !== undefined) lines.push(`errorMessage: ${JSON.stringify(field.errorMessage)},`);
+      if (field.props && Object.keys(field.props).length > 0) {
+        lines.push(`props: ${toValueSource(undefined, field.props)},`);
+      }
+
+      return `${formatPropertyKey(field.key)}: ${block(lines)},`;
     });
 
-    lines.push(`fields: {\n  ${indent(fieldBlocks.join('\n'), 2)}\n},`);
+    entries.push(`fields: ${block(fieldBlocks)},`);
 
     if (step.validation?.kind === 'code') {
-      lines.push(`// TODO: validation lives in application code (${step.validation.ref}).`);
+      entries.push(`// validateFields lives in application code (${step.validation.ref}).`);
     } else {
-      const emitted = emitStepValidator(step, registry);
+      const built = buildStepValidator(step, registry, settings);
 
-      if (emitted) {
-        emitted.imports.forEach((line) => imports.add(line));
-        emitted.declarations.forEach((line) => declarations.add(line));
-        lines.push(`validateFields: ${indent(emitted.code, 0)},`);
+      if (built) {
+        const name = `${key}Schema`;
+
+        built.imports.forEach((line) => imports.add(line));
+        built.declarations.forEach((line) => declarations.add(line));
+        validators.push(`export const ${name} = ${built.code};`);
+        entries.push(`validateFields: ${name},`);
+        generated.library = built.library;
+        generated.validator = { name, code: built.code };
       }
     }
 
-    stepBlocks.push(`${getStepKey(index)}: {\n  ${indent(lines.join('\n'), 2)}\n},`);
+    steps.push(generated);
+    stepBlocks.push(`${key}: ${block(entries)},`);
   });
 
-  return [
-    [...imports].join('\n'),
-    ...(declarations.size > 0 ? [[...declarations].join('\n')] : []),
-    `export const ${options.exportName ?? 'form'} = defineMultiStepForm({\n  steps: {\n    ${indent(stepBlocks.join('\n'), 4)}\n  },\n});`,
-  ].join('\n\n') + '\n';
+  const instances = settings?.instances?.filter((name) => name.trim()) ?? [];
+  const defineEntries = [`steps: ${block(stepBlocks)},`];
+
+  if (instances.length > 0) defineEntries.push(`instances: ${JSON.stringify(instances)},`);
+
+  const configureEntries: string[] = [];
+
+  if (settings?.nameTransformCasing) {
+    configureEntries.push(`nameTransformCasing: ${JSON.stringify(settings.nameTransformCasing)},`);
+  }
+  if (settings?.storageKey) {
+    configureEntries.push(`storage: { key: ${JSON.stringify(settings.storageKey)} },`);
+  }
+
+  const factoryName = options.factoryName ?? 'createForm';
+  const instanceName = options.instanceName ?? 'form';
+  const factory = `export const ${factoryName} = defineMultiStepForm(${block(defineEntries)}).configure(${
+    configureEntries.length > 0 ? block(configureEntries) : ''
+  });`;
+
+  const source =
+    [
+      [...imports].join('\n'),
+      ...(declarations.size > 0 ? [[...declarations].join('\n\n')] : []),
+      ...(types.length > 0 ? [types.map(({ name, type }) => `export type ${name} = ${type};`).join('\n\n')] : []),
+      ...(validators.length > 0 ? [validators.join('\n\n')] : []),
+      factory,
+      ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
+    ].join('\n\n') + '\n';
+
+  const packages = [...imports].flatMap((line) => {
+    const match = PACKAGE_PATTERN.exec(line);
+    return match ? [match[1]!] : [];
+  });
+
+  return { source, packages: [...new Set(packages)], steps, types };
+}
+
+/** {@linkcode generateCode}'s module source. */
+export function toSource(definition: FormDefinition, options: GenerateCodeOptions = {}) {
+  return generateCode(definition, options).source;
 }

@@ -1,27 +1,34 @@
 import {
   createEmptyDefinition,
   createId,
-  getValueTypeFromFieldType,
   toKey,
   uniqueKey,
   type FieldDefinition,
-  type FieldSchemaSpec,
   type FormDefinition,
+  type FormSettings,
   type JsonValue,
   type StepDefinition,
   type StepValidation,
-  type ValidatorLibrary,
 } from './definition.js';
 import { FormBuilderError } from './errors.js';
 import { validateDefinition, type DefinitionIssue } from './issues.js';
 import {
   createRegistry,
+  getOptionValues,
   resolveDefaultValue,
+  resolveSchema,
   structuredCloneJson,
   type FormRegistry,
+  type InputTypeDefinition,
 } from './registry.js';
+import {
+  coerceValue,
+  updateSchemaAt,
+  type SchemaCheck,
+  type SchemaNode,
+  type SchemaPath,
+} from './schema.js';
 import type { BuilderStorage } from './storage.js';
-import { inferFieldSpec } from './validation.js';
 
 // ---------------------------------------------------------------------------------------------
 // Public types
@@ -60,7 +67,7 @@ export interface BuilderSnapshot {
   clipboard: { fieldCount: number };
 }
 
-/** Where a field drag started. */
+/** Where a field drag started. `fieldType` is a palette id or an input type. */
 export type DragSource =
   | { kind: 'palette'; fieldType: string }
   | { kind: 'field'; fieldId: string };
@@ -107,7 +114,7 @@ export type StepInput = Partial<Omit<StepDefinition, 'id' | 'fields'>> & {
   fields?: readonly (Partial<Omit<FieldDefinition, 'id'>> & { type: string })[];
 };
 
-export type StepPatch = Partial<Pick<StepDefinition, 'title' | 'description'>>;
+export type StepPatch = Partial<Pick<StepDefinition, 'title' | 'description' | 'nameTransformCasing'>>;
 export type FieldPatch = Partial<Omit<FieldDefinition, 'id'>>;
 
 export interface FormBuilder {
@@ -130,28 +137,42 @@ export interface FormBuilder {
   };
 
   readonly fields: {
-    /** Adds a field of a registered type. Defaults to the end of the active step. */
+    /**
+     * Adds a field. `type` is a palette id (`'text'`) or an input type (`'string.email'`).
+     * Defaults to the end of the active step.
+     */
     add(
       type: string,
       target?: Partial<DropTarget>,
       overrides?: FieldPatch,
     ): string;
+    /**
+     * Updates a field. Changing `type` to another input type of the same field type swaps the
+     * input type's checks (e.g. `email`); changing to another field type resets the schema.
+     */
     update(fieldId: string, patch: FieldPatch): void;
     /** Sets one property by dot path, e.g. `props.options`. `undefined` removes it. */
     setProperty(fieldId: string, path: string, value: unknown): void;
+    /**
+     * Replaces the schema node at `path` with `update(node)`. The default value is fitted to the
+     * new schema, keeping whatever still fits.
+     */
+    updateSchema(fieldId: string, path: SchemaPath, update: (node: SchemaNode) => SchemaNode): void;
     remove(fieldIds: string | readonly string[]): void;
     move(fieldIds: string | readonly string[], target: DropTarget): void;
     duplicate(fieldIds: string | readonly string[]): string[];
   };
 
   readonly validation: {
+    /**
+     * Sets how a step is validated. `undefined` follows the form's `settings.validator`.
+     */
     set(stepId: string, validation: StepValidation | undefined): void;
-    /** Switches a step to schema validation with `library`, keeping existing rules. */
-    useLibrary(stepId: string, library: ValidatorLibrary): void;
-    /** Overrides one field's rules. `undefined` returns it to its inferred rules. */
-    setFieldRules(stepId: string, fieldKey: string, rules: FieldSchemaSpec | undefined): void;
-    /** The rules a field currently uses: explicit ones, else inferred ones. */
-    getFieldRules(stepId: string, fieldKey: string): FieldSchemaSpec | undefined;
+  };
+
+  readonly settings: {
+    /** Updates form settings. `undefined` values remove a setting. */
+    update(patch: Partial<FormSettings>): void;
   };
 
   /** Selects a step or field. `null` clears the selection. */
@@ -254,60 +275,60 @@ function setIn(target: Record<string, unknown>, path: readonly string[], value: 
   return copy;
 }
 
-/** Renames rule entries and `equalsField` references from `from` to `to` inside one step. */
+/** Points `equalsField` checks at `to` instead of `from` in every field of a step. */
 function renameFieldReferences(step: StepDefinition, from: string, to: string): StepDefinition {
-  if (step.validation?.kind !== 'schema' || from === to) {
-    return step;
-  }
-
-  const fields: Record<string, FieldSchemaSpec> = {};
-
-  for (const [key, spec] of Object.entries(step.validation.fields)) {
-    fields[key === from ? to : key] = spec.checks
-      ? {
-          ...spec,
-          checks: spec.checks.map((check) =>
-            check.check === 'equalsField' && check.field === from
-              ? { ...check, field: to }
-              : check,
-          ),
-        }
-      : spec;
-  }
-
-  return { ...step, validation: { ...step.validation, fields } };
-}
-
-function withoutFieldRules(step: StepDefinition, keys: readonly string[]): StepDefinition {
-  if (step.validation?.kind !== 'schema' || keys.length === 0) {
-    return step;
-  }
-
-  const fields = { ...step.validation.fields };
-  keys.forEach((key) => delete fields[key]);
-
-  return { ...step, validation: { ...step.validation, fields } };
-}
-
-function withFieldRules(
-  step: StepDefinition,
-  rules: Record<string, FieldSchemaSpec>,
-): StepDefinition {
-  if (step.validation?.kind !== 'schema' || Object.keys(rules).length === 0) {
-    return step;
-  }
+  if (from === to) return step;
 
   return {
     ...step,
-    validation: {
-      ...step.validation,
-      fields: { ...step.validation.fields, ...rules },
-    },
+    fields: step.fields.map((field) =>
+      field.schema.checks?.some((check) => check.check === 'equalsField' && check.field === from)
+        ? {
+            ...field,
+            schema: {
+              ...field.schema,
+              checks: field.schema.checks.map((check) =>
+                check.check === 'equalsField' && check.field === from ? { ...check, field: to } : check,
+              ),
+            } as SchemaNode,
+          }
+        : field,
+    ),
   };
 }
 
-function getFieldRules(step: StepDefinition, key: string) {
-  return step.validation?.kind === 'schema' ? step.validation.fields[key] : undefined;
+const sameCheck = (a: SchemaCheck, b: SchemaCheck) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Swaps the checks one input type adds (e.g. `email`) for another's, on the root schema. */
+function swapInputChecks(
+  schema: SchemaNode,
+  from: InputTypeDefinition | undefined,
+  to: InputTypeDefinition | undefined,
+): SchemaNode {
+  const removed = from?.checks ?? [];
+  const kept = (schema.checks ?? []).filter((check) => !removed.some((other) => sameCheck(check, other)));
+  const added = (to?.checks ?? []).filter((check) => !kept.some((other) => sameCheck(check, other)));
+  const checks = [...kept, ...added];
+  const { checks: _checks, ...rest } = schema;
+
+  return (checks.length > 0 ? { ...rest, checks } : rest) as SchemaNode;
+}
+
+/** Keeps a choice field's allowed values in step with its `props.options`. */
+function syncOptions(field: FieldDefinition): FieldDefinition {
+  const values = getOptionValues(field.props);
+
+  if (!Array.isArray(field.props?.options)) return field;
+
+  if (field.schema.kind === 'enum') {
+    return { ...field, schema: { ...field.schema, values } };
+  }
+
+  if (field.schema.kind === 'array' && field.schema.item.kind === 'enum') {
+    return { ...field, schema: { ...field.schema, item: { ...field.schema.item, values } } };
+  }
+
+  return field;
 }
 
 const toIds = (ids: string | readonly string[]) => (typeof ids === 'string' ? [ids] : [...ids]);
@@ -511,26 +532,33 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     takenKeys: Iterable<string> = step.fields.map((field) => field.key),
   ): FieldDefinition {
     const fieldType = registry.requireFieldType(type, 'fields.add');
-    const label = overrides.label ?? fieldType.defaults?.label ?? fieldType.label;
-    const keyBase = overrides.key ?? toKey(typeof label === 'string' ? label : fieldType.label);
-    const field: FieldDefinition = {
+    const input = registry.getInputType(type) ?? fieldType.inputTypes[0]!;
+    const defaults = { ...fieldType.defaults, ...overrides };
+    // Keys come from the input type's name ("Email" → email); labels are derived from keys.
+    const keyBase = overrides.key ?? toKey(input === fieldType.inputTypes[0] ? fieldType.label : input.label);
+    const schema = overrides.schema
+      ? (structuredCloneJson(overrides.schema as unknown as JsonValue) as unknown as SchemaNode)
+      : swapInputChecks(resolveSchema(fieldType), undefined, input);
+    let field: FieldDefinition = {
       id: newId('field'),
       key: uniqueKey(keyBase, takenKeys),
-      type,
+      type: overrides.type ?? input.type,
+      schema,
       defaultValue:
         overrides.defaultValue !== undefined
           ? structuredCloneJson(overrides.defaultValue)
-          : resolveDefaultValue(fieldType),
+          : resolveDefaultValue(fieldType, schema),
     };
 
-    const defaults = { ...fieldType.defaults, ...overrides };
-
-    if (label !== undefined) field.label = label;
+    if (defaults.label !== undefined) field.label = defaults.label;
+    if (defaults.nameTransformCasing !== undefined) field.nameTransformCasing = defaults.nameTransformCasing;
     if (defaults.placeholder !== undefined) field.placeholder = defaults.placeholder;
     if (defaults.description !== undefined) field.description = defaults.description;
     if (defaults.isRequired !== undefined) field.isRequired = defaults.isRequired;
     if (defaults.errorMessage !== undefined) field.errorMessage = defaults.errorMessage;
     if (defaults.props !== undefined) field.props = structuredCloneJson(defaults.props);
+
+    if (!overrides.schema) field = syncOptions(field);
 
     return field;
   }
@@ -559,6 +587,7 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
       };
 
       if (input.description !== undefined) step.description = input.description;
+      if (input.nameTransformCasing !== undefined) step.nameTransformCasing = input.nameTransformCasing;
       if (input.validation !== undefined) step.validation = input.validation;
 
       const keys: string[] = [];
@@ -580,7 +609,15 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     update(stepId, patch) {
       requireStep(stepId, 'steps.update');
       commit(
-        replaceStep(definition, stepId, (step) => ({ ...step, ...patch })),
+        replaceStep(definition, stepId, (step) => {
+          const next = { ...step, ...patch };
+
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === undefined) delete (next as unknown as Record<string, unknown>)[key];
+          }
+
+          return next;
+        }),
         { mergeKey: `step:${stepId}:${Object.keys(patch).sort().join(',')}` },
       );
     },
@@ -648,19 +685,44 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     }
 
     if (patch.type !== undefined && patch.type !== field.type) {
+      const previousType = registry.getFieldType(field.type);
       const fieldType = registry.requireFieldType(patch.type, operation);
+      const input = registry.getInputType(patch.type);
 
-      if (fieldType.valueType !== getValueTypeFromFieldType(field.type)) {
-        // The old value and rules no longer fit the new value type.
+      if (previousType?.id === fieldType.id) {
+        // Another input type of the same field type: swap its checks, keep everything else.
+        nextField.schema = swapInputChecks(
+          patch.schema ?? nextField.schema,
+          registry.getInputType(field.type),
+          input,
+        );
+      } else {
+        // The old value and schema no longer fit the new field type.
+        const schema = patch.schema ?? swapInputChecks(resolveSchema(fieldType), undefined, input);
+
         nextField = {
           ...nextField,
-          defaultValue: patch.defaultValue ?? resolveDefaultValue(fieldType),
+          schema,
+          defaultValue: patch.defaultValue ?? resolveDefaultValue(fieldType, schema),
         };
-        nextStep = withoutFieldRules(nextStep, [field.key]);
-      }
 
-      if (patch.props === undefined && fieldType.defaults?.props) {
-        nextField.props = structuredCloneJson(fieldType.defaults.props);
+        if (patch.props === undefined) {
+          if (fieldType.defaults?.props) nextField.props = structuredCloneJson(fieldType.defaults.props);
+          else delete nextField.props;
+        }
+      }
+    }
+
+    if (patch.props !== undefined || patch.type !== undefined) {
+      nextField = syncOptions(nextField);
+    }
+
+    if (patch.schema !== undefined || patch.props !== undefined) {
+      const choice = nextField.schema.kind === 'enum' || nextField.schema.kind === 'literal';
+
+      // Choice fields may start with nothing selected (`''`).
+      if (!(choice && nextField.defaultValue === '')) {
+        nextField.defaultValue = coerceValue({ ...nextField.schema, optional: false }, nextField.defaultValue);
       }
     }
 
@@ -680,8 +742,6 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     const moving = orderedFields(ids, operation);
     const targetStep = requireStep(target.stepId, operation);
     const movingIds = new Set(moving.map((location) => location.field.id));
-    const rulesBySource = new Map<string, string[]>();
-    const transferredRules: Record<string, FieldSchemaSpec> = {};
     const taken = new Set(
       targetStep.fields.filter((field) => !movingIds.has(field.id)).map((field) => field.key),
     );
@@ -689,14 +749,9 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     const moved = moving.map(({ field, step }) => {
       if (step.id === targetStep.id) return field;
 
-      // Moving across steps: keys must be unique in the target, and rules travel along.
+      // Moving across steps: keys must be unique in the target. The schema travels with the field.
       const key = uniqueKey(field.key, taken);
       taken.add(key);
-      const rules = getFieldRules(step, field.key);
-
-      if (rules) transferredRules[key] = rules;
-
-      rulesBySource.set(step.id, [...(rulesBySource.get(step.id) ?? []), field.key]);
 
       return key === field.key ? field : { ...field, key };
     });
@@ -704,16 +759,13 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     const next: FormDefinition = {
       ...definition,
       steps: definition.steps.map((step) => {
-        let nextStep = withoutFieldRules(step, rulesBySource.get(step.id) ?? []);
-        const remaining = nextStep.fields.filter((field) => !movingIds.has(field.id));
+        const remaining = step.fields.filter((field) => !movingIds.has(field.id));
 
         if (step.id === targetStep.id) {
-          nextStep = withFieldRules(nextStep, transferredRules);
-
-          return { ...nextStep, fields: insertAt(remaining, target.index, moved) };
+          return { ...step, fields: insertAt(remaining, target.index, moved) };
         }
 
-        return remaining.length === step.fields.length ? nextStep : { ...nextStep, fields: remaining };
+        return remaining.length === step.fields.length ? step : { ...step, fields: remaining };
       }),
     };
 
@@ -727,10 +779,10 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     });
   }
 
-  function insertFields(fields: readonly FieldDefinition[], target: DropTarget, rules: Record<string, FieldSchemaSpec> = {}) {
+  function insertFields(fields: readonly FieldDefinition[], target: DropTarget) {
     commit(
       replaceStep(definition, target.stepId, (step) => ({
-        ...withFieldRules(step, rules),
+        ...step,
         fields: insertAt(step.fields, target.index, fields),
       })),
       {
@@ -774,16 +826,22 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
       updateField(fieldId, patch as FieldPatch, 'fields.setProperty', `field:${fieldId}:${path}`);
     },
 
+    updateSchema(fieldId, path, update) {
+      const { field } = requireField(fieldId, 'fields.updateSchema');
+      const schema = updateSchemaAt(field.schema, path, update);
+
+      if (schema === field.schema) return;
+
+      updateField(fieldId, { schema }, 'fields.updateSchema', `schema:${fieldId}:${path.join('/')}`);
+    },
+
     remove(fieldIds) {
       const removing = orderedFields(toIds(fieldIds), 'fields.remove');
 
       if (removing.length === 0) return;
 
       const ids = new Set(removing.map((location) => location.field.id));
-      const keysByStep = new Map<string, string[]>();
-      removing.forEach(({ step, field }) =>
-        keysByStep.set(step.id, [...(keysByStep.get(step.id) ?? []), field.key]),
-      );
+      const stepIds = new Set(removing.map(({ step }) => step.id));
 
       // Restore focus to the field after the last removed one, like a list would.
       const last = removing[removing.length - 1]!;
@@ -798,11 +856,8 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
         {
           ...definition,
           steps: definition.steps.map((step) =>
-            keysByStep.has(step.id)
-              ? {
-                  ...withoutFieldRules(step, keysByStep.get(step.id)!),
-                  fields: step.fields.filter((field) => !ids.has(field.id)),
-                }
+            stepIds.has(step.id)
+              ? { ...step, fields: step.fields.filter((field) => !ids.has(field.id)) }
               : step,
           ),
         },
@@ -823,15 +878,8 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
       const step = last.step;
       const taken = new Set(step.fields.map((field) => field.key));
       const copies = cloneFields(originals.map((location) => location.field), taken);
-      const rules: Record<string, FieldSchemaSpec> = {};
 
-      originals.forEach(({ step: source, field }, index) => {
-        const spec = getFieldRules(source, field.key);
-
-        if (spec) rules[copies[index]!.key] = spec;
-      });
-
-      insertFields(copies, { stepId: step.id, index: last.index + 1 }, rules);
+      insertFields(copies, { stepId: step.id, index: last.index + 1 });
 
       return copies.map((field) => field.id);
     },
@@ -854,49 +902,27 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
       );
     },
 
-    useLibrary(stepId, library) {
-      const step = requireStep(stepId, 'validation.useLibrary');
+  };
 
-      if (!registry.getValidator(library)) {
-        fail('validation.useLibrary', `No validator adapter is registered for "${library}"`, library);
+  // --- settings ---------------------------------------------------------------------------
+
+  const settings: FormBuilder['settings'] = {
+    update(patch) {
+      if (patch.validator !== undefined && !registry.getValidator(patch.validator)) {
+        fail('settings.update', `No validator adapter is registered for "${patch.validator}"`, patch.validator);
       }
 
-      const fieldsRules = step.validation?.kind === 'schema' ? step.validation.fields : {};
-      validation.set(stepId, { kind: 'schema', library, fields: fieldsRules });
-    },
+      const next: FormSettings = { ...definition.settings, ...patch };
 
-    setFieldRules(stepId, fieldKey, rules) {
-      const step = requireStep(stepId, 'validation.setFieldRules');
-
-      if (step.validation?.kind !== 'schema') {
-        fail(
-          'validation.setFieldRules',
-          `Step "${step.title}" does not use schema validation. Call validation.useLibrary() first.`,
-          stepId,
-        );
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined) delete next[key as keyof FormSettings];
       }
 
-      const nextFields = { ...step.validation.fields };
+      const { settings: _settings, ...rest } = definition;
 
-      if (rules === undefined) delete nextFields[fieldKey];
-      else nextFields[fieldKey] = rules;
-
-      commit(
-        replaceStep(definition, stepId, (current) => ({
-          ...current,
-          validation: { ...(current.validation as Extract<StepValidation, { kind: 'schema' }>), fields: nextFields },
-        })),
-        { mergeKey: `rules:${stepId}:${fieldKey}` },
-      );
-    },
-
-    getFieldRules(stepId, fieldKey) {
-      const step = requireStep(stepId, 'validation.getFieldRules');
-      const field = step.fields.find((candidate) => candidate.key === fieldKey);
-
-      if (!field) return undefined;
-
-      return getFieldRules(step, fieldKey) ?? inferFieldSpec(field, registry);
+      commit(Object.keys(next).length > 0 ? { ...rest, settings: next } : rest, {
+        mergeKey: `settings:${Object.keys(patch).sort().join(',')}`,
+      });
     },
   };
 
@@ -1161,6 +1187,7 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     steps,
     fields,
     validation,
+    settings,
     select,
     history,
     clipboard: clipboardApi,

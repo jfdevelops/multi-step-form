@@ -1,69 +1,94 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import {
-  getValueTypeFromFieldType,
+  resolveStepLibrary,
   type FieldDefinition,
-  type FieldSchemaSpec,
+  type FormSettings,
   type StepDefinition,
 } from './definition.js';
 import { FormBuilderError } from './errors.js';
 import type { FormRegistry } from './registry.js';
+import type { SchemaCheck, SchemaNode } from './schema.js';
+import { defaultCheckMessage } from './validators/checks.js';
 import type {
-  EmittedValidator,
-  ResolvedStepSpec,
+  BuiltValidator,
+  EqualsRefinement,
+  ResolvedField,
+  ResolvedStepSchema,
   StepValues,
+  ValidatorAdapter,
 } from './validators/types.js';
 
-/** The rules a field starts with when its step gets a validator. */
-export function inferFieldSpec(
-  field: FieldDefinition,
-  registry: FormRegistry,
-): FieldSchemaSpec {
-  const fieldType = registry.getFieldType(field.type);
-  const checks = fieldType?.inferChecks?.(field) ?? [];
+/**
+ * A field's schema as its step's validator sees it: required text and lists must be non-empty,
+ * optional fields accept "nothing entered", and `equalsField` checks become step refinements.
+ */
+export function resolveFieldSchema(field: FieldDefinition): {
+  schema: SchemaNode;
+  refinements: EqualsRefinement[];
+} {
+  const { optional: _optional, ...root } = field.schema;
+  const refinements: EqualsRefinement[] = [];
+  const checks: SchemaCheck[] = [];
 
-  return {
-    type: fieldType?.valueType ?? getValueTypeFromFieldType(field.type),
-    ...(checks.length > 0 ? { checks } : {}),
-  };
+  for (const check of root.checks ?? []) {
+    if (check.check === 'equalsField') {
+      refinements.push({
+        field: field.key,
+        equals: check.field,
+        message: check.message ?? defaultCheckMessage(check, field.schema),
+      });
+    } else {
+      checks.push(check);
+    }
+  }
+
+  const schema = { ...root, checks } as SchemaNode;
+
+  if (field.isRequired) {
+    const message = field.errorMessage ?? 'Required';
+
+    if (schema.kind === 'string' || schema.kind === 'array') {
+      schema.checks = [{ check: 'minLength', value: 1, message }, ...checks];
+    }
+
+    schema.message ??= message;
+  } else {
+    schema.optional = true;
+  }
+
+  if (schema.checks?.length === 0) delete schema.checks;
+
+  return { schema, refinements };
 }
 
 /**
- * Resolves the rules for every field in a step: explicit rules from `validation.fields`, else
- * inferred rules, with `optional` resolved from `isRequired`.
- *
- * Returns `undefined` when the step has no builder-managed validation (`undefined` or `code`).
+ * Resolves what a step's validator checks. Returns `undefined` when the step has no
+ * builder-managed validation (none, or code-owned).
  */
-export function resolveStepSpec(
+export function resolveStepSchema(
   step: StepDefinition,
-  registry: FormRegistry,
-): ResolvedStepSpec | undefined {
-  const validation = step.validation;
+  settings?: FormSettings,
+): ResolvedStepSchema | undefined {
+  if (resolveStepLibrary(step, settings) === undefined) return undefined;
 
-  if (!validation || validation.kind === 'code') {
-    return undefined;
-  }
-
-  const spec: ResolvedStepSpec = {};
+  const fields: ResolvedField[] = [];
+  const refinements: EqualsRefinement[] = [];
 
   for (const field of step.fields) {
-    if (validation.kind === 'required') {
-      spec[field.key] = { type: 'unknown', optional: !field.isRequired };
-      continue;
-    }
-
-    const fieldSpec = validation.fields[field.key] ?? inferFieldSpec(field, registry);
-    spec[field.key] = {
-      ...fieldSpec,
-      optional: fieldSpec.optional ?? !field.isRequired,
-    };
+    const resolved = resolveFieldSchema(field);
+    fields.push({ key: field.key, schema: resolved.schema });
+    refinements.push(...resolved.refinements);
   }
 
-  return spec;
+  return { fields, refinements };
 }
 
-function requireAdapter(step: StepDefinition, registry: FormRegistry, operation: string) {
-  const library =
-    step.validation?.kind === 'schema' ? step.validation.library : 'builtin';
+function requireAdapter(
+  library: string,
+  step: StepDefinition,
+  registry: FormRegistry,
+  operation: string,
+): ValidatorAdapter {
   const adapter = registry.getValidator(library);
 
   if (!adapter) {
@@ -77,26 +102,33 @@ function requireAdapter(step: StepDefinition, registry: FormRegistry, operation:
   return adapter;
 }
 
-/** Compiles a step's validation into a Standard Schema validator, if it has builder-managed validation. */
+/** Builds a step's validator and its source code, if it has builder-managed validation. */
+export function buildStepValidator(
+  step: StepDefinition,
+  registry: FormRegistry,
+  settings?: FormSettings,
+): (BuiltValidator & { library: string }) | undefined {
+  const library = resolveStepLibrary(step, settings);
+  const spec = resolveStepSchema(step, settings);
+
+  if (library === undefined || !spec) return undefined;
+
+  const adapter = requireAdapter(library, step, registry, 'buildStepValidator');
+
+  // The same spec object, so adapters made with createValidatorAdapter build once.
+  return { validator: adapter.compile(spec), ...adapter.emit(spec), library };
+}
+
+/** Compiles a step's validator, if it has builder-managed validation. */
 export function compileStepValidator(
   step: StepDefinition,
   registry: FormRegistry,
+  settings?: FormSettings,
 ): StandardSchemaV1<StepValues, StepValues> | undefined {
-  const spec = resolveStepSpec(step, registry);
+  const library = resolveStepLibrary(step, settings);
+  const spec = resolveStepSchema(step, settings);
 
-  return spec
-    ? requireAdapter(step, registry, 'compileStepValidator').compile(spec)
-    : undefined;
-}
+  if (library === undefined || !spec) return undefined;
 
-/** Writes source code for a step's validator, if it has builder-managed validation. */
-export function emitStepValidator(
-  step: StepDefinition,
-  registry: FormRegistry,
-): EmittedValidator | undefined {
-  const spec = resolveStepSpec(step, registry);
-
-  return spec
-    ? requireAdapter(step, registry, 'emitStepValidator').emit(spec)
-    : undefined;
+  return requireAdapter(library, step, registry, 'compileStepValidator').compile(spec);
 }
