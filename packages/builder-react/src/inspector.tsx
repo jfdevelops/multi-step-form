@@ -1,8 +1,6 @@
 import {
   setInspectorValue,
   setStepValidationMode,
-  type FieldCheck,
-  type FieldSchemaSpec,
   type InspectorModel,
   type InspectorProperty as InspectorPropertyModel,
   type PropertyDescriptor,
@@ -113,15 +111,13 @@ export const InspectorProperty = forwardRef<HTMLElement, InspectorPropertyProps>
 );
 
 export interface StepValidationState extends StepValidationModel {
-  /** Switches between no validation, required-only and a schema library. */
+  /**
+   * Follows the form's library (`inherit`), turns validation off (`none`), or picks a library
+   * for this step (`schema`).
+   */
   setMode: (mode: Exclude<StepValidationMode, 'code'>, library?: ValidatorLibrary) => void;
-  /** Uses a validator library, keeping existing rules. */
+  /** Validates this step with `library`. */
   setLibrary: (library: ValidatorLibrary) => void;
-  /** Replaces a field's rules. `undefined` goes back to the inferred rules. */
-  setFieldRules: (fieldKey: string, rules: FieldSchemaSpec | undefined) => void;
-  addCheck: (fieldKey: string, check: FieldCheck) => void;
-  updateCheck: (fieldKey: string, index: number, check: FieldCheck) => void;
-  removeCheck: (fieldKey: string, index: number) => void;
 }
 
 export type StepValidationProps = HeadlessProps<'div', StepValidationState> & {
@@ -130,8 +126,9 @@ export type StepValidationProps = HeadlessProps<'div', StepValidationState> & {
 };
 
 /**
- * The validation settings for a step: none, required-only, or rules compiled by a Standard Schema
- * library of the author's choice. Renders a `div`; renders nothing when there is no step.
+ * How a step is validated: with the form's library, not at all, or with a Standard Schema library
+ * picked for this step. Field rules live on each field's schema. Renders a `div`; renders nothing
+ * when there is no step.
  */
 export const StepValidation = forwardRef<HTMLElement, StepValidationProps>(
   function StepValidation({ stepId, ...props }, ref) {
@@ -141,39 +138,10 @@ export const StepValidation = forwardRef<HTMLElement, StepValidationProps>(
 
     if (!model) return null;
 
-    const rulesFor = (fieldKey: string) =>
-      model.fields.find((entry) => entry.field.key === fieldKey)?.rules;
-    const ensureSchema = () => {
-      if (model.mode !== 'schema') builder.validation.useLibrary(model.stepId, 'builtin');
-    };
-    const editChecks = (fieldKey: string, edit: (checks: FieldCheck[]) => FieldCheck[]) => {
-      const rules = rulesFor(fieldKey);
-
-      if (!rules) return;
-
-      builder.history.transaction(() => {
-        ensureSchema();
-        builder.validation.setFieldRules(model.stepId, fieldKey, {
-          ...rules,
-          checks: edit([...(rules.checks ?? [])]),
-        });
-      });
-    };
-
     const state: StepValidationState = {
       ...model,
       setMode: (mode, library) => setStepValidationMode(builder, model.stepId, mode, library),
-      setLibrary: (library) => builder.validation.useLibrary(model.stepId, library),
-      setFieldRules: (fieldKey, rules) =>
-        builder.history.transaction(() => {
-          ensureSchema();
-          builder.validation.setFieldRules(model.stepId, fieldKey, rules);
-        }),
-      addCheck: (fieldKey, check) => editChecks(fieldKey, (checks) => [...checks, check]),
-      updateCheck: (fieldKey, index, check) =>
-        editChecks(fieldKey, (checks) => checks.map((current, i) => (i === index ? check : current))),
-      removeCheck: (fieldKey, index) =>
-        editChecks(fieldKey, (checks) => checks.filter((_, i) => i !== index)),
+      setLibrary: (library) => setStepValidationMode(builder, model.stepId, 'schema', library),
     };
 
     return renderElement(

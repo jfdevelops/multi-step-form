@@ -81,7 +81,7 @@ function Builder({ builder }: { builder: FormBuilderStore }) {
             <PaletteSearch data-testid="search" />
             {categories.map((category) =>
               category.items.map((item) => (
-                <PaletteItem key={item.type} item={item} data-testid={`palette-${item.type}`}>
+                <PaletteItem key={item.id} item={item} data-testid={`palette-${item.id}`}>
                   {item.label}
                 </PaletteItem>
               )),
@@ -154,17 +154,11 @@ function Builder({ builder }: { builder: FormBuilderStore }) {
       </Inspector>
 
       <StepValidation data-testid="validation">
-        {({ mode, setMode, fields }) => (
+        {({ mode, effectiveLibrary, setMode }) => (
           <>
             <span data-testid="validation-mode">{mode}</span>
-            <button data-testid="use-schema" onClick={() => setMode('schema')}>Schema</button>
-            <ul>
-              {fields.map((entry) => (
-                <li key={entry.field.id}>
-                  {entry.field.key}:{entry.rules.checks?.map((check) => check.check).join(',')}
-                </li>
-              ))}
-            </ul>
+            <span data-testid="validation-library">{effectiveLibrary ?? 'none'}</span>
+            <button data-testid="use-schema" onClick={() => setMode('schema', 'builtin')}>Schema</button>
           </>
         )}
       </StepValidation>
@@ -183,20 +177,20 @@ describe('headless builder components', () => {
     const builder = createFormBuilder();
     const { query } = await render(<Builder builder={builder} />);
 
-    expect(query('[data-testid="palette-string.email"]').getAttribute('role')).toBe('option');
-    await click(query('[data-testid="palette-string.email"]'));
+    expect(query('[data-testid="palette-text"]').getAttribute('role')).toBe('option');
+    await click(query('[data-testid="palette-text"]'));
     await key(query('[data-testid="palette-number"]'), { key: 'Enter' });
 
-    expect(fieldKeys(builder)).toEqual(['email', 'number']);
-    expect(query('[data-testid="field-email"]').className).toBe('card');
+    expect(fieldKeys(builder)).toEqual(['text', 'number']);
+    expect(query('[data-testid="field-text"]').className).toBe('card');
   });
 
   it('filters the palette with the search box', async () => {
     const builder = createFormBuilder();
     const { query, all } = await render(<Builder builder={builder} />);
 
-    await type(query<HTMLInputElement>('[data-testid="search"]'), 'toggle');
-    expect(all('[role="option"][data-type]').map((element) => element.dataset.type)).toEqual(['boolean.switch']);
+    await type(query<HTMLInputElement>('[data-testid="search"]'), 'switch');
+    expect(all('[role="option"][data-id]').map((element) => element.dataset.id)).toEqual(['boolean']);
   });
 
   it('selects fields with click modifiers and exposes state attributes', async () => {
@@ -302,15 +296,16 @@ describe('headless builder components', () => {
     expect(query('[data-testid="tab-step1"]').getAttribute('aria-selected')).toBe('true');
   });
 
-  it('switches step validation and shows inferred rules', async () => {
+  it('switches step validation', async () => {
     const builder = createFormBuilder();
     builder.fields.add('string.email');
     const { query } = await render(<Builder builder={builder} />);
 
-    expect(query('[data-testid="validation-mode"]').textContent).toBe('none');
+    expect(query('[data-testid="validation-mode"]').textContent).toBe('inherit');
+    expect(query('[data-testid="validation-library"]').textContent).toBe('none');
     await click(query('[data-testid="use-schema"]'));
     expect(query('[data-testid="validation-mode"]').textContent).toBe('schema');
-    expect(query('[data-testid="validation"]').textContent).toContain('email:email');
+    expect(query('[data-testid="validation-library"]').textContent).toBe('builtin');
   });
 
   it('disables action buttons that would do nothing', async () => {
@@ -321,12 +316,12 @@ describe('headless builder components', () => {
     expect(undo.disabled).toBe(true);
     expect(query<HTMLButtonElement>('[data-testid="delete"]').disabled).toBe(true);
 
-    await click(query('[data-testid="palette-string"]'));
+    await click(query('[data-testid="palette-text"]'));
     expect(undo.disabled).toBe(false);
     await click(query('[data-testid="delete"]'));
     expect(fieldKeys(builder)).toEqual([]);
     await click(undo);
-    expect(fieldKeys(builder)).toEqual(['shortText']);
+    expect(fieldKeys(builder)).toEqual(['text']);
   });
 
   it('supports custom elements through render', async () => {

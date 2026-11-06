@@ -106,9 +106,9 @@ export const PaletteItem = forwardRef<HTMLElement, PaletteItemProps>(function Pa
   ref,
 ) {
   const builder = useBuilder();
-  const data: BuilderDragData = { kind: 'palette', fieldType: item.type };
+  const data: BuilderDragData = { kind: 'palette', fieldType: item.id };
   const draggable = useDraggable({
-    id: `palette:${item.type}`,
+    id: `palette:${item.id}`,
     type: DRAG_TYPES.palette,
     sensors: PALETTE_SENSORS,
     data,
@@ -123,9 +123,9 @@ export const PaletteItem = forwardRef<HTMLElement, PaletteItemProps>(function Pa
       const last = selection.fieldIds[selection.fieldIds.length - 1];
       const index = step ? step.fields.findIndex((field) => field.id === last) + 1 : undefined;
 
-      builder.fields.add(item.type, { stepId: selection.stepId, index });
+      builder.fields.add(item.id, { stepId: selection.stepId, index });
     } else {
-      builder.fields.add(item.type);
+      builder.fields.add(item.id);
     }
   };
 
@@ -136,7 +136,7 @@ export const PaletteItem = forwardRef<HTMLElement, PaletteItemProps>(function Pa
       tabIndex: 0,
       'aria-selected': false,
       'aria-roledescription': 'draggable field type',
-      ...dataState({ dragging: draggable.isDragging, type: item.type }),
+      ...dataState({ dragging: draggable.isDragging, id: item.id }),
       onClick: add,
       onKeyDown: (event: KeyboardEvent) => {
         if (event.key === 'Enter') {
