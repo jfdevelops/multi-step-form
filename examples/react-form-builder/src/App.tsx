@@ -34,7 +34,7 @@ export function App() {
         <Palette className="panel">
           {({ items }) =>
             items.map((item) => (
-              <PaletteItem key={item.type} item={item} className="palette-item">
+              <PaletteItem key={item.id} item={item} className="palette-item">
                 {item.label}
               </PaletteItem>
             ))
@@ -63,8 +63,8 @@ export function App() {
                 fields.map((field) => (
                   <CanvasField key={field.id} field={field} className="canvas-field">
                     <DragHandle className="handle">⠿</DragHandle>
-                    <span>{field.field.label || field.key}</span>
-                    <small>{field.fieldType?.label ?? field.field.type}</small>
+                    <span>{field.label ?? field.key}</span>
+                    <small>{field.inputType?.label ?? field.field.type}</small>
                   </CanvasField>
                 ))
               )
