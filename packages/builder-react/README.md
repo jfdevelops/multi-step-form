@@ -36,7 +36,7 @@ export function Builder() {
       <Palette className="palette">
         {({ items }) =>
           items.map((item) => (
-            <PaletteItem key={item.type} item={item}>
+            <PaletteItem key={item.id} item={item}>
               {item.label}
             </PaletteItem>
           ))
@@ -58,7 +58,7 @@ export function Builder() {
           fields.map((field) => (
             <CanvasField key={field.id} field={field} className="field">
               <DragHandle>⠿</DragHandle>
-              {field.field.label || field.key}
+              {field.label ?? field.key}
             </CanvasField>
           ))
         }
@@ -103,8 +103,48 @@ pass `render={(props, state) => …}` and spread `props` onto it.
 | `StepList`, `StepTab`, `AddStepButton` | `div`, `button`, `button` | Step tabs, which are also drop targets |
 | `Canvas`, `CanvasField`, `DragHandle` | `div`, `div`, `button` | The active step's fields: selection, shortcuts, sorting |
 | `Inspector`, `InspectorProperty` | `div`, `div` | Properties for the selection, with label, input and error ids |
-| `StepValidation` | `div` | No validation, required-only, or a Standard Schema library per step |
+| `StepValidation` | `div` | The form's library, no validation, or a Standard Schema library for one step |
 | `ActionButton` | `button` | Undo, redo, delete, duplicate, copy, cut, paste… |
 
-Hooks: `useFormBuilder`, `useBuilder`, `useBuilderSnapshot`, `useBuilderSelector`, `usePalette`,
-`useCanvas`, `useInspector`, `useStepValidation`, `useBuilderAction`, `useBuilderDrag`.
+## Hooks
+
+| Hook | Returns |
+| --- | --- |
+| `useFormBuilder(options)` | A builder for the lifetime of the component |
+| `useBuilder`, `useBuilderSnapshot`, `useBuilderSelector` | The builder and its state |
+| `usePalette`, `useCanvas`, `useInspector`, `useStepValidation` | The view models behind the elements |
+| `useFormSettings()` | Form-wide settings (default validator, casing, storage key, instances) and `update` |
+| `useSchemaEditor(fieldId?)` | The selected field's schema tree and its edits: the Standard Schema builder |
+| `useGeneratedCode(options?)` | The form as a TypeScript module (`source`), the steps' validators (`validatorsSource`, `steps`), value types, and the npm `packages` it imports |
+| `useFormPreview()` | The form running as a real multi-step form: steps, fields with values, setters and errors, and navigation |
+| `useBuilderAction(action)`, `useBuilderDrag()` | Whether an action can run, and live drag state |
+
+`useGeneratedCode` is headless: show `source` in any editor. For hover types, load the type
+declarations of `packages` into it. The [example](../../examples/react-form-builder) does this
+with Monaco and a small Vite plugin.
+
+```tsx
+function Preview() {
+  const preview = useFormPreview();
+
+  if (preview.status === 'error') return <p>{preview.error.message}</p>;
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        preview.next();
+      }}
+    >
+      {preview.currentStep.fields.map((field) => (
+        <label key={field.key}>
+          {field.label}
+          <input value={String(field.value)} onChange={(event) => field.setValue(event.target.value)} />
+          {preview.currentStep.attempted && field.errors.join(', ')}
+        </label>
+      ))}
+      <button type="submit">Next</button>
+    </form>
+  );
+}
+```

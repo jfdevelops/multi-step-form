@@ -61,5 +61,15 @@ export {
   type ActionButtonProps,
   type ActionButtonState,
 } from './actions.js';
+export {
+  useFormPreview,
+  useFormSettings,
+  useGeneratedCode,
+  useSchemaEditor,
+  type FormPreviewState,
+  type GeneratedCodeState,
+  type PreviewField,
+  type PreviewStep,
+} from './hooks.js';
 export { resolveDrop, type BuilderDragData, type DragEntityLike } from './dnd.js';
 export type { HeadlessProps } from './render.js';

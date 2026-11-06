@@ -36,6 +36,10 @@ export interface InspectorPropertyState {
   descriptor: PropertyDescriptor;
   value: unknown;
   mixed: boolean;
+  /** What applies when left empty (the derived label, the inherited casing). Good as a placeholder. */
+  hint?: string;
+  /** The first inspected step or field, e.g. for a `value` control to read the field's schema. */
+  node: InspectorPropertyModel['node'];
   error?: string;
   /** Writes the value to every inspected node as one undo step. */
   setValue: (value: unknown) => void;
@@ -68,7 +72,7 @@ export const InspectorProperty = forwardRef<HTMLElement, InspectorPropertyProps>
     const builder = useBuilder();
     const id = useId();
     const mergedRef = useMergedRefs(ref);
-    const { descriptor, value, mixed, error } = property;
+    const { descriptor, value, mixed, hint, node, error } = property;
     const ids = {
       control: `${id}-control`,
       label: `${id}-label`,
@@ -83,6 +87,8 @@ export const InspectorProperty = forwardRef<HTMLElement, InspectorPropertyProps>
       descriptor,
       value,
       mixed,
+      node,
+      ...(hint !== undefined ? { hint } : {}),
       ...(error ? { error } : {}),
       setValue: (next) => setInspectorValue(builder, descriptor.path, next),
       controlProps: {
