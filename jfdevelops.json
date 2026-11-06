@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "package": "@jfdevelops/cli",
+    "version": "0.7.0"
+  },
+  "project": {
+    "name": "@jfdevelops/multi-step-form",
+    "packageManager": "pnpm"
+  },
+  "targets": [
+    {
+      "path": "examples/react-basic",
+      "kind": "app",
+      "options": {}
+    },
+    {
+      "path": "examples/react-tanstack-form",
+      "kind": "app",
+      "options": {}
+    },
+    {
+      "path": "packages/core",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/react",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/react-tanstack-form",
+      "kind": "library",
+      "options": {}
+    }
+  ],
+  "addons": [
+    {
+      "name": "@jfdevelops/multi-step-form-core",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/react-multi-step-form",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/react-multi-step-form-tanstack",
+      "options": {}
+    },
+    {
+      "name": "@tanstack/react-devtools",
+      "options": {}
+    },
+    {
+      "name": "@tanstack/react-form",
+      "options": {}
+    },
+    {
+      "name": "@tanstack/react-router",
+      "options": {}
+    },
+    {
+      "name": "@tanstack/react-router-devtools",
+      "options": {}
+    },
+    {
+      "name": "@tanstack/router-plugin",
+      "options": {}
+    }
+  ],
+  "agents": [
+    "claude-code",
+    "codex",
+    "cursor"
+  ],
+  "skills": [
+    {
+      "name": "jf-coding-conventions",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.1.1",
+        "path": "./skills/jf-coding-conventions"
+      }
+    },
+    {
+      "name": "jf-git",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.1.1",
+        "path": "./skills/jf-git"
+      }
+    },
+    {
+      "name": "jf-naming-conventions",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.1.1",
+        "path": "./skills/jf-naming-conventions"
+      }
+    }
+  ],
+  "managedFiles": [
+    {
+      "path": ".agents/skills/jf-coding-conventions/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-coding-conventions"
+      },
+      "sha256": "6b6453d70c6668af56e11012bf9743abca4815bd0cb4d940a918128913cd1dcb"
+    },
+    {
+      "path": ".agents/skills/jf-git/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-git"
+      },
+      "sha256": "6821cf9a9b7f657d3655a12618a9858fdbb14b24db03e8d65f52f8290b5ed21d"
+    },
+    {
+      "path": ".agents/skills/jf-git/references/branches.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-git"
+      },
+      "sha256": "78628604155f3f21591af3282994ac09002607fc10eba15d04a52eef956e4d45"
+    },
+    {
+      "path": ".agents/skills/jf-git/references/commits.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-git"
+      },
+      "sha256": "469359cb0aea1cb210d46297cdf46f56df18140d68177cd75734cd306df263a0"
+    },
+    {
+      "path": ".agents/skills/jf-git/references/pull-requests.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-git"
+      },
+      "sha256": "680d61f55251d79d4d1dbd2bbae3a5f1711c2fcb1007f7d2dcea4899a27fb70e"
+    },
+    {
+      "path": ".agents/skills/jf-naming-conventions/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-naming-conventions"
+      },
+      "sha256": "c1ea6bed067f524b497da315fa3921a2cebfff2f563bae885112b656197033a9"
+    },
+    {
+      "path": ".claude/skills/jf-coding-conventions/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-coding-conventions"
+      },
+      "sha256": "cd8184f448d4bb38964fd7d28713a8926db25f47ed93d402bad328e61050f602"
+    },
+    {
+      "path": ".claude/skills/jf-git/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-git"
+      },
+      "sha256": "b5387e82fafbaa8f2e6f85fb60e67d035fc04c49ba9b3d162efda886f8a0528f"
+    },
+    {
+      "path": ".claude/skills/jf-naming-conventions/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-naming-conventions"
+      },
+      "sha256": "6f06b1f73a742e3a695a600d2a5a4d58d6e3f8c8289ef5852349fea269f7b0c0"
+    }
+  ]
+}
