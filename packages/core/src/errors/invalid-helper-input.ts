@@ -1,20 +1,20 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'helper' as const;
+const context = type({
+  scope: "'helper'",
+  reason: 'string',
+  'helper?': 'string',
+  'value?': 'unknown',
+  'expected?': 'unknown',
+});
 
-export interface InvalidHelperInputContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  helper?: string;
-  value?: unknown;
-  expected?: unknown;
-}
+export type InvalidHelperInputContext = typeof context.infer;
 
-export class InvalidHelperInputError extends createMultiStepFormError(
-  { code: 'invalidHelperInput', scope },
-)(
-  (scope, { reason }: InvalidHelperInputContext) => `[${scope}]: ${reason}`,
-) {}
+/** Thrown when a helper function receives invalid input. */
+export class InvalidHelperInputError extends createMultiStepFormError({
+  code: 'invalidHelperInput',
+  scope: 'helper',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

@@ -8,6 +8,11 @@ overrides:
   solid-js: 1.9.14
   rollup: 4.62.4
 
+patchedDependencies:
+  '@jfdevelops/create-error@0.2.0':
+    hash: afc71b16c3f866f54416d30f467784ddc31736feb04f281a5fc4772ea422f4a9
+    path: patches/@jfdevelops__create-error@0.2.0.patch
+
 importers:
 
   .:
@@ -238,6 +243,9 @@ importers:
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
+      arktype:
+        specifier: ^2.2.9
+        version: 2.2.9
     devDependencies:
       typescript:
         specifier: ^5.9.2
@@ -397,10 +405,17 @@ importers:
         version: 4.4.3
 
   packages/core:
-    devDependencies:
+    dependencies:
+      '@jfdevelops/create-error':
+        specifier: ^0.2.0
+        version: 0.2.0(patch_hash=afc71b16c3f866f54416d30f467784ddc31736feb04f281a5fc4772ea422f4a9)
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
       arktype:
         specifier: ^2.1.22
         version: 2.1.23
+    devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -1331,6 +1346,10 @@ packages:
     resolution: {integrity: sha512-o2PU6P3Jv0CCC3Qdy5fiEWU64Hd27zGjz0cJ2620pK7HMM95oauY2ytqb46L6eQPdhfflw+z4Mfa6L/KdM6Dcw==}
     engines: {node: '>=22.12.0'}
     hasBin: true
+
+  '@jfdevelops/create-error@0.2.0':
+    resolution: {integrity: sha512-ZzD36TzBRUsfHb9M112PWzUmFJtHytArtnpdGL7uZnhYJ1DSBdnyqTFQIgkiotT1zqhczxnHm0NwTi5STBahJQ==}
+    engines: {node: '>=20.19.0'}
 
   '@jfdevelops/skills@0.1.0':
     resolution: {integrity: sha512-aJRJKSmjaNFf/S/Y0cmYDgWfjFhnb0hFkVOUBWU9x7hCdQRV2P5RGaEY5FxvEtQTeVLrJiKNedBffss2dlIP+Q==}
@@ -4987,6 +5006,10 @@ snapshots:
       tinyglobby: 0.2.17
       yaml: 2.9.1
       zod: 4.6.7
+
+  '@jfdevelops/create-error@0.2.0(patch_hash=afc71b16c3f866f54416d30f467784ddc31736feb04f281a5fc4772ea422f4a9)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
 
   '@jfdevelops/skills@0.1.0': {}
 

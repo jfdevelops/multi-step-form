@@ -33,7 +33,8 @@
   "license": "MIT",
   "dependencies": {
     "@jfdevelops/multi-step-form-core": "workspace:*",
-    "@standard-schema/spec": "^1.1.0"
+    "@standard-schema/spec": "^1.1.0",
+    "arktype": "^2.2.9"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

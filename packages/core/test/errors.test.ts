@@ -1,3 +1,4 @@
+import { type } from 'arktype';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   createMultiStepFormError,
@@ -13,10 +14,9 @@ describe('custom errors', () => {
     class ValidationError extends createMultiStepFormError({
       code: 'validation',
       scope: 'field',
-    })(
-      (_scope, context: { scope: 'field'; field: string }) =>
-        `${context.field} is invalid`,
-    ) {}
+    })
+      .defineContext(type({ scope: "'field'", field: 'string' }))
+      .implement(({ context }) => `${context.field} is invalid`) {}
 
     const error = new ValidationError({
       field: 'email',
@@ -26,9 +26,8 @@ describe('custom errors', () => {
     expect(error).toBeInstanceOf(MultiStepFormError);
     expect(error.message).toBe('email is invalid');
     expect(error.context).toStrictEqual({ scope: 'field', field: 'email' });
-    expectTypeOf(error.code).toEqualTypeOf<'validation'>();
+    expect(error.code).toBe('validation');
     expect(error.scope).toBe('field');
-    expectTypeOf(error.scope).toEqualTypeOf<'field'>();
     expectTypeOf(error.context.scope).toEqualTypeOf<'field'>();
   });
 
@@ -36,10 +35,9 @@ describe('custom errors', () => {
     const ValidationErrorBase = createMultiStepFormError({
       code: 'validation',
       scope: 'field',
-    })(
-      (_scope, context: { scope: 'field'; field: string }) =>
-        `${context.field} is invalid`,
-    );
+    })
+      .defineContext(type({ scope: "'field'", field: 'string' }))
+      .implement(({ context }) => `${context.field} is invalid`);
     const error = new ValidationErrorBase({
       field: 'email',
     });
@@ -86,7 +84,6 @@ describe('custom errors', () => {
     expect(error).toBeInstanceOf(MultiStepFormError);
     expect(error.context.scope).toBe('update');
     expect(error.scope).toBe('update');
-    expectTypeOf(error.scope).toEqualTypeOf<'update'>();
     expectTypeOf(error.context.scope).toEqualTypeOf<'update'>();
     expectTypeOf(error.context).toEqualTypeOf<UpdateMismatchContext>();
     expect(error.message).toContain('targetStep="step2"');

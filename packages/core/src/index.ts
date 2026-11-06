@@ -66,13 +66,21 @@ export {
 } from './errors/invalid-update.js';
 export {
   createMultiStepFormError,
-  type CreateMultiStepFormErrorOptions,
-  type CreatedMultiStepFormError,
-  type ErrorMessageRenderer,
   MultiStepFormError,
-  type MultiStepFormErrorContext,
-  type MultiStepFormErrorRendererFactory,
 } from './errors/multi-step-form-error.js';
+// The types behind `createMultiStepFormError` classes, so packages that define their own errors
+// can name them in their declarations.
+export type {
+  BlueprintContext,
+  BlueprintErrorTemplate,
+  DataSlot,
+  ErrorFamilyFactory,
+  FamilyError,
+  FamilyErrorClass,
+  ImplementedErrorClass,
+  ResolveContext,
+  TypeSlot,
+} from '@jfdevelops/create-error/types';
 export {
   UpdateMismatchError,
   type UpdateMismatchContext,

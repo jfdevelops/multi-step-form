@@ -1,18 +1,20 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'context' as const;
+const context = type({
+  scope: "'context'",
+  reason: 'string',
+  'stepData?': 'unknown',
+  'value?': 'unknown',
+  'expected?': 'unknown',
+});
 
-export interface InvalidContextContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  stepData?: unknown;
-  value?: unknown;
-  expected?: unknown;
-}
+export type InvalidContextContext = typeof context.infer;
 
-export class InvalidContextError extends createMultiStepFormError(
-  { code: 'invalidContext', scope },
-)((scope, { reason }: InvalidContextContext) => `[${scope}]: ${reason}`) {}
+/** Thrown when step data is missing or has an unexpected shape. */
+export class InvalidContextError extends createMultiStepFormError({
+  code: 'invalidContext',
+  scope: 'context',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

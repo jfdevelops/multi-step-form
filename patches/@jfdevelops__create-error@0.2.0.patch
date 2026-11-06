@@ -1,0 +1,59 @@
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index 6558f91576bb1c81e179d2334d6708b6e6b1ff40..d06467bd98a117509b1a334fc0b1b1cec1a52750 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -1,3 +1,3 @@
+-import { CreateErrorConfig, ImplementOptions, InvariantInput } from "./types.cjs";
++import { ConcreteErrorClass, CreateErrorConfig, ErrorClassStatics, ErrorDefinitionBuilder, FamilyErrorClass, ImplementOptions, ImplementationBuilder, ImplementedErrorClass, InvariantInput, typeSlot } from "./types.cjs";
+ import { createError, invariant } from "./create-error.cjs";
+-export { type CreateErrorConfig, type ImplementOptions, type InvariantInput, createError, invariant };
+\ No newline at end of file
++export { type ConcreteErrorClass, type CreateErrorConfig, type ErrorClassStatics, type ErrorDefinitionBuilder, type FamilyErrorClass, type ImplementOptions, type ImplementationBuilder, type ImplementedErrorClass, type InvariantInput, createError, invariant, type typeSlot };
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 6eb0465642e58c6c882fb447342229c790a67fe3..9d6bf918f1e4f99091c3568a11f67daae4c133aa 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -1,3 +1,3 @@
+-import { CreateErrorConfig, ImplementOptions, InvariantInput } from "./types.mjs";
++import { ConcreteErrorClass, CreateErrorConfig, ErrorClassStatics, ErrorDefinitionBuilder, FamilyErrorClass, ImplementOptions, ImplementationBuilder, ImplementedErrorClass, InvariantInput, typeSlot } from "./types.mjs";
+ import { createError, invariant } from "./create-error.mjs";
+-export { type CreateErrorConfig, type ImplementOptions, type InvariantInput, createError, invariant };
+\ No newline at end of file
++export { type ConcreteErrorClass, type CreateErrorConfig, type ErrorClassStatics, type ErrorDefinitionBuilder, type FamilyErrorClass, type ImplementOptions, type ImplementationBuilder, type ImplementedErrorClass, type InvariantInput, createError, invariant, type typeSlot };
+diff --git a/dist/types.d.cts b/dist/types.d.cts
+index f8add31045008409ef6ea89dccdc7a7d08d96a48..572f25e029fb42fd6e73dae5cbeef4f3dc2d6e7c 100644
+--- a/dist/types.d.cts
++++ b/dist/types.d.cts
+@@ -344,5 +344,5 @@ type ErrorFamilyFactory<Schema extends StandardSchemaV1, Config> = {
+   is(value: unknown): value is FamilyError<Schema, Config>;
+ };
+ //#endregion
+-export { BlueprintContext, BlueprintErrorTemplate, CreateErrorConfig, ErrorFamilyFactory, ImplementOptions, InvariantInput };
++export { BlueprintContext, BlueprintErrorTemplate, BuilderData, BuilderInput, ConcreteDefinition, ConcreteErrorClass, ConstructorInput, CreateErrorConfig, DataPropertyTemplate, DataSlot, DefaultBuilderData, DefinitionInput, DefinitionOutput, DefinitionTemplate, ErrorClassStatics, ErrorDefinitionBuilder, ErrorFamilyFactory, ExactDefinition, Expand, ExtendsNever, FamilyError, FamilyErrorClass, ImplementOptions, ImplementationArgument, ImplementationArgumentWithDefinition, ImplementationBuilder, ImplementationCallback, ImplementationSlot, ImplementedErrorClass, InjectedDefinitionKeys, InstanceProperties, InvariantInput, MessageTemplate, OpaqueObject, PassedImplementationArgument, PassedImplementationCallback, PropertiesTemplate, ReplaceTemplate, ReplaceTuple, ResolveContext, ResolveTemplate, TypeSlot, typeSlot };
+ //# sourceMappingURL=types.d.cts.map
+diff --git a/dist/types.d.mts b/dist/types.d.mts
+index 81281a296a0d3d80dca11f9e8a0e40dd8d75c88d..36ce6b63b6869f15064a4d47c57e8e56f6f2cc83 100644
+--- a/dist/types.d.mts
++++ b/dist/types.d.mts
+@@ -344,5 +344,5 @@ type ErrorFamilyFactory<Schema extends StandardSchemaV1, Config> = {
+   is(value: unknown): value is FamilyError<Schema, Config>;
+ };
+ //#endregion
+-export { BlueprintContext, BlueprintErrorTemplate, CreateErrorConfig, ErrorFamilyFactory, ImplementOptions, InvariantInput };
++export { BlueprintContext, BlueprintErrorTemplate, BuilderData, BuilderInput, ConcreteDefinition, ConcreteErrorClass, ConstructorInput, CreateErrorConfig, DataPropertyTemplate, DataSlot, DefaultBuilderData, DefinitionInput, DefinitionOutput, DefinitionTemplate, ErrorClassStatics, ErrorDefinitionBuilder, ErrorFamilyFactory, ExactDefinition, Expand, ExtendsNever, FamilyError, FamilyErrorClass, ImplementOptions, ImplementationArgument, ImplementationArgumentWithDefinition, ImplementationBuilder, ImplementationCallback, ImplementationSlot, ImplementedErrorClass, InjectedDefinitionKeys, InstanceProperties, InvariantInput, MessageTemplate, OpaqueObject, PassedImplementationArgument, PassedImplementationCallback, PropertiesTemplate, ReplaceTemplate, ReplaceTuple, ResolveContext, ResolveTemplate, TypeSlot, typeSlot };
+ //# sourceMappingURL=types.d.mts.map
+diff --git a/package.json b/package.json
+index 9aafbe9dbe291f31d7f21880004e6e05221b87c7..f384de9074dfc18b4f953b0838c02b78f0153e12 100644
+--- a/package.json
++++ b/package.json
+@@ -32,6 +32,10 @@
+         "default": "./dist/index.cjs"
+       }
+     },
++    "./types": {
++      "import": "./dist/types.d.mts",
++      "require": "./dist/types.d.cts"
++    },
+     "./package.json": "./package.json"
+   },
+   "main": "./dist/index.cjs",
