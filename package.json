@@ -28,6 +28,8 @@
   "packageManager": "pnpm@10.18.2",
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
+    "@jfdevelops/cli": "0.7.0",
+    "@jfdevelops/skills": "0.1.1",
     "@types/node": "^24.5.0",
     "glob": "^13.0.0",
     "husky": "^9.1.7",
