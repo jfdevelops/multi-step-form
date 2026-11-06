@@ -177,6 +177,84 @@ importers:
         specifier: ^7.1.11
         version: 7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
 
+  packages/builder-core:
+    dependencies:
+      '@jfdevelops/multi-step-form-core':
+        specifier: workspace:*
+        version: link:../core
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
+    devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.11
+        version: 7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.0.8
+        version: 4.0.8(@types/node@24.9.1)(@vitest/browser-playwright@4.0.8)(jiti@2.7.0)(jsdom@27.0.1(postcss@8.5.26))(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+
+  packages/builder-react:
+    dependencies:
+      '@dnd-kit/react':
+        specifier: ^0.5.3
+        version: 0.5.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@jfdevelops/multi-step-form-builder-core':
+        specifier: workspace:*
+        version: link:../builder-core
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.13
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19.1.9
+        version: 19.2.2(@types/react@19.2.2)
+      '@vitejs/plugin-react':
+        specifier: ^5.0.4
+        version: 5.0.4(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))
+      jsdom:
+        specifier: ^27.0.1
+        version: 27.0.1(postcss@8.5.26)
+      react:
+        specifier: ^19.1.1
+        version: 19.2.0
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.0(react@19.2.0)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.11
+        version: 7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.0.8
+        version: 4.0.8(@types/node@24.9.1)(@vitest/browser-playwright@4.0.8)(jiti@2.7.0)(jsdom@27.0.1(postcss@8.5.26))(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+
+  packages/builder-zod:
+    dependencies:
+      '@jfdevelops/multi-step-form-builder-core':
+        specifier: workspace:*
+        version: link:../builder-core
+    devDependencies:
+      '@jfdevelops/multi-step-form-core':
+        specifier: workspace:*
+        version: link:../core
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.11
+        version: 7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.0.8
+        version: 4.0.8(@types/node@24.9.1)(@vitest/browser-playwright@4.0.8)(jiti@2.7.0)(jsdom@27.0.1(postcss@8.5.26))(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+      zod:
+        specifier: ^4.1.0
+        version: 4.4.3
+
   packages/core:
     devDependencies:
       arktype:
@@ -551,6 +629,27 @@ packages:
   '@csstools/css-tokenizer@3.0.4':
     resolution: {integrity: sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw==}
     engines: {node: '>=18'}
+
+  '@dnd-kit/abstract@0.5.3':
+    resolution: {integrity: sha512-KZQ2vftkO9BHupVzlUqB5d7JETL7ITlvslx3hrj4aObwjliAzuzV/n5wCpQllNd0Hxvg7FaQtLekJ8dplqKwbA==}
+
+  '@dnd-kit/collision@0.5.3':
+    resolution: {integrity: sha512-DBo8czkI72xnsHRWOMTn/GAyYgSWy9bmde85mrZ7ShqLhcbIbcu4PVJ3ZU9MBikePCSAVOoUTZE2gS40jogrEw==}
+
+  '@dnd-kit/dom@0.5.3':
+    resolution: {integrity: sha512-JJe+Qu/JmofGzHes3np91sQYwp5spvLcknjRkq+VO59JTqSnQNPXlhHXavRXTwQFabaaRyRzXyH/faAvubCNGw==}
+
+  '@dnd-kit/geometry@0.5.3':
+    resolution: {integrity: sha512-U+zscNjoHfJ1xUV+XDGF89jPCoILLivWSb/U9mfM7h83f6o3X9AS9uIwG46bXUpCqPvlI/9JcOlyga5uvfyjgw==}
+
+  '@dnd-kit/react@0.5.3':
+    resolution: {integrity: sha512-BGn6bakgcRSoKMRQP8cRIGu59e5lGC3/sL0zVWmDMo/9CMPSxgjCcQltDn5TDTwAARnEbuwNEksor4rLtH/yEg==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+
+  '@dnd-kit/state@0.5.3':
+    resolution: {integrity: sha512-NJTQkBglAT/SXLc+IOLiKwNvsTrWmPG5AO+7Gn0F0n8XyVaf4VCbTCuPuU48sDBfcpg23O0tfGkfZNiZbYTvMw==}
 
   '@emnapi/core@1.7.1':
     resolution: {integrity: sha512-o1uhUASyo921r2XtHYOHy7gdkGLge8ghBEQHMWmyJFoXlpU58kIrhhN3w26lpQb6dspetweapMn2CSNwQ8I4wg==}
@@ -1138,6 +1237,9 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@preact/signals-core@1.14.5':
+    resolution: {integrity: sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg==}
 
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
@@ -1806,8 +1908,8 @@ packages:
     peerDependencies:
       solid-js: 1.9.14
 
-  '@standard-schema/spec@1.0.0':
-    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
   '@tailwindcss/node@4.3.3':
     resolution: {integrity: sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg==}
@@ -4330,6 +4432,45 @@ snapshots:
 
   '@csstools/css-tokenizer@3.0.4': {}
 
+  '@dnd-kit/abstract@0.5.3':
+    dependencies:
+      '@dnd-kit/geometry': 0.5.3
+      '@dnd-kit/state': 0.5.3
+      tslib: 2.8.1
+
+  '@dnd-kit/collision@0.5.3':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.3
+      '@dnd-kit/geometry': 0.5.3
+      tslib: 2.8.1
+
+  '@dnd-kit/dom@0.5.3':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.3
+      '@dnd-kit/collision': 0.5.3
+      '@dnd-kit/geometry': 0.5.3
+      '@dnd-kit/state': 0.5.3
+      tslib: 2.8.1
+
+  '@dnd-kit/geometry@0.5.3':
+    dependencies:
+      '@dnd-kit/state': 0.5.3
+      tslib: 2.8.1
+
+  '@dnd-kit/react@0.5.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+    dependencies:
+      '@dnd-kit/abstract': 0.5.3
+      '@dnd-kit/dom': 0.5.3
+      '@dnd-kit/state': 0.5.3
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+      tslib: 2.8.1
+
+  '@dnd-kit/state@0.5.3':
+    dependencies:
+      '@preact/signals-core': 1.14.5
+      tslib: 2.8.1
+
   '@emnapi/core@1.7.1':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
@@ -4722,6 +4863,8 @@ snapshots:
   '@oxc-project/types@0.143.0': {}
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@preact/signals-core@1.14.5': {}
 
   '@quansync/fs@1.0.0':
     dependencies:
@@ -5224,7 +5367,7 @@ snapshots:
     dependencies:
       solid-js: 1.9.14
 
-  '@standard-schema/spec@1.0.0': {}
+  '@standard-schema/spec@1.1.0': {}
 
   '@tailwindcss/node@4.3.3':
     dependencies:
@@ -5594,6 +5737,20 @@ snapshots:
       - utf-8-validate
       - vite
 
+  '@vitest/browser-playwright@4.0.8(playwright@1.56.1)(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))(vitest@4.0.8)':
+    dependencies:
+      '@vitest/browser': 4.0.8(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))(vitest@4.0.8)
+      '@vitest/mocker': 4.0.8(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))
+      playwright: 1.56.1
+      tinyrainbow: 3.0.3
+      vitest: 4.0.8(@types/node@24.9.1)(@vitest/browser-playwright@4.0.8)(jiti@2.7.0)(jsdom@27.0.1(postcss@8.5.26))(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+    optional: true
+
   '@vitest/browser@4.0.8(vite@7.1.11(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))(vitest@4.0.8)':
     dependencies:
       '@vitest/mocker': 4.0.8(vite@7.1.11(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))
@@ -5611,6 +5768,24 @@ snapshots:
       - utf-8-validate
       - vite
 
+  '@vitest/browser@4.0.8(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))(vitest@4.0.8)':
+    dependencies:
+      '@vitest/mocker': 4.0.8(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))
+      '@vitest/utils': 4.0.8
+      magic-string: 0.30.21
+      pixelmatch: 7.1.0
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.0.3
+      vitest: 4.0.8(@types/node@24.9.1)(@vitest/browser-playwright@4.0.8)(jiti@2.7.0)(jsdom@27.0.1(postcss@8.5.26))(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+    optional: true
+
   '@vitest/expect@3.2.4':
     dependencies:
       '@types/chai': 5.2.3
@@ -5621,7 +5796,7 @@ snapshots:
 
   '@vitest/expect@4.0.8':
     dependencies:
-      '@standard-schema/spec': 1.0.0
+      '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
       '@vitest/spy': 4.0.8
       '@vitest/utils': 4.0.8
@@ -7300,17 +7475,17 @@ snapshots:
       expect-type: 1.2.2
       magic-string: 0.30.21
       pathe: 2.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.5
       std-env: 3.10.0
       tinybench: 2.9.0
       tinyexec: 0.3.2
-      tinyglobby: 0.2.15
+      tinyglobby: 0.2.17
       tinyrainbow: 3.0.3
       vite: 7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.9.1
-      '@vitest/browser-playwright': 4.0.8(playwright@1.56.1)(vite@7.1.11(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))(vitest@4.0.8)
+      '@vitest/browser-playwright': 4.0.8(playwright@1.56.1)(vite@7.3.6(@types/node@24.9.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.20.6)(yaml@2.9.1))(vitest@4.0.8)
       jsdom: 27.0.1(postcss@8.5.26)
     transitivePeerDependencies:
       - jiti
