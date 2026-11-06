@@ -1,0 +1,172 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  color: #1f2328;
+  background: #f6f8fa;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.toolbar strong {
+  margin-right: auto;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 180px 1fr 260px;
+  gap: 16px;
+  padding: 16px;
+}
+
+.panel {
+  padding: 12px;
+  background: white;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+}
+
+.palette-item {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  cursor: grab;
+}
+
+.palette-item:hover {
+  background: #f6f8fa;
+}
+
+.steps {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.step-list {
+  display: flex;
+  gap: 4px;
+}
+
+.step-tab {
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+}
+
+.step-tab[data-active] {
+  color: white;
+  background: #0969da;
+  border-color: #0969da;
+}
+
+.step-tab[data-drop-target] {
+  outline: 2px dashed #0969da;
+}
+
+.canvas {
+  min-height: 240px;
+  padding: 8px;
+  border: 2px dashed #d0d7de;
+  border-radius: 8px;
+}
+
+.canvas[data-drop-target] {
+  border-color: #0969da;
+}
+
+.hint {
+  color: #656d76;
+  text-align: center;
+}
+
+.canvas-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: white;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+}
+
+.canvas-field small {
+  margin-left: auto;
+  color: #656d76;
+}
+
+.canvas-field[data-selected] {
+  border-color: #0969da;
+  box-shadow: 0 0 0 1px #0969da;
+}
+
+.canvas-field[data-dragging] {
+  opacity: 0.5;
+}
+
+.handle {
+  padding: 0 4px;
+  background: none;
+  border: none;
+  cursor: grab;
+}
+
+fieldset {
+  margin: 0 0 12px;
+  border: none;
+  padding: 0;
+}
+
+legend {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.property {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.property input:not([type='checkbox']),
+.property select,
+.property textarea {
+  width: 100%;
+  padding: 4px 6px;
+  font: inherit;
+}
+
+.property [role='alert'] {
+  color: #cf222e;
+}
+
+.code {
+  margin: 0 16px 16px;
+}
+
+.code pre {
+  padding: 12px;
+  overflow: auto;
+  background: white;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+}
