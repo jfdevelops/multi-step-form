@@ -1,149 +1,119 @@
 import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
 import { describe, expect, it } from 'vitest';
 import {
+  builtinAdapter,
   compileDefinition,
-  compileStepValidator,
-  createBuiltinValidator,
   createFormBuilder,
-  createRegistry,
+  createFormFromDefinition,
+  createSchemaEditorActions,
+  createSchemaValidator,
   fromStepsConfig,
+  generateCode,
   getCanvasModel,
+  getFormSettingsModel,
   getInspectorModel,
   getPaletteModel,
+  getSchemaEditorModel,
   getStepValidationModel,
   handleKeyDown,
   resolveShortcut,
   setInspectorValue,
   setStepValidationMode,
   toSource,
+  toTypeScript,
+  createRegistry,
   type FormDefinition,
-  type StepDefinition,
 } from '../src';
+import { describeConformance } from './conformance';
 
 const registry = createRegistry();
 
-function validate(step: StepDefinition, values: Record<string, unknown>) {
-  const validator = compileStepValidator(step, registry)!;
-  const result = validator['~standard'].validate(values) as {
-    issues?: { message: string; path?: readonly PropertyKey[] }[];
-  };
-
-  return (result.issues ?? []).map((issue) => `${String(issue.path?.[0])}: ${issue.message}`);
-}
-
-const signupStep: StepDefinition = {
-  id: 's1',
-  title: 'Account',
-  validation: {
-    kind: 'schema',
-    library: 'builtin',
-    fields: {
-      password: { type: 'string', checks: [{ check: 'minLength', value: 8 }] },
-      confirm: {
-        type: 'string',
-        checks: [{ check: 'equalsField', field: 'password', message: 'Passwords must match' }],
-      },
-    },
-  },
-  fields: [
-    { id: 'f1', key: 'email', type: 'string.email', defaultValue: '', isRequired: true },
-    { id: 'f2', key: 'password', type: 'string.password', defaultValue: '', isRequired: true },
-    { id: 'f3', key: 'confirm', type: 'string.password', defaultValue: '', isRequired: true },
-    { id: 'f4', key: 'nickname', type: 'string', defaultValue: '' },
-    {
-      id: 'f5',
-      key: 'plan',
-      type: 'string.select',
-      defaultValue: '',
-      props: { options: [{ value: 'free', label: 'Free' }, { value: 'pro', label: 'Pro' }] },
-    },
-  ],
-};
-
-describe('builtin validator', () => {
-  it('combines inferred and explicit rules', () => {
-    expect(validate(signupStep, { email: '', password: '', confirm: '', nickname: '', plan: '' })).toEqual([
-      'email: Required',
-      'password: Required',
-      'confirm: Required',
-    ]);
-
-    expect(
-      validate(signupStep, {
-        email: 'nope',
-        password: 'short',
-        confirm: 'other',
-        nickname: '',
-        plan: 'enterprise',
-      }),
-    ).toEqual([
-      'email: Must be a valid email address',
-      'password: Must be at least 8 characters',
-      'confirm: Passwords must match',
-      'plan: Must be one of the allowed values',
-    ]);
-
-    expect(
-      validate(signupStep, {
-        email: 'a@b.co',
-        password: 'long enough',
-        confirm: 'long enough',
-        nickname: '',
-        plan: 'pro',
-      }),
-    ).toEqual([]);
-  });
-
-  it('validates types, numbers and dates', () => {
-    const validator = createBuiltinValidator({
-      age: { type: 'number', optional: false, checks: [{ check: 'min', value: 18 }, { check: 'integer' }] },
-      start: { type: 'date', optional: true, checks: [{ check: 'min', value: '2026-01-01' }] },
-    });
-    const run = (values: Record<string, unknown>) =>
-      (validator['~standard'].validate(values) as { issues?: unknown[] }).issues?.length ?? 0;
-
-    expect(run({ age: 'x' })).toBe(1);
-    expect(run({ age: 17.5 })).toBe(2);
-    expect(run({ age: 30, start: new Date('2025-06-01') })).toBe(1);
-    expect(run({ age: 30, start: new Date('2026-06-01') })).toBe(0);
-    expect(run({ age: 30 })).toBe(0);
-  });
-
-  it("checks only presence for kind: 'required'", () => {
-    const step: StepDefinition = { ...signupStep, validation: { kind: 'required' } };
-
-    expect(validate(step, { email: 'not-an-email', password: 'x', confirm: 'y', nickname: '', plan: '' })).toEqual([]);
-    expect(validate(step, { email: '', password: 'x', confirm: 'y' })).toEqual(['email: Required']);
-  });
-});
+describeConformance(builtinAdapter);
 
 describe('compileDefinition', () => {
   const definition: FormDefinition = {
     schemaVersion: 1,
     id: 'signup',
     revision: 0,
+    settings: { validator: 'builtin', nameTransformCasing: 'sentence', storageKey: 'signup' },
     steps: [
-      signupStep,
+      {
+        id: 's1',
+        title: 'Account',
+        fields: [
+          { id: 'f1', key: 'emailAddress', type: 'string.email', isRequired: true, defaultValue: '', schema: { kind: 'string', checks: [{ check: 'email' }] } },
+        ],
+      },
       {
         id: 's2',
         title: 'Profile',
+        nameTransformCasing: 'kebab',
+        validation: { kind: 'none' },
         fields: [
-          { id: 'f6', key: 'birthday', type: 'date', defaultValue: '2000-01-01T00:00:00.000Z' },
-          { id: 'f7', key: 'newsletter', type: 'boolean.switch', defaultValue: false, label: 'Newsletter' },
+          { id: 'f2', key: 'birthDay', type: 'date', defaultValue: '2000-01-01T00:00:00.000Z', schema: { kind: 'date' } },
+          { id: 'f3', key: 'newsletter', type: 'boolean.switch', defaultValue: false, label: 'Newsletter', schema: { kind: 'boolean' } },
+          {
+            id: 'f4',
+            key: 'location',
+            type: 'string.radio',
+            defaultValue: '',
+            schema: { kind: 'enum', values: ['come_to_me', 'i_come_to_you'] },
+            props: { options: [{ value: 'come_to_me', label: 'Come to me' }, { value: 'i_come_to_you', label: 'I come to you' }] },
+          },
+          {
+            id: 'f5',
+            key: 'faces',
+            type: 'object',
+            nameTransformCasing: 'upper',
+            defaultValue: { min: 1, faces: [{ id: 'face1', addedOn: '2025-01-01T00:00:00.000Z' }] },
+            schema: {
+              kind: 'object',
+              properties: [
+                { key: 'min', schema: { kind: 'number' } },
+                {
+                  key: 'faces',
+                  schema: {
+                    kind: 'array',
+                    item: {
+                      kind: 'object',
+                      properties: [
+                        { key: 'id', schema: { kind: 'string' } },
+                        { key: 'addedOn', schema: { kind: 'date' } },
+                        { key: 'note', schema: { kind: 'string', optional: true } },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
         ],
       },
     ],
   };
 
   it('produces a config defineMultiStepForm accepts, with completeness from the validator', () => {
-    const schema = defineMultiStepForm(compileDefinition(definition) as never).configure()();
-    const steps = schema.stepSchema.value as Record<string, any>;
+    const form = createFormFromDefinition(definition)() as { stepSchema: { value: Record<string, any> } };
+    const steps = form.stepSchema.value;
 
     expect(Object.keys(steps)).toEqual(['step1', 'step2']);
     expect(steps.step1.isComplete).toBe(false);
     expect(steps.step2.isComplete).toBe(true);
-    expect(steps.step2.fields.birthday.defaultValue).toBeInstanceOf(Date);
+    expect(steps.step2.fields.birthDay.defaultValue).toBeInstanceOf(Date);
+    expect(steps.step2.fields.faces.defaultValue.faces[0].addedOn).toBeInstanceOf(Date);
+  });
+
+  it('resolves labels with the multi-step form casing rules', () => {
+    const form = createFormFromDefinition(definition)() as { stepSchema: { value: Record<string, any> } };
+    const steps = form.stepSchema.value;
+
+    expect(steps.step1.fields.emailAddress.label).toBe('Email address*');
+    expect(steps.step2.fields.birthDay.label).toBe('birth-day');
     expect(steps.step2.fields.newsletter.label).toBe('Newsletter');
+    expect(steps.step2.fields.faces.label).toBe('FACES');
+
+    const canvas = getCanvasModel(createFormBuilder({ initial: definition }).getSnapshot());
+    expect(canvas.fields.map((field) => field.label)).toEqual(['Email address*']);
   });
 
   it('reattaches code-owned validators through resolveCode', () => {
@@ -184,41 +154,100 @@ describe('compileDefinition', () => {
     expect(keys).toEqual(['step2']);
   });
 
-  it('round-trips a hand-written steps config', () => {
+  it('round-trips a hand-written steps config, inferring schemas from values', () => {
     const steps = {
       step1: {
         title: 'Contact',
+        nameTransformCasing: 'sentence' as const,
         fields: {
           email: { defaultValue: '', type: 'string.email', isRequired: true, placeholder: 'you@example.com' },
           since: { defaultValue: new Date('2024-05-01T00:00:00.000Z') },
-          prefs: { defaultValue: { theme: 'light' } },
+          prefs: { defaultValue: { theme: 'light', sizes: [1, 2] }, nameTransformCasing: 'upper' as const },
         },
-        validateFields: createBuiltinValidator({}),
+        validateFields: createSchemaValidator({ fields: [], refinements: [] }),
       },
     };
     const schema = defineMultiStepForm({ steps }).configure()();
     const imported = fromStepsConfig(schema.stepSchema.original as Record<string, unknown>, { id: 'contact' });
     const step = imported.steps[0]!;
 
-    expect(step.validation).toEqual({ kind: 'code', ref: 'step1.validateFields' });
-    expect(step.fields.map(({ key, type, defaultValue }) => ({ key, type, defaultValue }))).toEqual([
-      { key: 'email', type: 'string.email', defaultValue: '' },
-      { key: 'since', type: 'date', defaultValue: '2024-05-01T00:00:00.000Z' },
-      { key: 'prefs', type: 'object', defaultValue: { theme: 'light' } },
+    expect(step).toMatchObject({ nameTransformCasing: 'sentence', validation: { kind: 'code', ref: 'step1.validateFields' } });
+    expect(step.fields.map(({ key, type, schema, defaultValue }) => ({ key, type, schema, defaultValue }))).toEqual([
+      { key: 'email', type: 'string.email', schema: { kind: 'string' }, defaultValue: '' },
+      { key: 'since', type: 'date', schema: { kind: 'date' }, defaultValue: '2024-05-01T00:00:00.000Z' },
+      {
+        key: 'prefs',
+        type: 'object',
+        schema: {
+          kind: 'object',
+          properties: [
+            { key: 'theme', schema: { kind: 'string' } },
+            { key: 'sizes', schema: { kind: 'array', item: { kind: 'number' } } },
+          ],
+        },
+        defaultValue: { theme: 'light', sizes: [1, 2] },
+      },
     ]);
     expect(step.fields[0]).toMatchObject({ isRequired: true, placeholder: 'you@example.com' });
-
-    const builder = createFormBuilder({ initial: imported });
-    expect(builder.getSnapshot().issues).toEqual([]);
+    expect(step.fields[2]).toMatchObject({ nameTransformCasing: 'upper' });
+    expect(createFormBuilder({ initial: imported }).getSnapshot().issues).toEqual([]);
   });
 
-  it('exports source code with emitted validators', () => {
-    const source = toSource(definition, { importFrom: '@jfdevelops/multi-step-form-core' });
+  it('generates a module with typed values, validators and form settings', () => {
+    const code = generateCode(
+      { ...definition, settings: { ...definition.settings, instances: ['client', 'admin'] } },
+      { importFrom: '@jfdevelops/multi-step-form-core' },
+    );
 
-    expect(source).toContain("import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';");
-    expect(source).toContain('validateFields: createBuiltinValidator(');
-    expect(source).toContain('defaultValue: new Date("2000-01-01T00:00:00.000Z")');
-    expect(source).toMatch(/step2: \{\n\s+title: "Profile"/);
+    expect(code.packages).toEqual(['@jfdevelops/multi-step-form-core', '@jfdevelops/multi-step-form-builder-core']);
+    expect(code.types.map((type) => type.name)).toEqual(['Step2Location', 'Step2Faces']);
+    expect(code.source).toContain('export type Step2Location = "come_to_me" | "i_come_to_you" | "";');
+    expect(code.source).toContain('defaultValue: "" as Step2Location,');
+    expect(code.source).toContain('note?: string;');
+    expect(code.source).toContain('addedOn: new Date("2025-01-01T00:00:00.000Z")');
+    expect(code.source).toContain('defaultValue: new Date("2000-01-01T00:00:00.000Z"),');
+    expect(code.source).toContain('export const step1Schema = createSchemaValidator(');
+    expect(code.source).toContain('validateFields: step1Schema,');
+    expect(code.source).toContain('nameTransformCasing: "kebab",');
+    expect(code.source).toContain('instances: ["client","admin"],');
+    expect(code.source).toContain('storage: { key: "signup" },');
+    expect(code.source).not.toContain('export const form =');
+    expect(code.steps.map((step) => step.library)).toEqual(['builtin', undefined]);
+  });
+
+  it('writes every kind of default value, including cleared numbers', () => {
+    const source = toSource({
+      schemaVersion: 1,
+      id: 'f',
+      revision: 0,
+      steps: [
+        {
+          id: 's',
+          title: 'S',
+          fields: [
+            { id: 'a', key: 'count', type: 'number', defaultValue: null, schema: { kind: 'number', nullable: true } },
+            { id: 'b', key: 'list', type: 'array', defaultValue: [], schema: { kind: 'array', item: { kind: 'string' } } },
+          ],
+        },
+      ],
+    });
+
+    expect(source).toContain('defaultValue: null as Step1Count,');
+    expect(source).toContain('export type Step1Count = number | null;');
+    expect(source).toContain('defaultValue: [] as Step1List,');
+    expect(source).toContain('export const form = createForm();');
+  });
+
+  it('writes TypeScript types for schemas', () => {
+    expect(
+      toTypeScript({
+        kind: 'object',
+        properties: [
+          { key: 'a-b', schema: { kind: 'union', options: [{ kind: 'string' }, { kind: 'literal', value: 1 }] } },
+          { key: 'r', schema: { kind: 'record', value: { kind: 'date' }, optional: true } },
+        ],
+      }),
+    ).toBe('{\n  "a-b": string | 1;\n  r?: Record<string, Date>;\n}');
   });
 });
 
@@ -226,8 +255,10 @@ describe('models', () => {
   it('groups and filters the palette', () => {
     const palette = getPaletteModel(registry);
 
-    expect(palette.categories.map((category) => category.name)).toEqual(['Basic', 'Choice', 'Advanced']);
-    expect(getPaletteModel(registry, 'toggle').items.map((item) => item.type)).toEqual(['boolean.switch']);
+    expect(palette.categories.map((category) => category.name)).toEqual(['Basic', 'Choice', 'Structured']);
+    expect(palette.categories[0]!.items.map((item) => item.label)).toEqual(['Text', 'Number', 'Checkbox', 'Date']);
+    // Input types are searchable, but the palette shows one entry per field type.
+    expect(getPaletteModel(registry, 'email').items.map((item) => item.id)).toEqual(['text']);
   });
 
   it('describes the canvas for the active step', () => {
@@ -237,19 +268,31 @@ describe('models', () => {
 
     expect(canvas.steps).toHaveLength(1);
     expect(canvas.steps[0]).toMatchObject({ isActive: true, fieldCount: 1 });
-    expect(canvas.fields[0]).toMatchObject({ id, isSelected: true, fieldType: { label: 'Email' } });
+    expect(canvas.fields[0]).toMatchObject({
+      id,
+      label: 'Email',
+      isSelected: true,
+      fieldType: { id: 'text' },
+      inputType: { label: 'Email' },
+    });
   });
 
   it('inspects a step, a field and a mixed multi-selection', () => {
     const builder = createFormBuilder();
     expect(getInspectorModel(builder.getSnapshot()).target.type).toBe('step');
 
-    const a = builder.fields.add('string.select', undefined, { key: 'a', label: 'A' });
+    const a = builder.fields.add('choice', undefined, { key: 'firstChoice' });
     const field = getInspectorModel(builder.getSnapshot());
-    const paths = field.sections.flatMap((section) => section.properties.map((property) => property.descriptor.path));
+    const properties = field.sections.flatMap((section) => section.properties);
+    const byPath = (path: string) => properties.find((property) => property.descriptor.path === path)!;
 
-    expect(paths).toEqual(expect.arrayContaining(['key', 'label', 'defaultValue', 'props.options']));
-    expect(field.sections.find((section) => section.id === 'value')!.properties[0]!.descriptor.control).toBe('select');
+    expect(properties.map((property) => property.descriptor.path)).toEqual(
+      expect.arrayContaining(['key', 'type', 'label', 'nameTransformCasing', 'defaultValue', 'props.options']),
+    );
+    expect(byPath('defaultValue').descriptor.control).toBe('value');
+    expect(byPath('type').descriptor.options?.map((option) => option.label)).toEqual(['Dropdown', 'Radio group']);
+    expect(byPath('label').hint).toBe('First Choice');
+    expect(byPath('nameTransformCasing').hint).toBe('title');
 
     const b = builder.fields.add('boolean', undefined, { key: 'b', label: 'B' });
     builder.select(a);
@@ -258,21 +301,27 @@ describe('models', () => {
     const label = mixed.sections[0]!.properties.find((property) => property.descriptor.path === 'label')!;
 
     expect(label.mixed).toBe(true);
-    expect(mixed.sections.flatMap((section) => section.properties.map((property) => property.descriptor.path))).not.toContain('key');
+    const mixedPaths = mixed.sections.flatMap((section) => section.properties.map((property) => property.descriptor.path));
+    expect(mixedPaths).not.toContain('key');
+    expect(mixedPaths).not.toContain('type');
     // A boolean field has no placeholder, so the shared selection hides it.
-    expect(mixed.sections[0]!.properties.map((property) => property.descriptor.path)).not.toContain('placeholder');
+    expect(mixedPaths).not.toContain('placeholder');
 
     setInspectorValue(builder, 'isRequired', true);
     expect(builder.getField(a)?.isRequired).toBe(true);
     expect(builder.getField(b)?.isRequired).toBe(true);
     builder.history.undo();
     expect(builder.getField(a)?.isRequired).toBeUndefined();
+
+    // Empty text clears optional properties so derived values apply again.
+    setInspectorValue(builder, 'label', '');
+    expect(builder.getField(b)).not.toHaveProperty('label');
   });
 
   it('surfaces definition issues on inspector properties', () => {
     const builder = createFormBuilder();
-    builder.fields.add('string', undefined, { key: 'a' });
-    const b = builder.fields.add('string', undefined, { key: 'b' });
+    builder.fields.add('text', undefined, { key: 'a' });
+    const b = builder.fields.add('text', undefined, { key: 'b' });
     builder.fields.update(b, { key: 'a' });
 
     const key = getInspectorModel(builder.getSnapshot()).sections[0]!.properties[0]!;
@@ -284,18 +333,60 @@ describe('models', () => {
     const stepId = builder.getSnapshot().activeStepId!;
     builder.fields.add('string.email', undefined, { isRequired: true });
 
-    expect(getStepValidationModel(builder.getSnapshot(), stepId)!.mode).toBe('none');
+    expect(getStepValidationModel(builder.getSnapshot(), stepId)).toMatchObject({ mode: 'inherit' });
+    expect(getStepValidationModel(builder.getSnapshot(), stepId)).not.toHaveProperty('effectiveLibrary');
 
-    setStepValidationMode(builder, stepId, 'schema');
-    const model = getStepValidationModel(builder.getSnapshot(), stepId)!;
-
-    expect(model).toMatchObject({ mode: 'schema', library: 'builtin' });
-    expect(model.fields[0]).toMatchObject({
-      isCustomized: false,
-      isRequired: true,
-      rules: { type: 'string', checks: [{ check: 'email' }] },
+    builder.settings.update({ validator: 'builtin' });
+    expect(getStepValidationModel(builder.getSnapshot(), stepId)).toMatchObject({
+      mode: 'inherit',
+      effectiveLibrary: 'builtin',
+      formLibrary: 'builtin',
     });
-    expect(model.fields[0]!.availableChecks).toContain('pattern');
+
+    setStepValidationMode(builder, stepId, 'none');
+    expect(getStepValidationModel(builder.getSnapshot(), stepId)).toMatchObject({ mode: 'none' });
+    expect(getStepValidationModel(builder.getSnapshot(), stepId)).not.toHaveProperty('effectiveLibrary');
+
+    setStepValidationMode(builder, stepId, 'schema', 'builtin');
+    expect(builder.getStep(stepId)?.validation).toEqual({ kind: 'schema', library: 'builtin' });
+  });
+
+  it('describes form settings', () => {
+    const builder = createFormBuilder();
+    builder.fields.add('text', undefined, { key: 'firstName' });
+    const model = getFormSettingsModel(builder.getSnapshot());
+
+    expect(model.libraries).toEqual([{ library: 'builtin', label: 'Built-in' }]);
+    expect(model.casings).toContainEqual({ value: 'kebab', label: 'kebab — first-name' });
+  });
+
+  it('edits schemas through the schema editor', () => {
+    const builder = createFormBuilder();
+    const id = builder.fields.add('object', undefined, { key: 'faces' });
+    const actions = createSchemaEditorActions(builder, id);
+
+    const key = actions.addProperty([], 'faces', 'array');
+    actions.setKind([key, '#item'], 'object');
+    actions.addProperty([key, '#item'], 'id');
+    actions.addCheck([key, '#item', 'id'], 'minLength');
+    actions.addProperty([], 'faces');
+
+    const model = getSchemaEditorModel(builder.getSnapshot(), id)!;
+    expect(model.root.children.map((child) => child.name)).toEqual(['faces', 'faces2']);
+    expect(model.root.children[0]!.children[0]).toMatchObject({ role: 'item', schema: { kind: 'object' } });
+    expect(model.root.children[0]!.children[0]!.children[0]!.schema).toEqual({
+      kind: 'string',
+      checks: [{ check: 'minLength', value: 1 }],
+    });
+    expect(model.root.availableChecks).toEqual([]);
+    expect(builder.getField(id)?.defaultValue).toEqual({ faces: [], faces2: '' });
+
+    actions.renameProperty([], 'faces2', 'label');
+    actions.removeProperty([], 'faces');
+    expect(builder.getField(id)?.schema).toEqual({
+      kind: 'object',
+      properties: [{ key: 'label', schema: { kind: 'string' } }],
+    });
   });
 });
 
@@ -309,8 +400,8 @@ describe('keyboard', () => {
 
   it('runs actions against the builder', () => {
     const builder = createFormBuilder();
-    builder.fields.add('string', undefined, { key: 'a' });
-    const b = builder.fields.add('string', undefined, { key: 'b' });
+    builder.fields.add('text', undefined, { key: 'a' });
+    const b = builder.fields.add('text', undefined, { key: 'b' });
     const keys = () => builder.getSnapshot().definition.steps[0]!.fields.map((field) => field.key);
 
     expect(handleKeyDown(builder, { key: 'ArrowUp', altKey: true })).toBe(true);

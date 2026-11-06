@@ -1,56 +1,30 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { FieldCheck, FieldSchemaSpec } from '../definition.js';
-import type {
-  ResolvedStepSpec,
-  StepValues,
-  ValidatorAdapter,
-} from './types.js';
+import type { SchemaCheck, SchemaNode } from '../schema.js';
+import { createValidatorAdapter } from './adapter.js';
+import {
+  allowsEmptyString,
+  compilePattern,
+  defaultCheckMessage,
+  isUrl,
+  PATTERNS,
+} from './checks.js';
+import type { ResolvedStepSchema, StepValues, ValidatorAdapter } from './types.js';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-/** Upper bound on author-provided patterns, to limit pathological regular expressions. */
-export const MAX_PATTERN_LENGTH = 500;
-
-/** Whether a value counts as "not provided": `undefined`, `null`, `''` or `[]`. */
-export function isEmptyValue(value: unknown) {
-  return (
-    value === undefined ||
-    value === null ||
-    value === '' ||
-    (Array.isArray(value) && value.length === 0)
-  );
-}
-
-/** Compiles a `pattern` check, returning a reason string when it is unusable. */
-export function compilePattern(
-  check: Extract<FieldCheck, { check: 'pattern' }>,
-): RegExp | string {
-  if (check.value.length > MAX_PATTERN_LENGTH) {
-    return `Pattern is longer than ${MAX_PATTERN_LENGTH} characters`;
-  }
-
-  try {
-    return new RegExp(check.value, check.flags);
-  } catch (error) {
-    return error instanceof Error ? error.message : 'Invalid pattern';
-  }
-}
+type Path = (string | number)[];
 
 function toTime(value: unknown) {
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    return new Date(value).getTime();
-  }
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'string' || typeof value === 'number') return new Date(value).getTime();
 
   return Number.NaN;
 }
 
-function matchesType(spec: FieldSchemaSpec, value: unknown) {
-  switch (spec.type) {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
+}
+
+function typeMatches(node: SchemaNode, value: unknown): boolean {
+  switch (node.kind) {
     case 'string':
       return typeof value === 'string';
     case 'number':
@@ -58,207 +32,188 @@ function matchesType(spec: FieldSchemaSpec, value: unknown) {
     case 'boolean':
       return typeof value === 'boolean';
     case 'date':
-      return !Number.isNaN(toTime(value));
+      return value instanceof Date ? !Number.isNaN(value.getTime()) : false;
+    case 'literal':
+      return value === node.value;
+    case 'enum':
+      return node.values.includes(value as string | number);
+    case 'object':
+    case 'record':
+      return isPlainObject(value);
     case 'array':
       return Array.isArray(value);
-    case 'object':
-      return typeof value === 'object' && value !== null && !Array.isArray(value);
+    case 'union':
     case 'unknown':
       return true;
   }
 }
 
-function lengthOf(value: unknown) {
-  return typeof value === 'string' || Array.isArray(value)
-    ? value.length
-    : undefined;
-}
-
-function compareBound(
-  spec: FieldSchemaSpec,
-  value: unknown,
-  bound: number | string,
-) {
-  if (spec.type === 'date') {
-    return toTime(value) - toTime(bound);
-  }
-
-  return Number(value) - Number(bound);
-}
-
-export function defaultCheckMessage(check: FieldCheck) {
-  switch (check.check) {
-    case 'minLength':
-      return `Must be at least ${check.value} characters`;
-    case 'maxLength':
-      return `Must be at most ${check.value} characters`;
-    case 'length':
-      return `Must be exactly ${check.value} characters`;
-    case 'min':
-      return `Must be at least ${check.value}`;
-    case 'max':
-      return `Must be at most ${check.value}`;
-    case 'email':
-      return 'Must be a valid email address';
-    case 'url':
-      return 'Must be a valid URL';
-    case 'uuid':
-      return 'Must be a valid UUID';
-    case 'integer':
-      return 'Must be a whole number';
-    case 'pattern':
-      return 'Has an invalid format';
-    case 'oneOf':
+function typeMessage(node: SchemaNode) {
+  switch (node.kind) {
+    case 'enum':
       return 'Must be one of the allowed values';
-    case 'equalsField':
-      return `Must match ${check.field}`;
+    case 'literal':
+      return `Must be ${JSON.stringify(node.value)}`;
+    case 'date':
+      return 'Must be a valid date';
+    case 'object':
+    case 'record':
+      return 'Must be an object';
+    case 'array':
+      return 'Must be a list';
+    default:
+      return `Must be a ${node.kind}`;
   }
 }
 
-/** Runs one check. Returns `true` when it passes. */
-export function runCheck(
-  spec: FieldSchemaSpec,
-  check: FieldCheck,
-  value: unknown,
-  values: StepValues,
-  pattern?: RegExp,
-): boolean {
+function lengthOf(value: unknown) {
+  return typeof value === 'string' || Array.isArray(value) ? value.length : 0;
+}
+
+function passes(node: SchemaNode, check: SchemaCheck, value: unknown, patterns: Map<SchemaCheck, RegExp>) {
   switch (check.check) {
     case 'minLength':
-      return (lengthOf(value) ?? 0) >= check.value;
+      return lengthOf(value) >= check.value;
     case 'maxLength':
-      return (lengthOf(value) ?? 0) <= check.value;
+      return lengthOf(value) <= check.value;
     case 'length':
       return lengthOf(value) === check.value;
     case 'min':
-      return compareBound(spec, value, check.value) >= 0;
+      return node.kind === 'date' ? toTime(value) >= toTime(check.value) : Number(value) >= Number(check.value);
     case 'max':
-      return compareBound(spec, value, check.value) <= 0;
+      return node.kind === 'date' ? toTime(value) <= toTime(check.value) : Number(value) <= Number(check.value);
     case 'email':
-      return typeof value === 'string' && EMAIL_PATTERN.test(value);
-    case 'url':
-      if (typeof value !== 'string') return false;
-      try {
-        new URL(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return typeof value === 'string' && PATTERNS.email.test(value);
     case 'uuid':
-      return typeof value === 'string' && UUID_PATTERN.test(value);
+      return typeof value === 'string' && PATTERNS.uuid.test(value);
+    case 'url':
+      return isUrl(value);
     case 'integer':
       return Number.isInteger(value);
-    case 'pattern':
-      return typeof value === 'string' && pattern !== undefined
-        ? pattern.test(value)
-        : false;
-    case 'oneOf':
-      return Array.isArray(value)
-        ? value.every((item) => check.values.includes(item as never))
-        : check.values.includes(value as never);
-    case 'equalsField': {
-      const other = values[check.field];
-
-      return value instanceof Date || other instanceof Date
-        ? toTime(value) === toTime(other)
-        : value === other;
+    case 'pattern': {
+      const pattern = patterns.get(check);
+      return typeof value === 'string' && pattern !== undefined && pattern.test(value);
     }
+    case 'equalsField':
+      // Handled at the step level.
+      return true;
   }
 }
 
-/**
- * Creates a synchronous Standard Schema validator from resolved step rules, with no third-party
- * dependencies.
- */
-export function createBuiltinValidator(
-  spec: ResolvedStepSpec,
-): StandardSchemaV1<StepValues, StepValues> {
-  const patterns = new Map<FieldCheck, RegExp>();
+function validateNode(
+  node: SchemaNode,
+  value: unknown,
+  path: Path,
+  issues: StandardSchemaV1.Issue[],
+  patterns: Map<SchemaCheck, RegExp>,
+) {
+  if (value === null && node.nullable) return;
+  if (node.optional && (value === undefined || (value === '' && allowsEmptyString(node)))) return;
 
-  for (const field of Object.values(spec)) {
-    for (const check of field.checks ?? []) {
-      if (check.check === 'pattern') {
-        const compiled = compilePattern(check);
+  if (node.kind === 'union') {
+    const matches = node.options.some((option) => {
+      const optionIssues: StandardSchemaV1.Issue[] = [];
+      validateNode(option, value, path, optionIssues, patterns);
+      return optionIssues.length === 0;
+    });
 
-        if (compiled instanceof RegExp) {
-          patterns.set(check, compiled);
-        }
-      }
+    if (!matches) issues.push({ message: node.message ?? 'Does not match any allowed shape', path });
+    return;
+  }
+
+  if (!typeMatches(node, value)) {
+    issues.push({ message: node.message ?? typeMessage(node), path });
+    return;
+  }
+
+  for (const check of node.checks ?? []) {
+    if (!passes(node, check, value, patterns)) {
+      issues.push({ message: check.message ?? defaultCheckMessage(check, node), path });
     }
   }
+
+  if (node.kind === 'object') {
+    const object = value as Record<string, unknown>;
+    for (const property of node.properties) {
+      validateNode(property.schema, object[property.key], [...path, property.key], issues, patterns);
+    }
+  } else if (node.kind === 'record') {
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      validateNode(node.value, item, [...path, key], issues, patterns);
+    }
+  } else if (node.kind === 'array') {
+    (value as unknown[]).forEach((item, index) =>
+      validateNode(node.item, item, [...path, index], issues, patterns),
+    );
+  }
+}
+
+function collectPatterns(node: SchemaNode, patterns: Map<SchemaCheck, RegExp>) {
+  for (const check of node.checks ?? []) {
+    if (check.check === 'pattern') {
+      const compiled = compilePattern(check);
+      if (compiled instanceof RegExp) patterns.set(check, compiled);
+    }
+  }
+
+  if (node.kind === 'object') node.properties.forEach((property) => collectPatterns(property.schema, patterns));
+  if (node.kind === 'array') collectPatterns(node.item, patterns);
+  if (node.kind === 'record') collectPatterns(node.value, patterns);
+  if (node.kind === 'union') node.options.forEach((option) => collectPatterns(option, patterns));
+}
+
+/**
+ * Creates a synchronous Standard Schema validator for a step, with no third-party dependencies.
+ * This is what the `builtin` adapter compiles to, and what its exported code calls.
+ */
+export function createSchemaValidator(
+  spec: ResolvedStepSchema,
+): StandardSchemaV1<StepValues, StepValues> {
+  const patterns = new Map<SchemaCheck, RegExp>();
+
+  spec.fields.forEach((field) => collectPatterns(field.schema, patterns));
 
   return {
     '~standard': {
       version: 1,
       vendor: 'multi-step-form-builder',
       validate(input) {
-        if (typeof input !== 'object' || input === null) {
+        if (!isPlainObject(input)) {
           return { issues: [{ message: 'Expected an object' }] };
         }
 
-        const values = input as StepValues;
         const issues: StandardSchemaV1.Issue[] = [];
 
-        for (const [key, field] of Object.entries(spec)) {
-          const value = values[key];
-
-          if (isEmptyValue(value)) {
-            if (!field.optional) {
-              issues.push({ message: field.message ?? 'Required', path: [key] });
-            }
-
-            continue;
-          }
-
-          if (!matchesType(field, value)) {
-            issues.push({
-              message: field.message ?? `Expected a ${field.type}`,
-              path: [key],
-            });
-            continue;
-          }
-
-          for (const check of field.checks ?? []) {
-            if (!runCheck(field, check, value, values, patterns.get(check))) {
-              issues.push({
-                message: check.message ?? defaultCheckMessage(check),
-                path: [key],
-              });
-            }
-          }
+        for (const field of spec.fields) {
+          validateNode(field.schema, input[field.key], [field.key], issues, patterns);
         }
 
-        return issues.length > 0 ? { issues } : { value: values };
+        for (const refinement of spec.refinements) {
+          const value = input[refinement.field];
+          const other = input[refinement.equals];
+          const equal =
+            value instanceof Date || other instanceof Date ? toTime(value) === toTime(other) : value === other;
+
+          if (!equal) issues.push({ message: refinement.message, path: [refinement.field] });
+        }
+
+        return issues.length > 0 ? { issues } : { value: input };
       },
     },
   };
 }
 
-/** The dependency-free adapter used for `library: 'builtin'` and `kind: 'required'`. */
-export const builtinAdapter: ValidatorAdapter = {
+const createBuiltinAdapter = createValidatorAdapter((spec) => createSchemaValidator(spec));
+
+/** The dependency-free adapter, used for `library: 'builtin'`. */
+export const builtinAdapter: ValidatorAdapter = createBuiltinAdapter({
   library: 'builtin',
   label: 'Built-in',
-  supports(spec) {
-    for (const check of spec.checks ?? []) {
-      if (check.check === 'pattern') {
-        const compiled = compilePattern(check);
-
-        if (typeof compiled === 'string') {
-          return compiled;
-        }
-      }
-    }
-
-    return true;
-  },
-  compile: createBuiltinValidator,
-  emit(spec) {
-    return {
-      imports: [
-        "import { createBuiltinValidator } from '@jfdevelops/multi-step-form-builder-core';",
-      ],
-      declarations: [],
-      code: `createBuiltinValidator(${JSON.stringify(spec, null, 2)})`,
-    };
-  },
-};
+  packages: ['@jfdevelops/multi-step-form-builder-core'],
+  compile: (_spec, validator) => validator,
+  emit: (spec) => ({
+    imports: ["import { createSchemaValidator } from '@jfdevelops/multi-step-form-builder-core';"],
+    declarations: [],
+    code: `createSchemaValidator(${JSON.stringify(spec, null, 2)})`,
+  }),
+});
