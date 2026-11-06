@@ -32,6 +32,7 @@
   "author": "Joey Finkel",
   "license": "MIT",
   "dependencies": {
+    "@jfdevelops/create-error": "^0.2.1",
     "@jfdevelops/multi-step-form-core": "workspace:*",
     "@standard-schema/spec": "^1.1.0",
     "arktype": "^2.2.9"

@@ -44,7 +44,7 @@
     "provenance": true
   },
   "dependencies": {
-    "@jfdevelops/create-error": "^0.2.0",
+    "@jfdevelops/create-error": "^0.2.1",
     "arktype": "^2.1.22",
     "@standard-schema/spec": "^1.1.0"
   }

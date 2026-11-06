@@ -52,9 +52,6 @@
     "overrides": {
       "solid-js": "1.9.14",
       "rollup": "4.62.4"
-    },
-    "patchedDependencies": {
-      "@jfdevelops/create-error@0.2.0": "patches/@jfdevelops__create-error@0.2.0.patch"
     }
   }
 }
