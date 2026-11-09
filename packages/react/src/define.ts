@@ -1,4 +1,5 @@
 import {
+  defineMultiStepForm as coreDefineMultiStepForm,
   DEFAULT_INSTANCE_NAME,
   DEFAULT_STORAGE_KEY,
   InvalidInstanceError,
@@ -949,4 +950,8 @@ export function defineMultiStepForm<
   } & DefineMultiStepFormOptions<contextualSteps, instances>,
 ): MultiStepFormReactDefinition<steps, instances> {
   return new MultiStepFormReactDefinition<steps, instances>(options as never);
+}
+
+export namespace defineMultiStepForm {
+  export const defineStep: typeof coreDefineMultiStepForm.defineStep = coreDefineMultiStepForm.defineStep;
 }
