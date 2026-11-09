@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createFormBuilder,
+  createDefinitionBuilder,
   createMemoryStorage,
   createRegistry,
   FormBuilderError,
@@ -50,14 +51,14 @@ describe('createFormBuilder', () => {
     const first = builder.getSnapshot();
 
     expect(builder.getSnapshot()).toBe(first);
-    builder.fields.add('string');
+    builder.fields.add({ type: 'string' });
     expect(builder.getSnapshot()).not.toBe(first);
   });
 
   it('adds fields with unique keys, defaults from the field type, and selects them', () => {
     const { builder } = setup();
-    const first = builder.fields.add('string.email');
-    const second = builder.fields.add('string.email');
+    const first = builder.fields.add({ type: 'string.email' });
+    const second = builder.fields.add({ type: 'string.email' });
 
     expect(fieldKeys(builder)).toEqual(['email', 'email2']);
     expect(builder.getField(first)).toEqual({
@@ -76,7 +77,7 @@ describe('createFormBuilder', () => {
   it('throws a FormBuilderError for unknown field types and ids', () => {
     const { builder } = setup();
 
-    expect(() => builder.fields.add('nope')).toThrow(FormBuilderError);
+    expect(() => builder.fields.add({ type: 'nope' })).toThrow(FormBuilderError);
     expect(() => builder.fields.update('missing', { label: 'x' })).toThrow(/No field with id/);
   });
 
@@ -86,7 +87,7 @@ describe('createFormBuilder', () => {
     const listener = vi.fn();
     const unsubscribe = builder.subscribe(listener);
 
-    builder.fields.add('string');
+    builder.fields.add({ type: 'string' });
     expect(listener).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledTimes(1);
 
@@ -95,7 +96,7 @@ describe('createFormBuilder', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
 
     unsubscribe();
-    builder.fields.add('string');
+    builder.fields.add({ type: 'string' });
     expect(listener).toHaveBeenCalledTimes(2);
   });
 });
@@ -103,7 +104,7 @@ describe('createFormBuilder', () => {
 describe('history', () => {
   it('undoes and redoes edits, restoring the selection', () => {
     const { builder } = setup();
-    const id = builder.fields.add('string');
+    const id = builder.fields.add({ type: 'string' });
 
     builder.fields.update(id, { label: 'Name' });
     builder.history.undo();
@@ -120,7 +121,7 @@ describe('history', () => {
 
   it('merges rapid edits to the same property into one undo step', () => {
     const { builder, clock } = setup();
-    const id = builder.fields.add('string');
+    const id = builder.fields.add({ type: 'string' });
 
     builder.fields.update(id, { label: 'N' });
     clock.advance(100);
@@ -143,8 +144,8 @@ describe('history', () => {
     builder.subscribe(listener);
 
     builder.history.transaction(() => {
-      builder.fields.add('string');
-      builder.fields.add('number');
+      builder.fields.add({ type: 'string' });
+      builder.fields.add({ type: 'number' });
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
@@ -157,7 +158,7 @@ describe('history', () => {
     const storage = createMemoryStorage();
     const { builder } = setup({ storage });
 
-    builder.fields.add('string');
+    builder.fields.add({ type: 'string' });
     await builder.save();
     expect(builder.getSnapshot().definition.revision).toBe(1);
 
@@ -174,7 +175,7 @@ describe('steps', () => {
 
     expect(builder.getSnapshot().activeStepId).toBe(second);
     builder.steps.update(second, { title: 'Details' });
-    builder.fields.add('string', { stepId: second });
+    builder.fields.add({ type: 'string', stepId: second });
     builder.steps.move(second, 0);
     expect(builder.getSnapshot().definition.steps.map((step) => step.title)).toEqual([
       'Details',
@@ -196,7 +197,7 @@ describe('steps', () => {
 describe('fields', () => {
   it('sets nested properties by path and keeps choice values in sync with options', () => {
     const { builder } = setup();
-    const id = builder.fields.add('choice');
+    const id = builder.fields.add({ type: 'choice' });
 
     expect(builder.getField(id)).toMatchObject({
       type: 'string.select',
@@ -216,7 +217,7 @@ describe('fields', () => {
 
   it('swaps input type checks within a field type, keeping the rest of the schema', () => {
     const { builder } = setup();
-    const id = builder.fields.add('text');
+    const id = builder.fields.add({ type: 'text' });
 
     builder.fields.updateSchema(id, [], (node) => ({ ...node, checks: [{ check: 'minLength', value: 3 }] }));
     builder.fields.update(id, { type: 'string.email' });
@@ -231,7 +232,7 @@ describe('fields', () => {
 
   it('resets the schema and default value when the field type changes', () => {
     const { builder } = setup();
-    const id = builder.fields.add('text', undefined, { key: 'age', defaultValue: 'old' });
+    const id = builder.fields.add({ type: 'text', key: 'age', defaultValue: 'old' });
 
     builder.fields.update(id, { type: 'number' });
 
@@ -240,7 +241,7 @@ describe('fields', () => {
 
   it('fits the default value to schema edits', () => {
     const { builder } = setup();
-    const id = builder.fields.add('object', undefined, { key: 'faces' });
+    const id = builder.fields.add({ type: 'object', key: 'faces' });
 
     builder.fields.updateSchema(id, [], (node) =>
       node.kind === 'object'
@@ -262,11 +263,8 @@ describe('fields', () => {
 
   it('renames equalsField references with the key', () => {
     const { builder, step } = setup();
-    const password = builder.fields.add('text', undefined, { key: 'password' });
-    builder.fields.add('text', undefined, {
-      key: 'confirm',
-      schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] },
-    });
+    const password = builder.fields.add({ type: 'text', key: 'password' });
+    builder.fields.add({ type: 'text', key: 'confirm', schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] } });
 
     builder.fields.update(password, { key: 'secret' });
 
@@ -289,9 +287,9 @@ describe('fields', () => {
 
   it('removes fields and moves focus to the next field', () => {
     const { builder } = setup();
-    const a = builder.fields.add('string', undefined, { key: 'a' });
-    builder.fields.add('string', undefined, { key: 'b' });
-    const c = builder.fields.add('string', undefined, { key: 'c' });
+    const a = builder.fields.add({ type: 'string', key: 'a' });
+    builder.fields.add({ type: 'string', key: 'b' });
+    const c = builder.fields.add({ type: 'string', key: 'c' });
 
     builder.fields.remove(a);
     expect(fieldKeys(builder)).toEqual(['b', 'c']);
@@ -305,9 +303,9 @@ describe('fields', () => {
 
   it('moves fields within a step using post-removal indexes', () => {
     const { builder } = setup();
-    const a = builder.fields.add('string', undefined, { key: 'a' });
-    builder.fields.add('string', undefined, { key: 'b' });
-    builder.fields.add('string', undefined, { key: 'c' });
+    const a = builder.fields.add({ type: 'string', key: 'a' });
+    builder.fields.add({ type: 'string', key: 'b' });
+    builder.fields.add({ type: 'string', key: 'c' });
 
     builder.fields.move(a, { stepId: builder.getSnapshot().activeStepId!, index: 2 });
     expect(fieldKeys(builder)).toEqual(['b', 'c', 'a']);
@@ -315,10 +313,10 @@ describe('fields', () => {
 
   it('moves fields across steps, keeping keys unique and carrying the schema', () => {
     const { builder } = setup();
-    const email = builder.fields.add('string.email', undefined, { key: 'email' });
+    const email = builder.fields.add({ type: 'string.email', key: 'email' });
 
     const second = builder.steps.add();
-    builder.fields.add('string', { stepId: second }, { key: 'email' });
+    builder.fields.add({ type: 'string', stepId: second, key: 'email' });
 
     builder.fields.move(email, { stepId: second, index: 0 });
 
@@ -329,8 +327,8 @@ describe('fields', () => {
 
   it('duplicates fields right after the originals', () => {
     const { builder } = setup();
-    const a = builder.fields.add('string', undefined, { key: 'a' });
-    builder.fields.add('string', undefined, { key: 'b' });
+    const a = builder.fields.add({ type: 'string', key: 'a' });
+    builder.fields.add({ type: 'string', key: 'b' });
 
     const [copy] = builder.fields.duplicate(a);
     expect(fieldKeys(builder)).toEqual(['a', 'a2', 'b']);
@@ -342,7 +340,7 @@ describe('selection', () => {
   it('supports replace, toggle and range selection within a step', () => {
     const { builder } = setup();
     const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((key) =>
-      builder.fields.add('string', undefined, { key }),
+      builder.fields.add({ type: 'string', key }),
     ) as [string, string, string, string];
 
     builder.select(b);
@@ -363,8 +361,8 @@ describe('selection', () => {
 describe('clipboard', () => {
   it('copies, cuts and pastes fields with fresh ids and keys', () => {
     const { builder } = setup();
-    const a = builder.fields.add('string', undefined, { key: 'a' });
-    const b = builder.fields.add('string', undefined, { key: 'b' });
+    const a = builder.fields.add({ type: 'string', key: 'a' });
+    const b = builder.fields.add({ type: 'string', key: 'b' });
 
     builder.clipboard.copy([a]);
     builder.select(b);
@@ -383,8 +381,8 @@ describe('drag and drop', () => {
   it('adds palette items and moves the whole selection', () => {
     const { builder } = setup();
     const stepId = builder.getSnapshot().activeStepId!;
-    const [a, b] = ['a', 'b'].map((key) => builder.fields.add('string', undefined, { key })) as [string, string];
-    builder.fields.add('string', undefined, { key: 'c' });
+    const [a, b] = ['a', 'b'].map((key) => builder.fields.add({ type: 'string', key })) as [string, string];
+    builder.fields.add({ type: 'string', key: 'c' });
 
     builder.drop({ kind: 'palette', fieldType: 'number' }, { stepId, index: 0 });
     expect(fieldKeys(builder)).toEqual(['number', 'a', 'b', 'c']);
@@ -471,7 +469,7 @@ describe('issues', () => {
 
   it('reports checks a node can’t use against the step’s library', () => {
     const { builder } = setup();
-    const id = builder.fields.add('boolean');
+    const id = builder.fields.add({ type: 'boolean' });
 
     builder.settings.update({ validator: 'builtin' });
     builder.fields.updateSchema(id, [], (node) => ({ ...node, checks: [{ check: 'email' }] }));
@@ -487,7 +485,7 @@ describe('persistence', () => {
     const storage = createMemoryStorage();
     const { builder } = setup({ storage });
 
-    builder.fields.add('string');
+    builder.fields.add({ type: 'string' });
     expect(builder.getSnapshot().status.dirty).toBe(true);
 
     await builder.save();
@@ -509,8 +507,8 @@ describe('persistence', () => {
       const save = vi.spyOn(storage, 'save');
       const builder = createFormBuilder({ storage, autosave: { debounceMs: 50 } });
 
-      builder.fields.add('string');
-      builder.fields.add('string');
+      builder.fields.add({ type: 'string' });
+      builder.fields.add({ type: 'string' });
       await vi.advanceTimersByTimeAsync(60);
 
       expect(save).toHaveBeenCalledTimes(1);
@@ -544,5 +542,40 @@ describe('registry', () => {
     expect(extended.getFieldType('string.email')).toBeUndefined();
     expect(createRegistry({ builtins: false }).fieldTypes).toEqual([]);
     expect(registry.getValidator('builtin')).toBeDefined();
+  });
+});
+
+
+describe('createDefinitionBuilder', () => {
+  it('builds scoped steps with registry defaults and independent snapshots', () => {
+    const builder = createDefinitionBuilder({ idGenerator: sequentialIds() })
+      .settings({ validator: 'builtin', instances: ['organizer', 'reviewer'] })
+      .step({ title: 'Contact' }, (step) => {
+        step.field({ type: 'string.email', key: 'email', isRequired: true });
+      });
+    const first = builder.build();
+    const result = builder.step({ title: 'Details' }, (step) => {
+      step.field({ type: 'number', key: 'attendees', defaultValue: 12 })
+        .field({ type: 'text', key: 'notes' });
+    }).build();
+
+    expect(first.steps).toHaveLength(1);
+    expect(result.steps.map((step) => step.title)).toEqual(['Contact', 'Details']);
+    expect(result.settings?.instances).toEqual(['organizer', 'reviewer']);
+    expect(result.steps[0]!.fields[0]).toMatchObject({
+      key: 'email', isRequired: true, defaultValue: '',
+      schema: { kind: 'string', checks: [{ check: 'email' }] },
+    });
+    expect(result.steps[1]!.fields.map((field) => field.key)).toEqual(['attendees', 'notes']);
+    expect(result.steps[1]!.fields[0]!.defaultValue).toBe(12);
+    expect(createFormBuilder({ initial: result }).getSnapshot().issues).toEqual([]);
+  });
+
+  it('retains the default empty step until a step is supplied and rejects unknown field types', () => {
+    expect(createDefinitionBuilder().build().steps).toHaveLength(1);
+    expect(createDefinitionBuilder().step({}).build().steps[0]!.title).toBe('Step 1');
+    expect(() => createDefinitionBuilder().step({ title: 'Invalid' }, (step) => {
+      step.field({ type: 'missing' });
+    })).toThrow(FormBuilderError);
   });
 });

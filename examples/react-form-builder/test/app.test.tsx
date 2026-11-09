@@ -5,8 +5,20 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
+
+vi.mock('../src/monaco', () => ({
+  loadTypes: async () => {},
+  syncGeneratedFiles: vi.fn(),
+  disposeGeneratedFiles: vi.fn(),
+}));
+
+vi.mock('@monaco-editor/react', () => ({
+  default: function Editor({ path, value }: { path: string; value: string }) {
+    return <pre data-editor-path={path}>{value}</pre>;
+  },
+}));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -59,7 +71,7 @@ describe('form builder example', () => {
       'First Name* firstName',
       'Last Name* lastName',
       'Email* email',
-      'Phone Number phoneNumber',
+      'Organization organization',
     ]);
 
     // One text field type; the inspector picks the input type, which adds the email check.
@@ -89,14 +101,42 @@ describe('form builder example', () => {
     expect(validator.value).toBe('valibot');
   });
 
+  it('shows generated modules in file tabs and falls back when a selected file disappears', async () => {
+    await renderApp();
+    await click(byText('[role="tab"]', 'Generated code'));
+    await act(async () => { await import('../src/code-panel'); });
+
+    expect(all('.file-tabs button').map((button) => button.textContent)).toEqual([
+      'form.ts', 'steps/step1.ts', 'steps/step2.ts', 'steps/step3.ts',
+    ]);
+    expect(container.querySelector('pre')?.textContent).toContain("import { step1 } from './steps/step1.js'");
+    await click(byText('.file-tabs button', 'steps/step2.ts'));
+    expect(container.querySelector('pre')?.textContent).toContain('Hands-on lab');
+    expect(container.querySelector('pre')?.textContent).toContain('export const step2Schema');
+    expect(container.querySelector('pre')?.textContent).toContain('defineMultiStepForm.defineStep({');
+    expect(container.querySelector('pre')?.textContent).not.toContain('../validators.js');
+    expect(container.querySelector('pre')?.getAttribute('data-editor-path')).toBe('file:///generated/steps/step2.ts');
+    await act(async () => byText('.file-tabs button', 'steps/step2.ts').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })));
+    expect(container.querySelector('pre')?.getAttribute('data-editor-path')).toBe('file:///generated/form.ts');
+    await click(byText('[role="tab"]', 'Standard Schema'));
+    expect(all('.file-tabs button').map((button) => button.textContent)).toEqual([
+      'steps/step1.ts', 'steps/step2.ts', 'steps/step3.ts',
+    ]);
+    await click(byText('[role="tab"]', 'Generated code'));
+    await click(byText('.file-tabs button', 'steps/step3.ts'));
+    await click(byText('button', 'Clear'));
+    expect(all('.file-tabs button').map((button) => button.textContent)).toEqual(['form.ts', 'steps/step1.ts']);
+    expect(container.querySelector('pre')?.getAttribute('data-editor-path')).toBe('file:///generated/form.ts');
+  });
+
   it('previews the form and validates steps', async () => {
     await renderApp();
 
-    expect(container.querySelector('.preview h3')?.textContent).toBe('Your information');
+    expect(container.querySelector('.preview h3')?.textContent).toBe('Organizer');
 
     // Required fields block the step and show their messages.
     await click(byText('.preview button', 'Next'));
-    expect(container.querySelector('.preview h3')?.textContent).toBe('Your information');
+    expect(container.querySelector('.preview h3')?.textContent).toBe('Organizer');
     expect(all('.preview .error').map((error) => error.textContent)).toContain('Required');
 
     const inputs = all('.preview-field input') as HTMLInputElement[];
@@ -106,10 +146,10 @@ describe('form builder example', () => {
     expect(container.querySelector('.preview-actions .ok')?.textContent).toBe('Step complete');
 
     await click(byText('.preview button', 'Next'));
-    expect(container.querySelector('.preview h3')?.textContent).toBe('Booking details');
+    expect(container.querySelector('.preview h3')?.textContent).toBe('Workshop plan');
 
     // Choices render from their options; nested values use the schema-driven editor.
-    expect(all('.preview [role="radiogroup"] label').map((label) => label.textContent)).toEqual(['Come to me', 'I come to you']);
+    expect(all('.preview [role="radiogroup"] label').map((label) => label.textContent)).toEqual(['Hands-on lab', 'Live demonstration']);
     expect(container.querySelector('.preview .nested')).not.toBeNull();
   });
 });

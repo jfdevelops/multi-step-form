@@ -213,6 +213,13 @@ describe('compileDefinition', () => {
     expect(code.source).toContain('storage: { key: "signup" },');
     expect(code.source).not.toContain('export const form =');
     expect(code.steps.map((step) => step.library)).toEqual(['builtin', undefined]);
+    expect(code.files.map((file) => file.path)).toEqual(['form.ts', 'steps/step1.ts', 'steps/step2.ts']);
+    expect(code.files[0]!.source).toContain("import { step2 } from './steps/step2.js';");
+    expect(code.files[0]!.source).toContain('instances: ["client","admin"]');
+    expect(code.files[2]!.source).toContain('export type Step2Location');
+    expect(code.files[1]!.source).toContain('export const step1Schema');
+    expect(code.files[1]!.source).toContain('defineMultiStepForm.defineStep({');
+    expect(code.files[1]!.source).not.toContain('as const');
   });
 
   it('writes every kind of default value, including cleared numbers', () => {
@@ -263,7 +270,7 @@ describe('models', () => {
 
   it('describes the canvas for the active step', () => {
     const builder = createFormBuilder();
-    const id = builder.fields.add('string.email');
+    const id = builder.fields.add({ type: 'string.email' });
     const canvas = getCanvasModel(builder.getSnapshot());
 
     expect(canvas.steps).toHaveLength(1);
@@ -281,7 +288,7 @@ describe('models', () => {
     const builder = createFormBuilder();
     expect(getInspectorModel(builder.getSnapshot()).target.type).toBe('step');
 
-    const a = builder.fields.add('choice', undefined, { key: 'firstChoice' });
+    const a = builder.fields.add({ type: 'choice', key: 'firstChoice' });
     const field = getInspectorModel(builder.getSnapshot());
     const properties = field.sections.flatMap((section) => section.properties);
     const byPath = (path: string) => properties.find((property) => property.descriptor.path === path)!;
@@ -294,7 +301,7 @@ describe('models', () => {
     expect(byPath('label').hint).toBe('First Choice');
     expect(byPath('nameTransformCasing').hint).toBe('title');
 
-    const b = builder.fields.add('boolean', undefined, { key: 'b', label: 'B' });
+    const b = builder.fields.add({ type: 'boolean', key: 'b', label: 'B' });
     builder.select(a);
     builder.select(b, 'toggle');
     const mixed = getInspectorModel(builder.getSnapshot());
@@ -320,8 +327,8 @@ describe('models', () => {
 
   it('surfaces definition issues on inspector properties', () => {
     const builder = createFormBuilder();
-    builder.fields.add('text', undefined, { key: 'a' });
-    const b = builder.fields.add('text', undefined, { key: 'b' });
+    builder.fields.add({ type: 'text', key: 'a' });
+    const b = builder.fields.add({ type: 'text', key: 'b' });
     builder.fields.update(b, { key: 'a' });
 
     const key = getInspectorModel(builder.getSnapshot()).sections[0]!.properties[0]!;
@@ -331,7 +338,7 @@ describe('models', () => {
   it('describes and switches step validation', () => {
     const builder = createFormBuilder();
     const stepId = builder.getSnapshot().activeStepId!;
-    builder.fields.add('string.email', undefined, { isRequired: true });
+    builder.fields.add({ type: 'string.email', isRequired: true });
 
     expect(getStepValidationModel(builder.getSnapshot(), stepId)).toMatchObject({ mode: 'inherit' });
     expect(getStepValidationModel(builder.getSnapshot(), stepId)).not.toHaveProperty('effectiveLibrary');
@@ -353,7 +360,7 @@ describe('models', () => {
 
   it('describes form settings', () => {
     const builder = createFormBuilder();
-    builder.fields.add('text', undefined, { key: 'firstName' });
+    builder.fields.add({ type: 'text', key: 'firstName' });
     const model = getFormSettingsModel(builder.getSnapshot());
 
     expect(model.libraries).toEqual([{ library: 'builtin', label: 'Built-in' }]);
@@ -362,7 +369,7 @@ describe('models', () => {
 
   it('edits schemas through the schema editor', () => {
     const builder = createFormBuilder();
-    const id = builder.fields.add('object', undefined, { key: 'faces' });
+    const id = builder.fields.add({ type: 'object', key: 'faces' });
     const actions = createSchemaEditorActions(builder, id);
 
     const key = actions.addProperty([], 'faces', 'array');
@@ -400,8 +407,8 @@ describe('keyboard', () => {
 
   it('runs actions against the builder', () => {
     const builder = createFormBuilder();
-    builder.fields.add('text', undefined, { key: 'a' });
-    const b = builder.fields.add('text', undefined, { key: 'b' });
+    builder.fields.add({ type: 'text', key: 'a' });
+    const b = builder.fields.add({ type: 'text', key: 'b' });
     const keys = () => builder.getSnapshot().definition.steps[0]!.fields.map((field) => field.key);
 
     expect(handleKeyDown(builder, { key: 'ArrowUp', altKey: true })).toBe(true);

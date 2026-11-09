@@ -162,6 +162,7 @@ export {
   type FromStepsConfigOptions,
   type GenerateCodeOptions,
   type GeneratedCode,
+  type GeneratedFile,
   type GeneratedStep,
   type GeneratedType,
 } from './compile.js';
@@ -174,6 +175,7 @@ export {
 } from './storage.js';
 export {
   createFormBuilder,
+  type AddFieldOptions,
   type BuilderSelection,
   type BuilderSnapshot,
   type BuilderStatus,
@@ -224,3 +226,8 @@ export {
   type KeyInput,
   type ShortcutMap,
 } from './keyboard.js';
+export {
+  createDefinitionBuilder,
+  type DefinitionBuilder,
+  type StepDefinitionBuilder,
+} from './definition-builder.js';

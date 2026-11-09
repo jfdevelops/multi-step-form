@@ -195,9 +195,9 @@ describe('headless builder components', () => {
 
   it('selects fields with click modifiers and exposes state attributes', async () => {
     const builder = createFormBuilder();
-    builder.fields.add('string', undefined, { key: 'a' });
-    builder.fields.add('string', undefined, { key: 'b' });
-    builder.fields.add('string', undefined, { key: 'c' });
+    builder.fields.add({ type: 'string', key: 'a' });
+    builder.fields.add({ type: 'string', key: 'b' });
+    builder.fields.add({ type: 'string', key: 'c' });
     builder.select(null);
     const { query } = await render(<Builder builder={builder} />);
 
@@ -218,8 +218,8 @@ describe('headless builder components', () => {
 
   it('handles keyboard shortcuts on the canvas', async () => {
     const builder = createFormBuilder();
-    builder.fields.add('string', undefined, { key: 'a' });
-    const b = builder.fields.add('string', undefined, { key: 'b' });
+    builder.fields.add({ type: 'string', key: 'a' });
+    const b = builder.fields.add({ type: 'string', key: 'b' });
     const { query } = await render(<Builder builder={builder} />);
     const canvas = query('[data-testid="canvas"]');
 
@@ -236,7 +236,7 @@ describe('headless builder components', () => {
 
   it('ignores shortcuts typed into inputs inside the canvas', async () => {
     const builder = createFormBuilder();
-    builder.fields.add('string', undefined, { key: 'a' });
+    builder.fields.add({ type: 'string', key: 'a' });
     const { query } = await render(
       <FormBuilder builder={builder}>
         <Canvas>
@@ -251,8 +251,8 @@ describe('headless builder components', () => {
 
   it('edits the selection through the inspector with ARIA wiring and errors', async () => {
     const builder = createFormBuilder();
-    builder.fields.add('string', undefined, { key: 'a' });
-    const b = builder.fields.add('string', undefined, { key: 'b' });
+    builder.fields.add({ type: 'string', key: 'a' });
+    const b = builder.fields.add({ type: 'string', key: 'b' });
     const { query } = await render(<Builder builder={builder} />);
 
     const label = query<HTMLInputElement>('[data-testid="prop-label"]');
@@ -298,7 +298,7 @@ describe('headless builder components', () => {
 
   it('switches step validation', async () => {
     const builder = createFormBuilder();
-    builder.fields.add('string.email');
+    builder.fields.add({ type: 'string.email' });
     const { query } = await render(<Builder builder={builder} />);
 
     expect(query('[data-testid="validation-mode"]').textContent).toBe('inherit');

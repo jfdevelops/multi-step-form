@@ -17,6 +17,8 @@ loader.config({ monaco });
 
 const { typescriptDefaults } = monaco.typescript;
 
+typescriptDefaults.setEagerModelSync(true);
+
 typescriptDefaults.setCompilerOptions({
   ...COMPILER_OPTIONS,
   // Monaco's typings stop at `NodeJs`, but its bundled TypeScript (5.9) supports `Bundler` (100).
@@ -44,4 +46,40 @@ export function loadTypes(packages: readonly string[]) {
       return loaded.get(name);
     }),
   );
+}
+
+const generatedModels = new Map<string, monaco.editor.ITextModel>();
+
+/** Keeps every generated module available for relative imports and type inference. */
+export function syncGeneratedFiles(files: readonly { path: string; source: string }[]) {
+  const paths = new Set(files.map((file) => `file:///generated/${file.path}`));
+
+  for (const [path, model] of generatedModels) {
+    if (!paths.has(path)) {
+      model.dispose();
+      generatedModels.delete(path);
+    }
+  }
+
+  for (const file of files) {
+    const path = `file:///generated/${file.path}`;
+    const model = generatedModels.get(path);
+
+    if (model) {
+      if (model.getValue() !== file.source) {
+        model.setValue(file.source);
+      }
+    } else {
+      const uri = monaco.Uri.parse(path);
+      generatedModels.set(path, monaco.editor.getModel(uri) ?? monaco.editor.createModel(file.source, 'typescript', uri));
+    }
+  }
+}
+
+export function disposeGeneratedFiles() {
+  for (const model of generatedModels.values()) {
+    model.dispose();
+  }
+
+  generatedModels.clear();
 }

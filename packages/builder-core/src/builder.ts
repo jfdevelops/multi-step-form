@@ -117,6 +117,9 @@ export type StepInput = Partial<Omit<StepDefinition, 'id' | 'fields'>> & {
 export type StepPatch = Partial<Pick<StepDefinition, 'title' | 'description' | 'nameTransformCasing'>>;
 export type FieldPatch = Partial<Omit<FieldDefinition, 'id'>>;
 
+/** A field definition and its optional insertion position. */
+export type AddFieldOptions = Omit<FieldPatch, 'type'> & Partial<DropTarget> & { type: string };
+
 export interface FormBuilder {
   readonly registry: FormRegistry;
   getSnapshot(): BuilderSnapshot;
@@ -141,11 +144,7 @@ export interface FormBuilder {
      * Adds a field. `type` is a palette id (`'text'`) or an input type (`'string.email'`).
      * Defaults to the end of the active step.
      */
-    add(
-      type: string,
-      target?: Partial<DropTarget>,
-      overrides?: FieldPatch,
-    ): string;
+    add(options: AddFieldOptions): string;
     /**
      * Updates a field. Changing `type` to another input type of the same field type swaps the
      * input type's checks (e.g. `email`); changing to another field type resets the schema.
@@ -793,8 +792,8 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
   }
 
   const fields: FormBuilder['fields'] = {
-    add(type, target, overrides) {
-      const resolved = resolveTarget(target, 'fields.add');
+    add({ type, stepId, index, ...overrides }) {
+      const resolved = resolveTarget({ stepId, index }, 'fields.add');
       const step = requireStep(resolved.stepId, 'fields.add');
       const field = createField(type, step, overrides);
 
@@ -1109,7 +1108,7 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     if (allowed !== true) return [];
 
     if (source.kind === 'palette') {
-      return [fields.add(source.fieldType, target)];
+      return [fields.add({ type: source.fieldType, ...target })];
     }
 
     const ids = draggedFieldIds(source.fieldId);

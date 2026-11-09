@@ -362,6 +362,15 @@ legend {
   border-color: var(--accent);
 }
 
+.file-tabs {
+  flex-wrap: wrap;
+}
+
+.file-tabs button {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
 /* Preview */
 
 .preview {

@@ -1,4 +1,7 @@
-import { createFormBuilder, createRegistry } from '@jfdevelops/multi-step-form-builder-core';
+import {
+  createDefinitionBuilder,
+  createRegistry,
+} from '@jfdevelops/multi-step-form-builder-core';
 import { arktypeAdapter } from '@jfdevelops/multi-step-form-builder-arktype';
 import { effectAdapter } from '@jfdevelops/multi-step-form-builder-effect';
 import { joiAdapter } from '@jfdevelops/multi-step-form-builder-joi';
@@ -8,78 +11,152 @@ import { zodAdapter } from '@jfdevelops/multi-step-form-builder-zod';
 
 /** The built-in field types, and every Standard Schema library to pick from. */
 export const registry = createRegistry({
-  validators: [zodAdapter, valibotAdapter, arktypeAdapter, effectAdapter, yupAdapter, joiAdapter],
+  validators: [
+    zodAdapter,
+    valibotAdapter,
+    arktypeAdapter,
+    effectAdapter,
+    yupAdapter,
+    joiAdapter,
+  ],
 });
 
-/** A booking form that shows off nested values, choices, dates and validation. */
-export function createSampleDefinition() {
-  const builder = createFormBuilder({ registry });
-  const first = builder.getSnapshot().definition.steps[0]!.id;
-
-  builder.settings.update({ validator: 'zod', nameTransformCasing: 'title' });
-  builder.steps.update(first, { title: 'Your information', description: 'How can we contact you about this booking?' });
-  builder.fields.add('text', { stepId: first }, { key: 'firstName', isRequired: true });
-  builder.fields.add('text', { stepId: first }, { key: 'lastName', isRequired: true });
-  builder.fields.add('string.email', { stepId: first }, { key: 'email', isRequired: true, placeholder: 'you@example.com' });
-  builder.fields.add('string.tel', { stepId: first }, { key: 'phoneNumber' });
-
-  builder.steps.add({
-    title: 'Booking details',
-    description: 'Who is getting makeup and what services do they want?',
-    fields: [
-      {
-        type: 'string.radio',
-        key: 'location',
-        isRequired: true,
-        props: {
-          options: [
-            { value: 'come_to_me', label: 'Come to me' },
-            { value: 'i_come_to_you', label: 'I come to you' },
-          ],
-        },
-      },
-      {
-        type: 'object',
-        key: 'faces',
-        label: 'People',
-        description: 'Everyone getting makeup done',
-        schema: {
-          kind: 'object',
-          properties: [
-            { key: 'min', schema: { kind: 'number', checks: [{ check: 'min', value: 1 }] } },
-            { key: 'max', schema: { kind: 'number', checks: [{ check: 'max', value: 10 }] } },
-            {
-              key: 'faces',
-              schema: {
-                kind: 'array',
-                checks: [{ check: 'minLength', value: 1, message: 'Add at least one person' }],
-                item: {
-                  kind: 'object',
-                  properties: [
-                    { key: 'id', schema: { kind: 'string' } },
-                    { key: 'name', schema: { kind: 'string', checks: [{ check: 'minLength', value: 1 }] } },
+/** A workshop proposal that shows off nested values, choices, dates and validation. */
+export const sampleDefinition = createDefinitionBuilder({ registry })
+  .settings({
+    validator: 'zod',
+    nameTransformCasing: 'title',
+  })
+  .step(
+    {
+      title: 'Organizer',
+      description: 'Tell us who is leading the workshop.',
+    },
+    (step) => {
+      step
+        .field({ type: 'text', key: 'firstName', isRequired: true })
+        .field({ type: 'text', key: 'lastName', isRequired: true })
+        .field({
+          type: 'string.email',
+          key: 'email',
+          isRequired: true,
+          placeholder: 'you@example.com',
+        })
+        .field({
+          type: 'text',
+          key: 'organization',
+          placeholder: 'Community lab or independent organizer',
+        });
+    },
+  )
+  .step(
+    {
+      title: 'Workshop plan',
+      description: 'Choose a format and list the equipment your session needs.',
+    },
+    (step) => {
+      step
+        .field({
+          type: 'string.radio',
+          key: 'format',
+          isRequired: true,
+          props: {
+            options: [
+              { value: 'hands_on', label: 'Hands-on lab' },
+              { value: 'demo', label: 'Live demonstration' },
+            ],
+          },
+        })
+        .field({
+          type: 'object',
+          key: 'equipment',
+          label: 'Equipment request',
+          description: 'Expected attendance and equipment to prepare',
+          schema: {
+            kind: 'object',
+            properties: [
+              {
+                key: 'attendees',
+                schema: {
+                  kind: 'number',
+                  checks: [{ check: 'min', value: 1 }],
+                },
+              },
+              {
+                key: 'durationMinutes',
+                schema: {
+                  kind: 'number',
+                  checks: [
+                    { check: 'min', value: 15 },
+                    { check: 'max', value: 180 },
                   ],
                 },
               },
-            },
-          ],
-        },
-        defaultValue: { min: 1, max: 10, faces: [{ id: 'face1', name: 'Face 1' }] },
-      },
-    ],
-  });
-
-  builder.steps.add({
-    title: 'Date & time',
-    description: 'Choose a start time that works for everyone.',
-    fields: [
-      { type: 'date', key: 'date', isRequired: true, schema: { kind: 'date', checks: [{ check: 'min', value: '2026-01-01' }] } },
-      { type: 'text', key: 'time', isRequired: true, placeholder: '9:00 AM' },
-      { type: 'string.textarea', key: 'notes' },
-    ],
-  });
-
-  builder.steps.setActive(first);
-
-  return builder.toJSON();
-}
+              {
+                key: 'items',
+                schema: {
+                  kind: 'array',
+                  checks: [
+                    {
+                      check: 'minLength',
+                      value: 1,
+                      message: 'Add at least one equipment item',
+                    },
+                  ],
+                  item: {
+                    kind: 'object',
+                    properties: [
+                      {
+                        key: 'quantity',
+                        schema: {
+                          kind: 'number',
+                          checks: [{ check: 'min', value: 1 }],
+                        },
+                      },
+                      {
+                        key: 'name',
+                        schema: {
+                          kind: 'string',
+                          checks: [{ check: 'minLength', value: 1 }],
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+          defaultValue: {
+            attendees: 12,
+            durationMinutes: 60,
+            items: [{ quantity: 1, name: 'Projector' }],
+          },
+        });
+    },
+  )
+  .step(
+    {
+      title: 'Schedule',
+      description: 'Suggest a workshop date and share any setup instructions.',
+    },
+    (step) => {
+      step
+        .field({
+          type: 'date',
+          key: 'preferredDate',
+          isRequired: true,
+          schema: {
+            kind: 'date',
+            checks: [{ check: 'min', value: '2026-01-01' }],
+          },
+        })
+        .field({
+          type: 'text',
+          key: 'startTime',
+          isRequired: true,
+          placeholder: '9:00 AM',
+        })
+        .field({ type: 'string.textarea', key: 'setupNotes' });
+    },
+  )
+  .build();

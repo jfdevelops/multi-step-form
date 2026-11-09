@@ -123,9 +123,9 @@ export const PaletteItem = forwardRef<HTMLElement, PaletteItemProps>(function Pa
       const last = selection.fieldIds[selection.fieldIds.length - 1];
       const index = step ? step.fields.findIndex((field) => field.id === last) + 1 : undefined;
 
-      builder.fields.add(item.id, { stepId: selection.stepId, index });
+      builder.fields.add({ type: item.id, stepId: selection.stepId, index });
     } else {
-      builder.fields.add(item.id);
+      builder.fields.add({ type: item.id });
     }
   };
 

@@ -23,7 +23,7 @@ const builder = createFormBuilder();
 const stepId = builder.getSnapshot().activeStepId!;
 
 builder.steps.update(stepId, { title: 'Contact' });
-const emailId = builder.fields.add('string.email', undefined, { key: 'emailAddress', isRequired: true });
+const emailId = builder.fields.add({ type: 'string.email', key: 'emailAddress', isRequired: true });
 
 builder.history.undo();
 const definition = builder.toJSON();
@@ -36,6 +36,34 @@ const definition = builder.toJSON();
   the form, a step or a field.
 - **Form settings** (`builder.settings.update`) hold the default validator library, label casing,
   storage key and named instances: everything `defineMultiStepForm` and `configure` accept.
+
+## Fluent definitions
+
+Use the definition builder when constructing a form in code. Fields are scoped to their step;
+registry defaults, input checks, and unique field keys work just as they do in the editor.
+
+```ts
+import { createDefinitionBuilder } from '@jfdevelops/multi-step-form-builder-core';
+
+const sampleDefinition = createDefinitionBuilder()
+  .settings({ validator: 'builtin', instances: ['organizer', 'reviewer'] })
+  .step({ title: 'Contact' }, (step) => {
+    step
+      .field({ type: 'text', key: 'name', isRequired: true })
+      .field({ type: 'string.email', key: 'email' });
+  })
+  .step({ title: 'Workshop' }, (step) => {
+    step.field({ type: 'number', key: 'attendees', defaultValue: 12 });
+  })
+  .build();
+```
+
+For interactive edits, `builder.fields.add` takes one object containing `type`, field settings,
+and optional `stepId` and `index`. Omitting the position appends to the active step:
+
+```ts
+builder.fields.add({ type: 'text', key: 'name', stepId, index: 0 });
+```
 
 ## Field types and input types
 
@@ -141,12 +169,16 @@ import { createFormFromDefinition, generateCode } from '@jfdevelops/multi-step-f
 const form = createFormFromDefinition(definition, { registry })();
 
 // …or export it as a TypeScript module to commit with full type inference.
-const { source, validatorsSource, packages } = generateCode(definition, { registry });
+const { files, packages } = generateCode(definition, { registry });
+// files: [{ path: 'form.ts', source: '...' }, { path: 'steps/step1.ts', source: '...' }, ...]
 ```
 
-The generated module exports a type for every value TypeScript can't infer from the default
-(`export type Step2Faces = { … }`), each step's validator (`export const step1Schema = …`),
-`fieldMetadata` for help text and choice options, and `createForm`.
+Generated files include `form.ts` as the entry point and one `steps/step1.ts` module per step.
+Each step module contains its validator imports, helper declarations, value types, validator,
+and `defineMultiStepForm.defineStep({ ... })` call. Step numbers are assigned only by the
+entry point's `steps` map. Help text and choice options live in each field configuration.
+`source` and `toSource` remain available for a standalone module, and `validatorsSource`
+provides the validators alone.
 
 ## The store
 

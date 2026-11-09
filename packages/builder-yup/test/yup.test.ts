@@ -11,7 +11,7 @@ describe('yupAdapter', () => {
     const builder = createFormBuilder({ registry });
 
     builder.settings.update({ validator: 'yup' });
-    builder.fields.add('string.email', undefined, { key: 'email', isRequired: true });
+    builder.fields.add({ type: 'string.email', key: 'email', isRequired: true });
 
     const code = generateCode(builder.toJSON(), { registry });
 

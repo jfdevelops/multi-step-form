@@ -8,6 +8,7 @@ import {
   createRegistry,
   generateCode,
   type FormBuilder,
+  type GeneratedFile,
 } from '@jfdevelops/multi-step-form-builder-core';
 import { arktypeAdapter } from '@jfdevelops/multi-step-form-builder-arktype';
 import { effectAdapter } from '@jfdevelops/multi-step-form-builder-effect';
@@ -26,36 +27,20 @@ const registry = createRegistry({
 
 /** A form using every kind of value and check. */
 function buildForm(builder: FormBuilder) {
-  builder.fields.add('string.email', undefined, { key: 'email', isRequired: true, description: 'We never share it' });
-  builder.fields.add('string.password', undefined, {
-    key: 'password',
-    isRequired: true,
-    schema: { kind: 'string', checks: [{ check: 'minLength', value: 8 }, { check: 'pattern', value: '[A-Z]' }] },
-  });
-  builder.fields.add('string.password', undefined, {
-    key: 'confirm',
-    isRequired: true,
-    schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] },
-  });
-  builder.fields.add('string.url', undefined, { key: 'website' });
-  builder.fields.add('number', undefined, {
-    key: 'age',
-    schema: { kind: 'number', nullable: true, checks: [{ check: 'min', value: 18 }, { check: 'integer' }] },
-  });
-  builder.fields.add('choice', undefined, { key: 'location', isRequired: true });
-  builder.fields.add('multiChoice', undefined, { key: 'tags', isRequired: true });
-  builder.fields.add('date', undefined, {
-    key: 'startsOn',
-    schema: { kind: 'date', checks: [{ check: 'min', value: '2026-01-01' }] },
-  });
-  builder.fields.add('object', undefined, {
-    key: 'faces',
-    schema: {
+  builder.fields.add({ type: 'string.email', key: 'email', isRequired: true, description: 'We never share it', props: { autoComplete: 'email' } });
+  builder.fields.add({ type: 'string.password', key: 'password', isRequired: true, schema: { kind: 'string', checks: [{ check: 'minLength', value: 8 }, { check: 'pattern', value: '[A-Z]' }] } });
+  builder.fields.add({ type: 'string.password', key: 'confirm', isRequired: true, schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] } });
+  builder.fields.add({ type: 'string.url', key: 'website' });
+  builder.fields.add({ type: 'number', key: 'age', schema: { kind: 'number', nullable: true, checks: [{ check: 'min', value: 18 }, { check: 'integer' }] } });
+  builder.fields.add({ type: 'choice', key: 'location', isRequired: true });
+  builder.fields.add({ type: 'multiChoice', key: 'tags', isRequired: true });
+  builder.fields.add({ type: 'date', key: 'startsOn', schema: { kind: 'date', checks: [{ check: 'min', value: '2026-01-01' }] } });
+  builder.fields.add({ type: 'object', key: 'equipment', schema: {
       kind: 'object',
       properties: [
         { key: 'min', schema: { kind: 'number' } },
         {
-          key: 'faces',
+          key: 'equipment',
           schema: {
             kind: 'array',
             checks: [{ check: 'maxLength', value: 10 }],
@@ -69,14 +54,14 @@ function buildForm(builder: FormBuilder) {
           },
         },
         {
-          key: 'services',
+          key: 'supplies',
           schema: {
             kind: 'record',
             value: {
               kind: 'object',
               properties: [
                 { key: 'price', schema: { kind: 'number' } },
-                { key: 'type', schema: { kind: 'enum', values: ['addon', 'primary'] } },
+                { key: 'type', schema: { kind: 'enum', values: ['consumable', 'reusable'] } },
               ],
             },
           },
@@ -85,22 +70,23 @@ function buildForm(builder: FormBuilder) {
         { key: 'agreed', schema: { kind: 'literal', value: true } },
         { key: 'extra', schema: { kind: 'unknown' } },
       ],
-    },
-  });
+    } });
 }
 
-function check(source: string, packages: readonly string[]) {
+function check(source: string, packages: readonly string[], modules: readonly GeneratedFile[] = [{ path: 'form.ts', source }]) {
   const files = new Map<string, string>();
 
   for (const name of packages) {
     for (const [path, text] of collectTypes(name, process.cwd())) files.set(path.replace('file://', ''), text);
   }
 
-  files.set('/form.ts', source);
+  for (const file of modules) {
+    files.set(`/${file.path}`, file.source);
+  }
 
   const readFile = (name: string) => files.get(name) ?? ts.sys.readFile(name);
   const service = ts.createLanguageService({
-    getScriptFileNames: () => ['/form.ts'],
+    getScriptFileNames: () => modules.map((file) => `/${file.path}`),
     getScriptVersion: () => '1',
     getScriptSnapshot: (name) => {
       const text = readFile(name);
@@ -117,19 +103,37 @@ function check(source: string, packages: readonly string[]) {
     getDirectories: () => [],
   });
 
-  const errors = [...service.getSyntacticDiagnostics('/form.ts'), ...service.getSemanticDiagnostics('/form.ts')].map(
-    (diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
-  );
-  const hover = (name: string) =>
-    ts.displayPartsToString(
-      service.getQuickInfoAtPosition('/form.ts', source.indexOf(`export const ${name}`) + 'export const '.length)
-        ?.displayParts,
+  const errors = modules.flatMap((file) => [
+    ...service.getSyntacticDiagnostics(`/${file.path}`),
+    ...service.getSemanticDiagnostics(`/${file.path}`),
+  ]).map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
+  const hover = (name: string) => {
+    const file = modules.find((entry) => entry.source.includes(`export const ${name} =`))!;
+
+    return ts.displayPartsToString(
+      service.getQuickInfoAtPosition(`/${file.path}`, file.source.indexOf(`export const ${name}`) + 'export const '.length)?.displayParts,
     ).replace(/\s+/g, ' ');
+  };
 
   return { errors, hover };
 }
 
 describe('generated code in the editor', () => {
+  it('typechecks a multi-step project with named instances and custom factory names', () => {
+    const builder = createFormBuilder({ registry });
+    builder.settings.update({ instances: ['organizer', 'reviewer'] });
+    builder.fields.add({ type: 'text', key: 'title' });
+    builder.steps.add({ title: 'Schedule', fields: [{ type: 'date', key: 'date' }] });
+    const code = generateCode(builder.toJSON(), { registry, factoryName: 'createWorkshop' });
+    const project = check(code.source, code.packages, code.files);
+
+    expect(project.errors).toEqual([]);
+    expect(code.files.map((file) => file.path)).toEqual(['form.ts', 'steps/step1.ts', 'steps/step2.ts']);
+    expect(code.files[0]!.source).toContain('instances: ["organizer","reviewer"]');
+    expect(code.files[0]!.source).not.toContain('export const form =');
+    expect(project.hover('createWorkshop')).toContain('readonly ["organizer", "reviewer"]');
+  });
+
   it.each(['builtin', 'zod', 'valibot', 'arktype', 'effect', 'yup', 'joi'])(
     'typechecks with %s and infers the form',
     (library) => {
@@ -141,6 +145,14 @@ describe('generated code in the editor', () => {
       const { errors, hover } = check(code.source, code.packages);
 
       expect(errors).toEqual([]);
+      const split = check(code.source, code.packages, code.files);
+      expect(split.errors).toEqual([]);
+      expect(split.hover('createForm')).toContain('readonly email: { readonly defaultValue: ""');
+      expect(split.hover('createForm')).toContain('readonly autoComplete: "email"');
+      expect(split.hover('step1Schema')).not.toMatch(/^const step1Schema: any$/);
+      expect(code.source).not.toContain('fieldMetadata');
+      expect(hover('createForm')).toContain('readonly description: "We never share it"');
+      expect(hover('createForm')).toContain('readonly autoComplete: "email"');
       expect(hover('createForm')).toContain('readonly email: { readonly defaultValue: ""');
       // The library's own schema type, not `any` (Joi's types use `any` inside, by design).
       expect(hover('step1Schema')).not.toMatch(/^const step1Schema: any$/);

@@ -82,6 +82,7 @@ export type GeneratedCodeState =
   | {
       error: Error;
       source?: undefined;
+      files?: undefined;
       validatorsSource?: undefined;
       packages: string[];
       steps: [];
@@ -89,7 +90,7 @@ export type GeneratedCodeState =
     };
 
 /**
- * The form as a TypeScript module, kept up to date with every edit: the full `source`, each step's
+ * The form as organized `files` and standalone `source`, kept up to date with every edit: each step's
  * Standard Schema validator, the exported value types, and the npm `packages` the module imports
  * (for an editor to load their types).
  */

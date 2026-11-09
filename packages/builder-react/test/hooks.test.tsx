@@ -37,7 +37,7 @@ async function renderHook<T>(builder: FormBuilderStore, hook: () => T) {
 describe('useGeneratedCode', () => {
   it('regenerates the module on every edit', async () => {
     const builder = createFormBuilder();
-    builder.fields.add('string.email', undefined, { key: 'email', isRequired: true });
+    builder.fields.add({ type: 'string.email', key: 'email', isRequired: true });
     const code = await renderHook(builder, () => useGeneratedCode());
 
     expect(code().source).toContain('email: {');
@@ -63,7 +63,7 @@ describe('useFormSettings', () => {
 describe('useSchemaEditor', () => {
   it('edits the selected field’s schema', async () => {
     const builder = createFormBuilder();
-    const id = builder.fields.add('object', undefined, { key: 'faces' });
+    const id = builder.fields.add({ type: 'object', key: 'faces' });
     const editor = await renderHook(builder, () => useSchemaEditor());
 
     expect(editor()?.field.id).toBe(id);
@@ -80,8 +80,8 @@ describe('useFormPreview', () => {
   it('runs the form, validates steps and keeps values across edits', async () => {
     const builder = createFormBuilder();
     builder.settings.update({ validator: 'builtin', storageKey: 'should-not-persist' });
-    builder.fields.add('string.email', undefined, { key: 'emailAddress', isRequired: true });
-    builder.fields.add('date', undefined, { key: 'startsOn', defaultValue: '2026-01-01T00:00:00.000Z' });
+    builder.fields.add({ type: 'string.email', key: 'emailAddress', isRequired: true });
+    builder.fields.add({ type: 'date', key: 'startsOn', defaultValue: '2026-01-01T00:00:00.000Z' });
     builder.steps.add({ title: 'Second', fields: [{ type: 'number', key: 'age' }] });
     const preview = await renderHook(builder, () => useFormPreview());
     const ready = () => {

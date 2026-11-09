@@ -17,7 +17,7 @@ import {
 import { lazy, Suspense, useState } from 'react';
 import { InspectorPanel } from './inspector';
 import { Preview } from './preview';
-import { createSampleDefinition, registry } from './registry';
+import { sampleDefinition, registry } from './registry';
 import { FormSettingsBar } from './settings';
 
 // Monaco is large, so the code views load on first use.
@@ -31,7 +31,7 @@ const TABS = [
 ] as const;
 
 export function App() {
-  const builder = useFormBuilder({ registry, initial: createSampleDefinition() });
+  const builder = useFormBuilder({ registry, initial: sampleDefinition });
 
   return (
     <FormBuilder builder={builder}>
@@ -135,7 +135,7 @@ function LoadButtons() {
 
   return (
     <>
-      <button type="button" onClick={() => builder.load(createSampleDefinition())}>
+      <button type="button" onClick={() => builder.load(sampleDefinition)}>
         Sample
       </button>
       <button type="button" onClick={() => builder.load(createEmptyDefinition())}>

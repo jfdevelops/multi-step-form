@@ -11,8 +11,8 @@ describe('zodAdapter', () => {
     const builder = createFormBuilder({ registry });
 
     builder.settings.update({ validator: 'zod' });
-    builder.fields.add('string.email', undefined, { key: 'email', isRequired: true });
-    builder.fields.add('number', undefined, { key: 'age' });
+    builder.fields.add({ type: 'string.email', key: 'email', isRequired: true });
+    builder.fields.add({ type: 'number', key: 'age' });
 
     const code = generateCode(builder.toJSON(), { registry });
 

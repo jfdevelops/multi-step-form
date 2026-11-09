@@ -349,11 +349,6 @@ export interface GenerateCodeOptions {
   factoryName?: string;
   /** The exported instance's name, for forms without named instances. @default 'form' */
   instanceName?: string;
-  /**
-   * The exported field settings a hand-written form doesn't type (help text, choice options).
-   * @default 'fieldMetadata'
-   */
-  metadataName?: string;
 }
 
 export interface GeneratedStep {
@@ -374,8 +369,15 @@ export interface GeneratedType {
   fieldKey: string;
 }
 
+export interface GeneratedFile {
+  path: string;
+  source: string;
+}
+
 export interface GeneratedCode {
-  /** The whole TypeScript module. */
+  /** Organized modules, with form.ts as the entry point. */
+  files: GeneratedFile[];
+  /** The standalone TypeScript module. Use `files` for organized modules. */
   source: string;
   /**
    * Just the steps' Standard Schema validators, with their imports and helpers, as a module of
@@ -422,12 +424,13 @@ export function generateCode(
   const validators: string[] = [];
   const steps: GeneratedStep[] = [];
   const stepBlocks: string[] = [];
-  // Field settings a hand-written multi-step form doesn't type (help text, choice options).
-  const metadataBlocks: string[] = [];
+  const stepFiles: GeneratedFile[] = [];
 
   definition.steps.forEach((step, index) => {
     const key = getStepKey(index);
     const generated: GeneratedStep = { key, title: step.title };
+    const stepImports = new Set<string>([`import { defineMultiStepForm } from '${importFrom}';`]);
+    const stepDeclarations = new Set<string>();
     const entries: string[] = [`title: ${JSON.stringify(step.title)},`];
 
     if (step.description !== undefined) entries.push(`description: ${JSON.stringify(step.description)},`);
@@ -435,7 +438,6 @@ export function generateCode(
       entries.push(`nameTransformCasing: ${JSON.stringify(step.nameTransformCasing)},`);
     }
 
-    const metadata: string[] = [];
     const fieldBlocks = step.fields.map((field) => {
       const lines: string[] = [];
       let value = toValueSource(field.schema, field.defaultValue);
@@ -462,19 +464,15 @@ export function generateCode(
       if (field.isRequired !== undefined) lines.push(`isRequired: ${field.isRequired},`);
       if (field.errorMessage !== undefined) lines.push(`errorMessage: ${JSON.stringify(field.errorMessage)},`);
 
-      const meta: string[] = [];
-
-      if (field.description !== undefined) meta.push(`description: ${JSON.stringify(field.description)},`);
+      if (field.description !== undefined) lines.push(`description: ${JSON.stringify(field.description)},`);
       if (field.props && Object.keys(field.props).length > 0) {
-        meta.push(`props: ${toValueSource(undefined, field.props)},`);
+        lines.push(`props: ${toValueSource(undefined, field.props)},`);
       }
-      if (meta.length > 0) metadata.push(`${formatPropertyKey(field.key)}: ${block(meta)},`);
 
       return `${formatPropertyKey(field.key)}: ${block(lines)},`;
     });
 
     entries.push(`fields: ${block(fieldBlocks)},`);
-    if (metadata.length > 0) metadataBlocks.push(`${key}: ${block(metadata)},`);
 
     if (step.validation?.kind === 'code') {
       entries.push(`// validateFields lives in application code (${step.validation.ref}).`);
@@ -484,8 +482,8 @@ export function generateCode(
       if (built) {
         const name = `${key}Schema`;
 
-        built.imports.forEach((line) => imports.add(line));
-        built.declarations.forEach((line) => declarations.add(line));
+        built.imports.forEach((line) => { imports.add(line); stepImports.add(line); });
+        built.declarations.forEach((line) => { declarations.add(line); stepDeclarations.add(line); });
         validators.push(`export const ${name} = ${built.code};`);
         entries.push(`validateFields: ${name},`);
         generated.library = built.library;
@@ -493,6 +491,16 @@ export function generateCode(
       }
     }
 
+    const stepTypes = types.filter((type) => type.stepKey === key);
+    const stepSource = [
+      [...stepImports].join('\n'),
+      ...stepDeclarations,
+      ...stepTypes.map(({ name, type }) => `export type ${name} = ${type};`),
+      ...(generated.validator ? [`export const ${generated.validator.name} = ${generated.validator.code};`] : []),
+      `export const ${key} = defineMultiStepForm.defineStep(${block(entries)});`,
+    ].join('\n\n') + '\n';
+
+    stepFiles.push({ path: `steps/${key}.ts`, source: stepSource });
     steps.push(generated);
     stepBlocks.push(`${key}: ${block(entries)},`);
   });
@@ -513,7 +521,6 @@ export function generateCode(
 
   const factoryName = options.factoryName ?? 'createForm';
   const instanceName = options.instanceName ?? 'form';
-  const metadataName = options.metadataName ?? 'fieldMetadata';
   const factory = `export const ${factoryName} = defineMultiStepForm(${block(defineEntries)}).configure(${
     configureEntries.length > 0 ? block(configureEntries) : ''
   });`;
@@ -524,11 +531,6 @@ export function generateCode(
       ...(declarations.size > 0 ? [[...declarations].join('\n\n')] : []),
       ...(types.length > 0 ? [types.map(({ name, type }) => `export type ${name} = ${type};`).join('\n\n')] : []),
       ...(validators.length > 0 ? [validators.join('\n\n')] : []),
-      ...(metadataBlocks.length > 0
-        ? [
-            `/** Field settings for rendering, such as help text and choice options. */\nexport const ${metadataName} = ${block(metadataBlocks)} as const;`,
-          ]
-        : []),
       factory,
       ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
     ].join('\n\n') + '\n';
@@ -548,7 +550,22 @@ export function generateCode(
     return match ? [match[1]!] : [];
   });
 
-  return { source, validatorsSource, packages: [...new Set(packages)], steps, types };
+  const formEntries = [`steps: ${block(steps.map((step) => `${step.key},`))},`];
+
+  if (instances.length > 0) {
+    formEntries.push(`instances: ${JSON.stringify(instances)},`);
+  }
+
+  const formSource = [
+    `import { defineMultiStepForm } from '${importFrom}';`,
+    ...steps.map((step) => `import { ${step.key} } from './steps/${step.key}.js';`),
+    '',
+    `export const ${factoryName} = defineMultiStepForm(${block(formEntries)}).configure(${configureEntries.length > 0 ? block(configureEntries) : ''});`,
+    ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
+  ].join('\n') + '\n';
+  const files: GeneratedFile[] = [{ path: 'form.ts', source: formSource }, ...stepFiles];
+
+  return { source, files, validatorsSource, packages: [...new Set(packages)], steps, types };
 }
 
 /** {@linkcode generateCode}'s module source. */
