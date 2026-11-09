@@ -226,6 +226,10 @@ export interface BaseFieldOptions<
    * Placeholder text for the field.
    */
   placeholder?: string;
+  /** Help text displayed alongside the field. */
+  description?: string;
+  /** Consumer-defined rendering options, such as choices or input attributes. */
+  props?: Record<string, unknown>;
   /**
    * Whether the field is required.
    *

@@ -1,18 +1,20 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'storage' as const;
+const context = type({
+  scope: "'storage'",
+  reason: 'string',
+  'key?': 'string',
+  'operation?': 'string',
+  'value?': 'unknown',
+});
 
-export interface InvalidStorageContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  key?: string;
-  operation?: string;
-  value?: unknown;
-}
+export type InvalidStorageContext = typeof context.infer;
 
-export class InvalidStorageError extends createMultiStepFormError(
-  { code: 'invalidStorage', scope },
-)((scope, { reason }: InvalidStorageContext) => `[${scope}]: ${reason}`) {}
+/** Thrown when storage cannot be read or written. */
+export class InvalidStorageError extends createMultiStepFormError({
+  code: 'invalidStorage',
+  scope: 'storage',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

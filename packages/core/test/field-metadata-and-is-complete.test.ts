@@ -3,6 +3,29 @@ import { defineMultiStepForm } from '../src';
 import { createMockStorage } from './utils/create-mock-storage';
 
 describe('field metadata: placeholder, isRequired, errorMessage', () => {
+  it('preserves descriptions and choice props in the form schema with inferred types', () => {
+    const createForm = defineMultiStepForm({
+      steps: {
+        step1: {
+          title: 'Workshop',
+          fields: {
+            format: {
+              defaultValue: '',
+              description: 'Choose a session format',
+              props: { options: [{ value: 'demo', label: 'Live demonstration' }] },
+            },
+          },
+        },
+      },
+    }).configure();
+    const field = createForm().stepSchema.value.step1.fields.format;
+
+    expect(field.description).toBe('Choose a session format');
+    expect(field.props.options).toEqual([{ value: 'demo', label: 'Live demonstration' }]);
+    expectTypeOf(field.description).toEqualTypeOf<'Choose a session format'>();
+    expectTypeOf(field.props.options[0].value).toEqualTypeOf<'demo'>();
+  });
+
   it('resolves isRequired to false by default', () => {
     const createForm = defineMultiStepForm({
       steps: {
@@ -264,5 +287,38 @@ describe('step isComplete', () => {
 
     expect(instance.stepSchema.isStepComplete('step1')).toBe(true);
     expect(instance.stepSchema.value.step1.isComplete).toBe(true);
+  });
+});
+
+
+describe('defineMultiStepForm.defineStep', () => {
+  it('infers standalone fields and callbacks and reuses the step at different positions', () => {
+    const contact = defineMultiStepForm.defineStep({
+      title: 'Contact',
+      fields: {
+        email: { defaultValue: '', isRequired: true, type: 'string.email' },
+        attendees: { defaultValue: 1 },
+      },
+      isComplete: (values) => {
+        expectTypeOf(values.email).toEqualTypeOf<string>();
+        expectTypeOf(values.attendees).toEqualTypeOf<number>();
+
+        return values.attendees > 0;
+      },
+    });
+    // @ts-expect-error A field must declare its default value.
+    defineMultiStepForm.defineStep({ title: 'Invalid', fields: { name: { isRequired: true } } });
+    // @ts-expect-error A standalone step accepts an object, not a callback.
+    defineMultiStepForm.defineStep(() => contact);
+    // @ts-expect-error A standalone step takes no step identifier.
+    defineMultiStepForm.defineStep(contact, 'step1');
+
+    const form = defineMultiStepForm({ steps: { step1: contact, step2: contact } }).configure()();
+
+    expectTypeOf(contact.title).toEqualTypeOf<'Contact'>();
+    expectTypeOf(contact.fields.email.type).toEqualTypeOf<'string.email'>();
+    expectTypeOf(form.stepSchema.value.step2.fields.attendees.defaultValue).toEqualTypeOf<number>();
+    expect(form.stepSchema.value.step1.isComplete).toBe(true);
+    expect(form.stepSchema.value.step2.fields.email.label).toBe('Email*');
   });
 });

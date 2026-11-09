@@ -1,16 +1,21 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'instance' as const;
+/** Accepts readonly arrays, e.g. `as const` instance lists. */
+const readonlyStrings = type('string[]').as<readonly string[]>();
 
-export interface NoActiveInstanceContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  availableInstances?: readonly string[];
-}
+const context = type({
+  scope: "'instance'",
+  reason: 'string',
+  'availableInstances?': readonlyStrings,
+});
 
-export class NoActiveInstanceError extends createMultiStepFormError(
-  { code: 'noActiveInstance', scope },
-)((scope, { reason }: NoActiveInstanceContext) => `[${scope}]: ${reason}`) {}
+export type NoActiveInstanceContext = typeof context.infer;
+
+/** Thrown when a form with instances is used without an active instance. */
+export class NoActiveInstanceError extends createMultiStepFormError({
+  code: 'noActiveInstance',
+  scope: 'instance',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

@@ -1,18 +1,20 @@
-import {
-  createMultiStepFormError,
-  type MultiStepFormErrorContext,
-} from './multi-step-form-error.js';
+import { type } from 'arktype';
+import { createMultiStepFormError } from './multi-step-form-error.js';
 
-const scope = 'fieldConfig' as const;
+const context = type({
+  scope: "'fieldConfig'",
+  reason: 'string',
+  'field?': 'unknown',
+  'value?': 'unknown',
+  'expected?': 'unknown',
+});
 
-export interface InvalidFieldConfigContext
-  extends MultiStepFormErrorContext<typeof scope> {
-  reason: string;
-  field?: unknown;
-  value?: unknown;
-  expected?: unknown;
-}
+export type InvalidFieldConfigContext = typeof context.infer;
 
-export class InvalidFieldConfigError extends createMultiStepFormError(
-  { code: 'invalidFieldConfig', scope },
-)((scope, { reason }: InvalidFieldConfigContext) => `[${scope}]: ${reason}`) {}
+/** Thrown when a field's configuration is invalid. */
+export class InvalidFieldConfigError extends createMultiStepFormError({
+  code: 'invalidFieldConfig',
+  scope: 'fieldConfig',
+})
+  .defineContext(context)
+  .implement(({ context, scope }) => `[${scope}]: ${context.reason}`) {}

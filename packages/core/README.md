@@ -40,6 +40,25 @@ The definition exposes the resolved schema directly. Calling `.configure()` retu
 stateful instances. Storage is optional and defaults to `localStorage` in a browser when
 configured; an instance without storage remains in memory.
 
+## Reusable step definitions
+
+`defineMultiStepForm.defineStep` accepts one object and preserves field and callback
+inference without assigning the step a position. Keep its validator and related value types in
+the same module, then place the result in any form's `steps` map. The helper is also exported by
+`@jfdevelops/react-multi-step-form`.
+
+```ts
+import { defineMultiStepForm } from '@jfdevelops/multi-step-form-core';
+
+const contact = defineMultiStepForm.defineStep({
+  title: 'Contact',
+  fields: { email: { defaultValue: '', isRequired: true } },
+  isComplete: (values) => values.email.length > 0,
+});
+
+const createForm = defineMultiStepForm({ steps: { step1: contact } }).configure();
+```
+
 ## Named instances
 
 One definition can create independent form instances with separate state and storage behavior:

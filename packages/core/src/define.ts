@@ -1,3 +1,4 @@
+import { defineStandaloneStep } from './define-step.js';
 import { InvalidInstanceError } from '@/errors/invalid-instance';
 import { NoActiveInstanceError } from '@/errors/no-active-instance';
 import { MultiStepFormSchema } from '@/schema';
@@ -666,4 +667,8 @@ export function defineMultiStepForm<
   } & DefineMultiStepFormOptions<contextualSteps, instances>,
 ): MultiStepFormDefinition<steps, instances> {
   return new MultiStepFormDefinition<steps, instances>(options as never);
+}
+
+export namespace defineMultiStepForm {
+  export const defineStep: typeof defineStandaloneStep = defineStandaloneStep;
 }

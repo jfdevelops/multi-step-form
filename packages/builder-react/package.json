@@ -1,0 +1,59 @@
+{
+  "name": "@jfdevelops/react-multi-step-form-builder",
+  "version": "0.0.0",
+  "description": "Headless React components for building multi-step form builders",
+  "repository": "https://github.com/jfdevelops/multi-step-form",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "watch": "tsdown --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "react",
+    "forms",
+    "form-builder",
+    "headless",
+    "drag-and-drop",
+    "multi-step-form"
+  ],
+  "author": "Joey Finkel",
+  "license": "MIT",
+  "dependencies": {
+    "@dnd-kit/react": "^0.5.3",
+    "@jfdevelops/multi-step-form-builder-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "jsdom": "^27.0.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.11",
+    "vitest": "^4.0.8"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

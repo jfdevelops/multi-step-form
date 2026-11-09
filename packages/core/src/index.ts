@@ -66,12 +66,7 @@ export {
 } from './errors/invalid-update.js';
 export {
   createMultiStepFormError,
-  type CreateMultiStepFormErrorOptions,
-  type CreatedMultiStepFormError,
-  type ErrorMessageRenderer,
   MultiStepFormError,
-  type MultiStepFormErrorContext,
-  type MultiStepFormErrorRendererFactory,
 } from './errors/multi-step-form-error.js';
 export {
   UpdateMismatchError,
@@ -80,3 +75,4 @@ export {
 export * from './steps';
 export * from './utils';
 export * from './storage.js';
+export type { ResolveValidatorInput } from './utils/validator.js';
