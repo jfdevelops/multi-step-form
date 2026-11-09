@@ -5,7 +5,7 @@
  */
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
-import type { Plugin } from 'vite';
+import { normalizePath, type Plugin } from 'vite';
 
 const VIRTUAL_ID = 'virtual:editor-types';
 const RESOLVED_ID = `\0${VIRTUAL_ID}`;
@@ -46,7 +46,13 @@ function walk(dir: string, visit: (file: string) => void) {
 }
 
 /** A package's declarations and package.json, plus its dependencies', keyed by editor path. */
-export function collectTypes(name: string, fromDir: string, files = new Map<string, string>(), seen = new Set<string>()) {
+export function collectTypes(
+  name: string,
+  fromDir: string,
+  files = new Map<string, string>(),
+  seen = new Set<string>(),
+  watchFile?: (file: string) => void,
+) {
   const dir = findPackage(name, fromDir);
 
   if (!dir || seen.has(dir)) return files;
@@ -63,12 +69,13 @@ export function collectTypes(name: string, fromDir: string, files = new Map<stri
 
     const path = relative(dir, file).split(sep).join('/');
 
+    watchFile?.(file);
     files.set(`file:///node_modules/${name}/${path}`, readFileSync(file, 'utf8'));
   });
 
   // Packages without declarations (e.g. `react`) ship them in `@types`.
   if (!hasDeclarations && !name.startsWith('@types/')) {
-    collectTypes(typesPackageName(name), fromDir, files, seen);
+    collectTypes(typesPackageName(name), fromDir, files, seen, watchFile);
   }
 
   const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
@@ -77,7 +84,7 @@ export function collectTypes(name: string, fromDir: string, files = new Map<stri
   };
 
   for (const dependency of Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })) {
-    if (!SKIPPED.has(dependency)) collectTypes(dependency, dir, files, seen);
+    if (!SKIPPED.has(dependency)) collectTypes(dependency, dir, files, seen, watchFile);
   }
 
   return files;
@@ -85,8 +92,33 @@ export function collectTypes(name: string, fromDir: string, files = new Map<stri
 
 /** Makes the types of `packages` (as seen from `root`) loadable in the browser. */
 export function editorTypes(packages: readonly string[], root = process.cwd()): Plugin {
+  const declarationFiles = new Set<string>();
+  let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+
   return {
     name: 'editor-types',
+    configureServer(server) {
+      server.httpServer?.once('close', () => clearTimeout(reloadTimer));
+    },
+    handleHotUpdate({ file, server }) {
+      if (!declarationFiles.has(normalizePath(file))) {
+        return;
+      }
+
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => {
+        for (const module of server.moduleGraph.idToModuleMap.values()) {
+          if (module.id?.startsWith(RESOLVED_ID)) {
+            server.moduleGraph.invalidateModule(module);
+          }
+        }
+
+        // Reload the page to replace Monaco's already-loaded extra libraries too.
+        server.ws.send({ type: 'full-reload' });
+      }, 200);
+
+      return [];
+    },
     resolveId(id) {
       return id === VIRTUAL_ID || id.startsWith(`${VIRTUAL_ID}/`) ? `\0${id}` : undefined;
     },
@@ -102,7 +134,12 @@ export function editorTypes(packages: readonly string[], root = process.cwd()): 
       if (id.startsWith(`${RESOLVED_ID}/`)) {
         const name = id.slice(RESOLVED_ID.length + 1);
 
-        return `export default ${JSON.stringify(Object.fromEntries(collectTypes(name, root)))};`;
+        const files = collectTypes(name, root, undefined, undefined, (file) => {
+          declarationFiles.add(normalizePath(file));
+          this.addWatchFile(file);
+        });
+
+        return `export default ${JSON.stringify(Object.fromEntries(files))};`;
       }
 
       return undefined;

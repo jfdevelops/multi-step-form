@@ -7,7 +7,7 @@ with a sample workshop proposal with organizer details, session format, nested e
 - **Fields:** click a field type, or drag it onto the canvas or a step tab. Drag fields by their
   handle to reorder them.
 - **Inspector:** select a field (or nothing, for the step). The input type decides how a field
-  renders (a text field can be email, URL, passwordâ€¦). Labels come from the key and the label
+  renders (a text field can be email, URL, password…). Labels come from the key and the label
   casing, like a hand-written multi-step form.
 - **Value type & rules:** a schema builder for the selected field. Nest objects, lists,
   dictionaries and unions, and add checks to any value. The default value editor follows the type.
@@ -39,6 +39,10 @@ pnpm --filter react-form-builder test
 
 [`editor-types.ts`](editor-types.ts) is a small Vite plugin that serves the type declarations of the
 packages generated code can import (and their dependencies) as lazily loaded modules. The editor
-loads a library's types when the generated code first imports it.
+loads a library's types when the generated code first imports it. Rebuilding a package invalidates
+the served declarations and reloads the page so Monaco picks up the updated API types.
 [`test/generated-code.test.ts`](test/generated-code.test.ts) typechecks the generated module with
 every library against exactly those types.
+
+`test/monaco-worker.test.ts` also checks the hover in Monaco's shipped TypeScript worker with
+the same virtual file URLs and declaration bundles used in the browser.
