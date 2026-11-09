@@ -276,20 +276,23 @@ export function fromStepsConfig(
             ? (toJsonValue(fieldConfig.props) as JsonObject)
             : undefined;
         const options = Array.isArray(props?.options) ? props.options : undefined;
+        const fieldTypeId = registry.getFieldType(type)?.id;
 
         // Choice fields: their options are the allowed values.
-        if (options && registry.getFieldType(type)?.id === 'choice') {
-          schema = {
-            kind: 'enum',
-            values: options.flatMap((option) =>
-              option &&
-              typeof option === 'object' &&
-              !Array.isArray(option) &&
-              typeof option.value === 'string'
-                ? [option.value]
-                : [],
-            ),
-          };
+        if (options && (fieldTypeId === 'choice' || fieldTypeId === 'multiChoice')) {
+          const values = options.flatMap((option) =>
+            option &&
+            typeof option === 'object' &&
+            !Array.isArray(option) &&
+            typeof option.value === 'string'
+              ? [option.value]
+              : [],
+          );
+
+          schema =
+            fieldTypeId === 'multiChoice'
+              ? { kind: 'array', item: { kind: 'enum', values } }
+              : { kind: 'enum', values };
         }
 
         const field: FieldDefinition = {

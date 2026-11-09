@@ -375,6 +375,8 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
   let issues: readonly DefinitionIssue[] = [];
   let snapshot: BuilderSnapshot | null = null;
   let destroyed = false;
+  /** Bumped on `load` so in-flight saves for a previous form are ignored. */
+  let loadEpoch = 0;
 
   // --- store ------------------------------------------------------------------------------
 
@@ -1133,12 +1135,19 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
   async function save() {
     const storage = options.storage ?? fail('save', 'No storage was passed to createFormBuilder');
     const saving = definition;
+    const epoch = loadEpoch;
 
     status = { ...status, saving: true, error: undefined };
     notify(false);
 
     try {
       const result = await storage.save(saving, { baseRevision: saving.revision });
+
+      // A different form was loaded while this write was in flight.
+      if (epoch !== loadEpoch) {
+        return;
+      }
+
       const revision = result?.revision ?? saving.revision;
 
       if (definition === saving) {
@@ -1153,6 +1162,10 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
       status = { saving: false, lastSavedAt: now() };
       notify(false);
     } catch (error) {
+      if (epoch !== loadEpoch) {
+        return;
+      }
+
       status = { ...status, saving: false, error };
       notify(false);
       throw error;
@@ -1160,6 +1173,9 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
   }
 
   function load(next: FormDefinition) {
+    loadEpoch += 1;
+    clearTimeout(autosaveTimer);
+    autosaveTimer = undefined;
     definition = next;
     savedDefinition = next;
     activeStepId = next.steps[0]?.id ?? null;
@@ -1174,6 +1190,8 @@ export function createFormBuilder(options: FormBuilderOptions = {}): FormBuilder
     registry,
     getSnapshot,
     subscribe(listener) {
+      // React Strict Mode remounts re-subscribe after `destroy()`; revive autosave.
+      destroyed = false;
       listeners.add(listener);
 
       return () => {

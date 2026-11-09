@@ -263,10 +263,13 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
 
 /** Free-form JSON, applied when it parses. */
 function JsonEditor({ value, onChange }: { value: JsonValue; onChange: (value: JsonValue) => void }) {
+  const encoded = JSON.stringify(value, null, 2);
+
   return (
     <Textarea
+      key={encoded}
       rows={3}
-      defaultValue={JSON.stringify(value, null, 2)}
+      defaultValue={encoded}
       onBlur={(event) => {
         try {
           onChange(JSON.parse(event.target.value) as JsonValue);

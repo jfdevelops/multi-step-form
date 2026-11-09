@@ -510,6 +510,14 @@ export function needsTypeAnnotation(node: SchemaNode): boolean {
  */
 export function toValueSource(node: SchemaNode | undefined, value: JsonValue | undefined): string {
   if (value === undefined) return 'undefined';
+
+  // Match `toRuntimeValue`: resolve the branch so nested dates become `new Date(...)`.
+  if (node?.kind === 'union') {
+    const option = node.options.find((candidate) => matchesSchema(candidate, value));
+
+    return toValueSource(option, value);
+  }
+
   if (node?.kind === 'date' && typeof value === 'string') return `new Date(${JSON.stringify(value)})`;
 
   if (Array.isArray(value)) {

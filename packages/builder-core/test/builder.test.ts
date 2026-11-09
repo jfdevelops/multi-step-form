@@ -524,6 +524,63 @@ describe('persistence', () => {
     await expect(builder.save()).rejects.toBe(error);
     expect(builder.getSnapshot().status).toMatchObject({ saving: false, error });
   });
+
+  it('ignores in-flight saves after a different form is loaded', async () => {
+    let release!: (revision: number) => void;
+    const pending = new Promise<number>((resolve) => {
+      release = resolve;
+    });
+    const storage = {
+      async save() {
+        const revision = await pending;
+
+        return { revision };
+      },
+    };
+    const { builder } = setup({ storage });
+    const first = builder.getSnapshot().definition;
+
+    builder.fields.add({ type: 'string', key: 'a' });
+    const saving = builder.save();
+    const loaded: FormDefinition = {
+      ...first,
+      id: 'other',
+      revision: 42,
+      steps: [{ id: 'step-b', title: 'Loaded', fields: [] }],
+    };
+
+    builder.load(loaded);
+    release(1);
+    await saving;
+
+    const snapshot = builder.getSnapshot();
+    expect(snapshot.definition).toMatchObject({ id: 'other', revision: 42 });
+    expect(snapshot.definition.steps[0]!.title).toBe('Loaded');
+    expect(snapshot.status.dirty).toBe(false);
+    expect(snapshot.status.saving).toBe(false);
+  });
+
+  it('revives autosave after destroy when something re-subscribes', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const storage = createMemoryStorage();
+      const save = vi.spyOn(storage, 'save');
+      const builder = createFormBuilder({ storage, autosave: { debounceMs: 50 } });
+      const unsubscribe = builder.subscribe(() => {});
+
+      builder.fields.add({ type: 'string' });
+      builder.destroy();
+      unsubscribe();
+      builder.subscribe(() => {});
+      builder.fields.add({ type: 'string' });
+      await vi.advanceTimersByTimeAsync(60);
+
+      expect(save).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('registry', () => {

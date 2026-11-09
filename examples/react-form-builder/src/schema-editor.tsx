@@ -13,7 +13,7 @@ import {
   type SchemaNode,
 } from '@jfdevelops/multi-step-form-builder-core';
 import { useSchemaEditor } from '@jfdevelops/react-multi-step-form-builder';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Editor = NonNullable<ReturnType<typeof useSchemaEditor>>;
 
@@ -180,6 +180,10 @@ function SchemaNodeEditor({
 function PropertyKey({ value, onRename }: { value: string; onRename: (to: string) => void }) {
   const [draft, setDraft] = useState(value);
 
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
   return (
     <Input
       className="schema-key"
@@ -195,11 +199,14 @@ function KindSettings({ editor, node, driven }: { editor: Editor; node: SchemaEd
   const { schema, path } = node;
 
   if (schema.kind === 'literal') {
+    const encoded = JSON.stringify(schema.value);
+
     return (
       <Label className="property">
         Exact value (JSON)
         <Input
-          defaultValue={JSON.stringify(schema.value)}
+          key={encoded}
+          defaultValue={encoded}
           onBlur={(event) => {
             const parsed = parseLiteral(event.target.value);
             if (parsed !== undefined) editor.update(path, { value: parsed } as Partial<SchemaNode>);
@@ -210,13 +217,16 @@ function KindSettings({ editor, node, driven }: { editor: Editor; node: SchemaEd
   }
 
   if (schema.kind === 'enum') {
+    const encoded = schema.values.join(', ');
+
     return driven ? (
-      <p className="hint">Allowed values: {schema.values.join(', ')} (from the options above)</p>
+      <p className="hint">Allowed values: {encoded} (from the options above)</p>
     ) : (
       <Label className="property">
         Allowed values (comma separated)
         <Input
-          defaultValue={schema.values.join(', ')}
+          key={encoded}
+          defaultValue={encoded}
           onBlur={(event) =>
             editor.update(path, {
               values: event.target.value

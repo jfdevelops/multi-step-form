@@ -202,28 +202,59 @@ function issuesByField(
   return byField;
 }
 
+function sameJson(left: unknown, right: unknown) {
+  return JSON.stringify(toJsonValue(left)) === JSON.stringify(toJsonValue(right));
+}
+
 function createPreview(
   definition: FormDefinition,
   registry: FormRegistry,
-  previous?: DefinitionForm,
+  previous?: { form: DefinitionForm; definition: FormDefinition },
 ) {
   const runnable = previewDefinition(definition);
   const form = createFormFromDefinition(runnable, { registry })();
 
-  // Keep what was entered in fields that still exist with a compatible value.
+  // Keep user-entered values for steps/fields that still exist with a compatible value.
   if (previous) {
     definition.steps.forEach((step, index) => {
-      const key = getStepKey(index);
-      const before = previous.stepSchema.value[key];
-      const after = form.stepSchema.value[key];
+      const previousIndex = previous.definition.steps.findIndex(
+        (candidate) => candidate.id === step.id,
+      );
 
-      if (!before || !after) return;
+      if (previousIndex < 0) {
+        return;
+      }
+
+      const previousStep = previous.definition.steps[previousIndex]!;
+      const before = previous.form.stepSchema.value[getStepKey(previousIndex)];
+      const after = form.stepSchema.value[getStepKey(index)];
+
+      if (!before || !after) {
+        return;
+      }
 
       for (const field of step.fields) {
+        const previousField = previousStep.fields.find(
+          (candidate) => candidate.key === field.key,
+        );
         const value = before.fields[field.key]?.defaultValue;
 
+        if (!previousField || value === undefined) {
+          continue;
+        }
+
+        const previousDefault = toRuntimeValue(
+          previousField.schema,
+          previousField.defaultValue,
+        );
+
+        // Skip values that still match the previous definition default so inspector
+        // default edits show up without requiring Reset.
+        if (sameJson(value, previousDefault)) {
+          continue;
+        }
+
         if (
-          value !== undefined &&
           matchesSchema({ ...field.schema, optional: true }, toJsonValue(value))
         ) {
           after.update({
@@ -255,14 +286,21 @@ export function useFormPreview(): FormPreviewState {
   const [stepIndex, setStepIndex] = useState(0);
   const [attempted, setAttempted] = useState<ReadonlySet<number>>(new Set());
   const [, setVersion] = useState(0);
-  // The last form and the reset it belongs to, so edits keep entered values but resets don't.
-  const last = useRef<{ form: DefinitionForm; resetCount: number } | null>(
-    null,
-  );
+  // The last form/definition and the reset they belong to, so edits keep entered values but resets don't.
+  const last = useRef<{
+    form: DefinitionForm;
+    definition: FormDefinition;
+    resetCount: number;
+  } | null>(null);
 
   const preview = useMemo(() => {
     const previous =
-      last.current?.resetCount === resetCount ? last.current.form : undefined;
+      last.current?.resetCount === resetCount
+        ? {
+            form: last.current.form,
+            definition: last.current.definition,
+          }
+        : undefined;
 
     try {
       return {
@@ -280,10 +318,10 @@ export function useFormPreview(): FormPreviewState {
   useEffect(() => {
     if (!preview.ok) return;
 
-    last.current = { form: preview.form, resetCount };
+    last.current = { form: preview.form, definition, resetCount };
 
     return preview.form.subscribe(() => setVersion((version) => version + 1));
-  }, [preview, resetCount]);
+  }, [preview, definition, resetCount]);
 
   const reset = useCallback(() => {
     setResetCount((count) => count + 1);

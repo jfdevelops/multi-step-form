@@ -92,7 +92,15 @@ function passes(node: SchemaNode, check: SchemaCheck, value: unknown, patterns: 
       return Number.isInteger(value);
     case 'pattern': {
       const pattern = patterns.get(check);
-      return typeof value === 'string' && pattern !== undefined && pattern.test(value);
+
+      if (typeof value !== 'string' || pattern === undefined) {
+        return false;
+      }
+
+      // Cached `/g` and `/y` patterns keep `lastIndex` between calls.
+      pattern.lastIndex = 0;
+
+      return pattern.test(value);
     }
     case 'equalsField':
       // Handled at the step level.

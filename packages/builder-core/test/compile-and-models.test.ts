@@ -21,6 +21,7 @@ import {
   setStepValidationMode,
   toSource,
   toTypeScript,
+  toValueSource,
   createRegistry,
   type FormDefinition,
 } from '../src';
@@ -255,6 +256,57 @@ describe('compileDefinition', () => {
         ],
       }),
     ).toBe('{\n  "a-b": string | 1;\n  r?: Record<string, Date>;\n}');
+  });
+
+  it('emits Date constructors for dates inside union defaults', () => {
+    expect(
+      toValueSource(
+        { kind: 'union', options: [{ kind: 'date' }, { kind: 'string' }] },
+        '2026-01-01T00:00:00.000Z',
+      ),
+    ).toBe('new Date("2026-01-01T00:00:00.000Z")');
+  });
+
+  it('imports multi-choice options as an enum array schema', () => {
+    const imported = fromStepsConfig({
+      step1: {
+        title: 'Prefs',
+        fields: {
+          colors: {
+            type: 'array.checkbox',
+            defaultValue: ['red'],
+            props: {
+              options: [
+                { value: 'red', label: 'Red' },
+                { value: 'blue', label: 'Blue' },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(imported.steps[0]!.fields[0]).toMatchObject({
+      key: 'colors',
+      type: 'array.checkbox',
+      schema: { kind: 'array', item: { kind: 'enum', values: ['red', 'blue'] } },
+      defaultValue: ['red'],
+    });
+  });
+
+  it('resets stateful patterns between builtin validations', () => {
+    const validator = createSchemaValidator({
+      fields: [
+        {
+          key: 'code',
+          schema: { kind: 'string', checks: [{ check: 'pattern', value: '^a$', flags: 'g' }] },
+        },
+      ],
+      refinements: [],
+    });
+
+    expect(validator['~standard'].validate({ code: 'a' })).toEqual({ value: { code: 'a' } });
+    expect(validator['~standard'].validate({ code: 'a' })).toEqual({ value: { code: 'a' } });
   });
 });
 

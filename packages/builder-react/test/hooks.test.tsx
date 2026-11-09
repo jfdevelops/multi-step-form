@@ -125,4 +125,48 @@ describe('useFormPreview', () => {
 
     expect(preview().status).toBe('error');
   });
+
+  it('keeps entered values by step id and lets new defaults win', async () => {
+    const builder = createFormBuilder();
+    builder.settings.update({ validator: 'builtin' });
+    const first = builder.getSnapshot().definition.steps[0]!.id;
+    builder.fields.add({ type: 'string', key: 'name', stepId: first });
+    const second = builder.steps.add({
+      title: 'Second',
+      fields: [{ type: 'string', key: 'city' }],
+    });
+    const preview = await renderHook(builder, () => useFormPreview());
+    const ready = () => {
+      const state = preview();
+      if (state.status !== 'ready') throw state.error;
+      return state;
+    };
+
+    await act(async () => ready().currentStep.fields[0]!.setValue('Ada'));
+    await act(async () => void ready().next());
+    await act(async () => ready().currentStep.fields[0]!.setValue('Paris'));
+    await act(async () => builder.steps.move(second, 0));
+
+    expect(ready().steps.map((step) => step.definition.id)).toEqual([second, first]);
+    // stepIndex is still 1, which is now the original first step.
+    expect(ready().currentStep.definition.id).toBe(first);
+    expect(ready().currentStep.fields[0]!.value).toBe('Ada');
+    await act(async () => ready().previous());
+    expect(ready().currentStep.definition.id).toBe(second);
+    expect(ready().currentStep.fields[0]!.value).toBe('Paris');
+
+    const nameId = builder.getSnapshot().definition.steps[1]!.fields[0]!.id;
+    await act(async () => builder.fields.update(nameId, { defaultValue: 'Grace' }));
+    await act(async () => ready().goTo(1));
+    // User-entered values still win over a later inspector default change.
+    expect(ready().currentStep.fields[0]!.value).toBe('Ada');
+
+    await act(async () => ready().reset());
+    await act(async () => void ready().next());
+    expect(ready().currentStep.fields[0]!.value).toBe('Grace');
+
+    // Untouched fields pick up inspector default edits without Reset.
+    await act(async () => builder.fields.update(nameId, { defaultValue: 'Lin' }));
+    expect(ready().currentStep.fields[0]!.value).toBe('Lin');
+  });
 });
