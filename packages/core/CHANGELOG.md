@@ -1,5 +1,156 @@
 # @jfdevelops/multi-step-form-core
 
+## 1.0.0
+
+### Major Changes
+
+- 1c4e6d9: Restore the complete schema surface on form definitions, including a type-only exact step union, while keeping configured instances independent.
+
+  Return `NoCurrentData` and `ProgressText` components from render-context helpers, align single-step instance components with step-specific render inputs, and replace every `createComponent` overload with the object-only `{ render }` API.
+
+- a44ace5: Add `defineMultiStepForm`, an instances-first factory: `defineMultiStepForm({ steps, instances? }).configure({ storage?, update?, nameTransformCasing? })` creates independent named instances that share step/field definitions and helper functions.
+
+  - Storage is optional and per-instance via `configure({ storage: { key, configure: { instances } } })`, with an optional `update.updateStorage` gate (`boolean` or `(instance) => boolean`).
+  - Field metadata: `placeholder`, `isRequired` (default `false`), and `errorMessage`. Required fields without an explicit `label` get a trailing `*` on the resolved label.
+  - Step `isComplete(data)` predicate, exposed as `step.isComplete()` / `stepSchema.isStepComplete(...)`.
+  - New `InvalidInstanceError` and `NoActiveInstanceError`.
+
+  BREAKING CHANGE: step-level `overrides` is removed from the step config — attach overrides per instance with `instance.withOverrides(...)`. For `defineMultiStepForm`, `nameTransformCasing` moves to `.configure()`.
+
+- 85e4f84: Exit alpha prerelease mode and enter beta.
+- c9d8633: Replace the curried `withForm.render` API with `render(context, customProps)`, keep the strongly typed render context subscribed to current step data, and add reactive `getCurrentStepData`, `getProgress`, and `isStepComplete` callbacks so render implementations do not need to call the equivalent hooks. Preserve each step's exact `isComplete` function, remove widened `step${number}` indexes from render context and context-hook targets, preserve contextual typing and custom prop inference through override chains and injected form call sites, and resolve omitted casing to the exact default casing and label types.
+
+  Normalize resolved core step keys before generating step helpers so `update`, `reset`, completion, and helper functions carry only concrete schema steps and are not intersected with duplicate copies during React form enrichment.
+
+  Remove the legacy `createMultiStepFormSchema` factory in favor of the single `defineMultiStepForm(...).configure(...)` flow. Preserve exact field metadata and strongly typed `isComplete` inputs through definition factories, normalize array transformation types to honest arrays of schema step values, and migrate package tests, examples, and documentation to the definition API.
+
+  Strip internal update/reset/component helpers from the runtime `withForm.render` step projection, validate dynamic `isStepComplete` targets with `InvalidStepError`, and make step-specific `enabledForSteps` validation use the same concrete string keys exposed by the public API.
+
+  Remove function-valued properties entirely from resolved updater payloads instead of exposing them as required `never` properties, and make partial path updates recursively accept partial array items.
+
+  Preserve unrelated step state during resets, persist synchronous override failures, recover from malformed stored JSON using form defaults, consistently validate dynamic render-context step targets, and retain exact custom field metadata and resolved step keys through public definition chains.
+
+### Minor Changes
+
+- 3a3386d: Add optional, instance-isolated step state with literal or field-derived values, typed single-field selectors, dependency-aware resets, storage reconciliation, and resolved state access in core and React forms.
+- 04c486e: feat: add parsers for scalar step-schema `as` transformations
+- fb8f86f: Add reusable conditional update and reset APIs, typed step and field scopes, a generic condition-tree engine, and React `createHook` scheduling for component helper functions.
+- Support lazy async step definitions through defineMultiStepForm while keeping factory creation synchronous. Resolve loaders through the existing status, error, retry, and Suspense APIs and preserve loaded state, validation, resets, persisted values, and React component factories.
+- 14ba84a: feat(core): add step-level overrides with full type inference
+
+  - Added `overrides` callback support on step definitions with strongly-typed `data` parameter (resolved step data with widened field defaults)
+  - Added `StepOverrides`, `StepOverridePatch`, `StepOverrideResult`, and `StepResolvedData` public types
+  - Added `StepDefaultValues` mapped type with index-signature filtering to produce accurate per-field primitive types
+  - Supports both sync and async override functions
+
+### Patch Changes
+
+- 3417323: # Adds Deep Keys Support
+
+  - core: `MultiStepFormStepSchema.getValue()`
+  - react: `<Field />` component's `name` prop
+    - `defaultValue` and `onInputChange` support the deep values as well
+
+- e215a55: Ensures `<Selector />`'s children will rerender each its `value` changes
+- 2cf0908: Fixes `ctx` not being up to date when `createHelperFn` is called
+- 6bd7a7d: Add the core `createValueOverride` factory API and immediately run overrides attached with `withOverrides`.
+- 9ee7371: Updating an array set as a `defaultValue` during schema initialization, now updates properly
+- e93899c: Build every core error with `@jfdevelops/create-error`, validating each error's context with ArkType. Define custom errors with `createMultiStepFormError({ code, scope }).defineContext(schema).implement(({ context, scope }) => message)`; `renderMessage` keeps its `(scope, context)` renderer.
+- cb22d7e: Add a typed custom error foundation with scoped context and customizable message rendering.
+- ef9ff3c: # Type System Revamp
+
+  - Reduced the amount of generics down to 2 for external types
+  - Removed `First` and `Last` types as these weren't being used and was slowing down the TS server due to heavy recursion
+
+  # Removed unused functions
+
+  - `MultiStepFormStepSchema.first()`
+  - `MultiStepFormStepSchema.last()`
+
+- e128be0: Moved types and functions out of namespaces (`fields` and `steps`) to fix import issue
+- cdd4ad8: Add configured `defaultOverrides` that run for every form instance.
+- daecb01: Expose custom error classes and their supporting types from the public API.
+- 883d7f7: Performing a partial update preserves that data's structure
+- 292732c: Keep concrete step keys in `_instantiateSteps` when step configs declare typed `isComplete` predicates, so `steps.as('string.keys')` no longer collapses to `never`.
+- 5b8612c: Adds full support for deep fields for the `<Field />` component (previously, only type support was available)
+- 4deca4f: Attempt at fixing import issue...again
+- 5217d0b: Fixes the deep path normalization to make updating work properly
+- aa86af0: Preserve complete resolved field metadata across public core and React helpers.
+- 6fea1ed: Preserve step-specific helpers for partial object selectors and isolate configured factory schemas from shared browser storage.
+- d18c881: Makes sure packages actually get built
+- 8af979e: Fixes extra keys getting added to result when calling `reset`
+- 2b40eaf: fix: omit disabled field labels and restore reactive field selector props
+
+  Disabled field labels are now omitted from the resolved field config and from React `Field` children props instead of being exposed as `false` or `undefined`. This also fixes React field selector children so `selected.value` updates with the latest form state.
+
+- bc94bee: Changes storage module so that the actions (get, add, remove) are only ran if `window` is defined OR a specific store is provided and `window` is defined
+- 53e536d: Migrate invalid key failures to the scoped custom error pattern.
+- a30bd78: Renames core package to `@jfdevelops/multi-step-form-core`
+- 638a38f: Prevent `withOverrides` from being chained a second time on the same instance, removing the race where a superseded instance's override resolver could still run.
+- b51aabb: Adds convenient `reset` method
+- 937e061: Adds 2 new options for `update`
+
+  - `partial`: allows the target object to be updated partially
+
+    - Defaults to `false`
+
+  - `strict`: ensures the target object can't have extra keys
+
+    - Defaults to `true`
+
+- 5a99db7: Fixes resovled `type` inference
+- 84b9a58: By default, it will be `true` if `partial === true` OR `strict === false`
+- eb69762: This update brings changes to the following functions:
+
+  - `createHelperFn`
+  - `update`
+
+  ### `createHelperFn`
+
+  - adds ability to create custom `ctx`
+  - makes `update` available in callback
+
+  `update`
+
+  - changes function signature
+
+- 1b13492: fix: correct step-schema `as` return types
+- 2276a41: fix: tighten override field inference and preserve omitted field defaults
+
+  Resolved override data now exposes exact step field keys without a generic string index, which restores field inference in both core and React step consumers. This also adds regression coverage to ensure partial override patches do not remove untouched step fields at runtime.
+
+- 81ccf36: fix: expose the helper-style `update` API to step-specific components
+- 94b45a4: Fix storage sync discarding function-valued field metadata (e.g. a date field's `transform`) by restoring it from the in-memory fields instead of the JSON-parsed storage value.
+- cad92bf: Make `hasKey()` safely report `false` when storage is unavailable, matching the other storage operations during SSR.
+- c9e561d: fix runtime `steps.as(...)` results to expose the typed `value` property alongside `parse()` and `allows()`
+- 9cc12f1: fix: restore missing types removed during type system rewrite (#182)
+
+  - Added `StrippedResolvedStep<T, withFunctions>` to `@jfdevelops/multi-step-form-core`
+  - Added `CreateStepSpecificComponentCallback` to `@jfdevelops/react-multi-step-form`
+  - Added `MultiStepFormSchema.resolvedStep<T>` utility type to the `MultiStepFormSchema` namespace
+  - Exported `StepSpecificComponent` and related types from the react package public API via `export * from './steps'`
+
+- bc9dacd: Adds option to storage for throwing an error when `window` is `undefined`
+- 9c04b45: fix: restore override field inference in react schema factory
+
+  Aligns the React schema factory with the core factory so step `overrides` callbacks receive properly inferred `fields` data. Also adds regression coverage to ensure partial override patches still preserve untouched step fields through `withForm()` and `withContext()`.
+
+- ffed50d: Fixes import issue (I think)
+- 3337c5d: Adds support for the `update` method in the `createHelperFn` callback in the react package
+- 2d71e9f: Add static custom-error invariants and migrate package invariant failures to structured error classes.
+- dcbf92e: Fixes `Date`s not being able to be `update`d
+- 74ded92: Brings `resetFn` support to `createHelperFn`
+- fe74361: Fixes storage module storing array's of object improperly
+- 86efa89: `form.render`'s first param, `data.steps` is now the right type and value
+
+  providing a custom `storage.key` actually works
+
+- 6ef9644: Fix whole-step updates to validate only the target step and report structured mismatch details.
+- 9778039: Use `validateFields` for default step completeness without validating initial values, expose step completeness as a live boolean and non-throwing `validate()` results, and preserve declared keys for `isStepComplete` on named instances.
+- 5fb1988: Accept Standard Schema and custom function validators in `createUpdate.withInput`, validate reusable update inputs at runtime, allow update execution to be deferred, and add a React hook for stable deferred callbacks.
+- 160d9a9: Fixes type import errors and `createComponent` not being available per step
+- 40eb66d: Adds new option to `createComponent` for creating custom `ctx` that will be available in the `fn`
+
 ## 1.0.0-beta.11
 
 ### Minor Changes

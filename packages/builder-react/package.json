@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/react-multi-step-form-builder",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Headless React components for building multi-step form builders",
   "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",
