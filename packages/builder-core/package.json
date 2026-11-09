@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/multi-step-form-builder-core",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Framework-agnostic headless form builder for @jfdevelops/multi-step-form",
   "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",

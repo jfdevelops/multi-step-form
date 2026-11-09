@@ -1,6 +1,6 @@
 {
   "name": "@jfdevelops/multi-step-form-builder-arktype",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "ArkType validator adapter for @jfdevelops/multi-step-form-builder-core",
   "repository": "https://github.com/jfdevelops/multi-step-form",
   "type": "module",

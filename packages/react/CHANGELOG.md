@@ -1,5 +1,263 @@
 # @jfdevelops/react-multi-step-form
 
+## 1.0.0
+
+### Major Changes
+
+- 1c4e6d9: Restore the complete schema surface on form definitions, including a type-only exact step union, while keeping configured instances independent.
+
+  Return `NoCurrentData` and `ProgressText` components from render-context helpers, align single-step instance components with step-specific render inputs, and replace every `createComponent` overload with the object-only `{ render }` API.
+
+- 8f3b1b1: Add the React `defineMultiStepForm` factory (mirroring core instances/storage) and migrate to per-instance `.withOverrides(...)` instead of step-level `overrides`.
+
+  BREAKING CHANGE: step-level `overrides` on the step config is removed — use `createForm({ instance }).withOverrides(...)` (chainable with `.withForm()` / `.withContext()`).
+
+- 85e4f84: Exit alpha prerelease mode and enter beta.
+- c9d8633: Replace the curried `withForm.render` API with `render(context, customProps)`, keep the strongly typed render context subscribed to current step data, and add reactive `getCurrentStepData`, `getProgress`, and `isStepComplete` callbacks so render implementations do not need to call the equivalent hooks. Preserve each step's exact `isComplete` function, remove widened `step${number}` indexes from render context and context-hook targets, preserve contextual typing and custom prop inference through override chains and injected form call sites, and resolve omitted casing to the exact default casing and label types.
+
+  Normalize resolved core step keys before generating step helpers so `update`, `reset`, completion, and helper functions carry only concrete schema steps and are not intersected with duplicate copies during React form enrichment.
+
+  Remove the legacy `createMultiStepFormSchema` factory in favor of the single `defineMultiStepForm(...).configure(...)` flow. Preserve exact field metadata and strongly typed `isComplete` inputs through definition factories, normalize array transformation types to honest arrays of schema step values, and migrate package tests, examples, and documentation to the definition API.
+
+  Strip internal update/reset/component helpers from the runtime `withForm.render` step projection, validate dynamic `isStepComplete` targets with `InvalidStepError`, and make step-specific `enabledForSteps` validation use the same concrete string keys exposed by the public API.
+
+  Remove function-valued properties entirely from resolved updater payloads instead of exposing them as required `never` properties, and make partial path updates recursively accept partial array items.
+
+  Preserve unrelated step state during resets, persist synchronous override failures, recover from malformed stored JSON using form defaults, consistently validate dynamic render-context step targets, and retain exact custom field metadata and resolved step keys through public definition chains.
+
+- 90eaceb: Require reusable field components created from configured factories to receive the form instance they render against, preventing shared components from reading whichever instance was most recently active.
+
+  Allow `createComponent.forField` to omit its configured field and return a reusable component with a required, strongly typed `field` prop for selecting any field in the target step.
+
+  Restore React render utilities for components selecting multiple steps or all steps, including configured form aliases and reactive selectors. These components now expose documented `defaultValues.grouped` and `defaultValues.flat` views.
+
+  Preserve duplicate field names in `defaultValues.flat` by grouping their values under the selected step keys instead of overwriting an earlier step.
+
+  Expose `Field` to components selecting multiple steps or all steps, using qualified names such as `step1.firstName` to route field subscriptions, suspense, updates, and resets without ambiguity.
+
+### Minor Changes
+
+- d99989d: Add a `fields` selector to `createComponent.forField` so reusable selectable components can narrow their accepted field prop and render data.
+- 000bd64: Keep unique multi-step default values flat while grouping only duplicate field names by step, and add `asReusable(field)` to selectable `createComponent.forField` components.
+- 3a3386d: Add optional, instance-isolated step state with literal or field-derived values, typed single-field selectors, dependency-aware resets, storage reconciliation, and resolved state access in core and React forms.
+- a8a6ff4: feat(react): type `useStep` errors and expose override failures per step
+
+  `useStep()` now exposes override resolution errors on the current step and defaults the `error` property to `Error | undefined`. Callers can also override the error type at the hook call site with `useStep<MyError>()`.
+
+- fb8f86f: Add reusable conditional update and reset APIs, typed step and field scopes, a generic condition-tree engine, and React `createHook` scheduling for component helper functions.
+- Support lazy async step definitions through defineMultiStepForm while keeping factory creation synchronous. Resolve loaders through the existing status, error, retry, and Suspense APIs and preserve loaded state, validation, resets, persisted values, and React component factories.
+- 5468bc4: feat(react): add step-level overrides, suspend, and useStep support
+- cac1881: refactor: remove `useFormInstance` from `createComponent` and type `Form` by default
+
+  - Removes the `useFormInstance` option from the second `createComponent` overload — the `Form` component from an external form library can now be composed manually in the callback instead
+  - `Form` (the default `<form>` wrapper) is now always present in the `createComponent` callback type when no custom `withForm()` config is supplied, matching existing runtime behaviour
+  - Simplifies `StepSpecificComponent.options` from 5 type params to 3
+  - Removes `formInstanceOptions`, `DEFAULT_FORM_INSTANCE_ALIAS`, and `defaultFormInstanceAlias` from the public API
+
+- 60064bc: Add strongly typed `createComponent.forField` factories at schema, step, definition, and configured-factory levels. Configured factories reuse the component definition across active instances while keeping each instance's state and subscriptions isolated.
+- f90817f: # Add form-library adapters
+
+  Add a typed form-library adapter boundary to React `createComponent` and introduce
+  the TanStack Form integration package with bidirectional field synchronization.
+  Configured integrations are enabled by default and can be disabled per component.
+
+### Patch Changes
+
+- 3417323: # Adds Deep Keys Support
+
+  - core: `MultiStepFormStepSchema.getValue()`
+  - react: `<Field />` component's `name` prop
+    - `defaultValue` and `onInputChange` support the deep values as well
+
+- a51ec1f: fix: keep `forField` components working after an instance's first field update, and add `bindToInstance`/`bindToField` to bind instance and field separately
+
+  A `forField`/`stepCreateComponentFn` component built from a definition's factory would throw resolving `.forField` on `undefined` the next time a new field type rendered, once the bound instance had persisted at least one field update through storage — `value[step].createComponent` was only ever attached once, in the constructor, and every update replaced `value` without it.
+
+  Selectable and single-field components built this way can now also bind their `instance` and their `field` independently and in either order via `bindToInstance`/`bindToField` (renamed from `asReusable`), instead of requiring an `instance` prop on every render:
+
+  ```tsx
+  const TextField = createForm.stepSchema.value.step1.createComponent.forField({
+    fields: ["firstName", "lastName"],
+    render: (field) => <p>{field.defaultValue}</p>,
+  });
+
+  const SchemaTextField = TextField.bindToInstance(schema);
+  const FirstName = SchemaTextField.bindToField("firstName");
+  <FirstName />;
+  ```
+
+  `instance` is also generic per call/per `bindToInstance` binding now, rather than fixed to one type for every component built from a definition — narrow it further via `configure<TCasing, TInstanceSchema>()`.
+
+- 1656b9c: fix: rerender form context consumers after step data updates (#189)
+- e215a55: Ensures `<Selector />`'s children will rerender each its `value` changes
+- 86d5405: Correct `createComponent.forField` return props so generated components forward Field options other than the internally owned `name` and `children`, while continuing to infer and accept custom render props.
+- 638be2f: Preserve the full step field union when `createComponent.forField` omits `fields`, while narrowing only when an explicit `fields` selector is provided.
+- 67d04aa: fix: resolve current step data from form context (#189)
+- a382686: Restore the complete schema surface, including the exact type-only step union and `stepSchema`, on the callable factory returned by `defineMultiStepForm().configure()` while keeping factory and instance state isolated.
+- 6bd7a7d: Add the core `createValueOverride` factory API and immediately run overrides attached with `withOverrides`.
+- 9ee7371: Updating an array set as a `defaultValue` during schema initialization, now updates properly
+- e128be0: Moved types and functions out of namespaces (`fields` and `steps`) to fix import issue
+- cdd4ad8: Add configured `defaultOverrides` that run for every form instance.
+- 645b4c5: feat: expose `defaultValues` in `createComponent` callback
+
+  `defaultValues` is now available directly in the `createComponent` callback, providing the same flat map of field default values that was previously only accessible via the removed `useFormInstance.render` input.
+
+- 06e7d7d: Fixes `form` being `undefined`
+- 6342d93: fix: restore custom `Form` type in `createComponent` callback when using `withForm({ render })`
+
+  When `withForm()` was called with only `render` (no `alias` or `enabledForSteps`), the `Form` parameter in the `createComponent` callback was incorrectly typed as the generic HTML form element instead of the user's custom form component. This has been fixed.
+
+- 7fcf3d7: Fix the non-deprecated `useSelector` options signature at runtime.
+- 5b8612c: Adds full support for deep fields for the `<Field />` component (previously, only type support was available)
+- 600b08e: Fixes `name` prop in `<Field />` component not supporting deep keys
+- 73efa2c: fix: rerender whole-schema consumers after form data updates (#189)
+- aa86af0: Preserve complete resolved field metadata across public core and React helpers.
+- 94c7f38: Caches `ctx` value in `useSelector` and `<Selector />`
+- e7365ed: Only expose and inject a `Form` component in `createComponent` render input after the schema has been configured with `.withForm()`.
+- 6fea1ed: Preserve step-specific helpers for partial object selectors and isolate configured factory schemas from shared browser storage.
+- 22ced19: Adds `options` argument to `onInputChange` and `reset` (`<Field />` props)
+- d18c881: Makes sure packages actually get built
+- 2b40eaf: fix: omit disabled field labels and restore reactive field selector props
+
+  Disabled field labels are now omitted from the resolved field config and from React `Field` children props instead of being exposed as `false` or `undefined`. This also fixes React field selector children so `selected.value` updates with the latest form state.
+
+- a12650c: Adds new `selectorFn` prop to the `Field` component. Providing a value for the `selectorFn` will internally wrap the `<Field />`'s children with a `<Selector />`.
+- aa44c0b: Preserve the internal Field type namespace in published declarations so consumer render callbacks retain strongly typed field props.
+- bc94bee: Changes storage module so that the actions (get, add, remove) are only ran if `window` is defined OR a specific store is provided and `window` is defined
+- a26edfb: Restore the full strongly typed `stepData` selector on schema-level `createComponent`, including `'all'`, exact step tuples, and object notation.
+- a30bd78: Renames core package to `@jfdevelops/multi-step-form-core`
+- 638a38f: Prevent `withOverrides` from being chained a second time on the same instance, removing the race where a superseded instance's override resolver could still run.
+- b51aabb: Adds convenient `reset` method
+- ed7b13a: Ensures the latest selector value is used in `createUseSelector`
+- 8733428: Fixes `ctx.{currentStep}` being `undefined` when calling step specific `createComponent` function with a custom `useFormInstance` and no `ctxData`
+- eb69762: This update brings changes to the following functions:
+
+  - `createHelperFn`
+  - `update`
+
+  ### `createHelperFn`
+
+  - adds ability to create custom `ctx`
+  - makes `update` available in callback
+
+  `update`
+
+  - changes function signature
+
+- 8537ac7: Makes step data reactive in `createComponent` function
+- e915ae1: Deeply expand nested field default values in the `defaultValues.flat` type.
+- 2276a41: fix: tighten override field inference and preserve omitted field defaults
+
+  Resolved override data now exposes exact step field keys without a generic string index, which restores field inference in both core and React step consumers. This also adds regression coverage to ensure partial override patches do not remove untouched step fields at runtime.
+
+- 81ccf36: fix: expose the helper-style `update` API to step-specific components
+- 59c70b0: fix: preserve custom `Form` inference in built package declarations
+
+  Ensures the generated declaration files keep the `withForm()` schema type enriched with the custom form config, so consumers importing the published package receive the same `Form` props inference as source-level tests.
+
+- 92040f3: Allow reusable factory field components to bind to any created multi-step form schema, including schemas finalized with `withForm()` and `withContext()`.
+- 9cc12f1: fix: restore missing types removed during type system rewrite (#182)
+
+  - Added `StrippedResolvedStep<T, withFunctions>` to `@jfdevelops/multi-step-form-core`
+  - Added `CreateStepSpecificComponentCallback` to `@jfdevelops/react-multi-step-form`
+  - Added `MultiStepFormSchema.resolvedStep<T>` utility type to the `MultiStepFormSchema` namespace
+  - Exported `StepSpecificComponent` and related types from the react package public API via `export * from './steps'`
+
+- 648984e: fix: stop exposing `bindToField`/`bindToInstance` at runtime once that slot is already bound
+
+  Every wrapper produced by `withReusableField` exposed both `bindToField` and `bindToInstance` regardless of whether a slot was already fixed — an instance-bound, field-bound, or fully bound component still had both methods at runtime even though its type no longer does. Calling one of those "rebound" a component without error, but the inner wrapper injects its originally-bound value last, so the component silently kept reading and writing the original instance/field instead. A caller relying only on the types never hit this, but plain JS, `as any`, or a type-erasing HOC could.
+
+  `bindToField`/`bindToInstance` are now only attached for slots that aren't already bound, so calling either on an already-bound component throws instead of silently doing nothing.
+
+- 15beff8: Add optional selector options to `useStep` for granular subscriptions while preserving complete-result subscriptions when no selector is provided.
+- bc9dacd: Adds option to storage for throwing an error when `window` is `undefined`
+- 9c04b45: fix: restore override field inference in react schema factory
+
+  Aligns the React schema factory with the core factory so step `overrides` callbacks receive properly inferred `fields` data. Also adds regression coverage to ensure partial override patches still preserve untouched step fields through `withForm()` and `withContext()`.
+
+- fdfdfc9: fix: restore `Form` inference in step component callback types
+
+  Restores the custom `Form` component typing for `step.createComponent(...)` callbacks when using `withForm({ render })`, and also restores the exported `CreateStepSpecificComponentCallback` helper type so it carries the same inferred `Form` props.
+
+- 3337c5d: Adds support for the `update` method in the `createHelperFn` callback in the react package
+- 8fb3e43: Fixes `createStepSpecificComponentImpl`'s `input` when calling with `formInstance` and `ctxData`
+- 25e6275: Stabilize React package test worker startup on Windows.
+- 2d71e9f: Add static custom-error invariants and migrate package invariant failures to structured error classes.
+- 9778039: Keep generated Field and Selector component identities stable across renders so selected inputs retain their DOM node and focus.
+- 86cf157: Prevent suspended fields from remounting their children during reactive updates, preserving DOM identity and focus.
+- d6ce32e: fix: compare Date objects by timestamp in selectors
+- 74ded92: Brings `resetFn` support to `createHelperFn`
+- 2d59e87: `onInputChange` of the `<Field />` component has access to the most up to date data for that field
+- 86efa89: `form.render`'s first param, `data.steps` is now the right type and value
+
+  providing a custom `storage.key` actually works
+
+- e4ff33e: Update version to work with npm
+- 5fb1988: Accept Standard Schema and custom function validators in `createUpdate.withInput`, validate reusable update inputs at runtime, allow update execution to be deferred, and add a React hook for stable deferred callbacks.
+- 160d9a9: Fixes type import errors and `createComponent` not being available per step
+- 40eb66d: Adds new option to `createComponent` for creating custom `ctx` that will be available in the `fn`
+- Updated dependencies [3417323]
+- Updated dependencies [1c4e6d9]
+- Updated dependencies [e215a55]
+- Updated dependencies [2cf0908]
+- Updated dependencies [6bd7a7d]
+- Updated dependencies [9ee7371]
+- Updated dependencies [e93899c]
+- Updated dependencies [cb22d7e]
+- Updated dependencies [ef9ff3c]
+- Updated dependencies [e128be0]
+- Updated dependencies [cdd4ad8]
+- Updated dependencies [a44ace5]
+- Updated dependencies [85e4f84]
+- Updated dependencies [daecb01]
+- Updated dependencies [883d7f7]
+- Updated dependencies [292732c]
+- Updated dependencies [5b8612c]
+- Updated dependencies [4deca4f]
+- Updated dependencies [5217d0b]
+- Updated dependencies [3a3386d]
+- Updated dependencies [c9d8633]
+- Updated dependencies [aa86af0]
+- Updated dependencies [6fea1ed]
+- Updated dependencies [04c486e]
+- Updated dependencies [d18c881]
+- Updated dependencies [8af979e]
+- Updated dependencies [2b40eaf]
+- Updated dependencies [bc94bee]
+- Updated dependencies [53e536d]
+- Updated dependencies [fb8f86f]
+- Updated dependencies [a30bd78]
+- Updated dependencies [638a38f]
+- Updated dependencies
+- Updated dependencies [b51aabb]
+- Updated dependencies [937e061]
+- Updated dependencies [5a99db7]
+- Updated dependencies [84b9a58]
+- Updated dependencies [eb69762]
+- Updated dependencies [1b13492]
+- Updated dependencies [2276a41]
+- Updated dependencies [81ccf36]
+- Updated dependencies [94b45a4]
+- Updated dependencies [cad92bf]
+- Updated dependencies [c9e561d]
+- Updated dependencies [9cc12f1]
+- Updated dependencies [bc9dacd]
+- Updated dependencies [9c04b45]
+- Updated dependencies [ffed50d]
+- Updated dependencies [3337c5d]
+- Updated dependencies [2d71e9f]
+- Updated dependencies [dcbf92e]
+- Updated dependencies [74ded92]
+- Updated dependencies [fe74361]
+- Updated dependencies [14ba84a]
+- Updated dependencies [86efa89]
+- Updated dependencies [6ef9644]
+- Updated dependencies [9778039]
+- Updated dependencies [5fb1988]
+- Updated dependencies [160d9a9]
+- Updated dependencies [40eb66d]
+  - @jfdevelops/multi-step-form-core@1.0.0
+
 ## 1.0.0-beta.17
 
 ### Minor Changes
