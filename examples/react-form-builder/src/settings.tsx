@@ -1,4 +1,5 @@
 import { useFormSettings } from '@jfdevelops/react-multi-step-form-builder';
+import { InstanceSettings } from './instance-settings';
 
 /** Form-wide settings: the default validator library, label casing, storage and instances. */
 export function FormSettingsBar() {
@@ -40,17 +41,7 @@ export function FormSettingsBar() {
           onChange={(event) => update({ storageKey: event.target.value || undefined })}
         />
       </label>
-      <label>
-        Instances
-        <input
-          value={(settings.instances ?? []).join(', ')}
-          placeholder="e.g. client, admin"
-          onChange={(event) => {
-            const instances = event.target.value.split(',').map((name) => name.trim());
-            update({ instances: instances.some(Boolean) ? instances : undefined });
-          }}
-        />
-      </label>
+      <InstanceSettings />
       {issues.map((issue) => (
         <span key={issue.code} className="error">
           {issue.message}

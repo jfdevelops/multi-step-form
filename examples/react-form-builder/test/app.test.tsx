@@ -101,6 +101,27 @@ describe('form builder example', () => {
     expect(validator.value).toBe('valibot');
   });
 
+  it('adds, renames and removes named instances with undo support', async () => {
+    await renderApp();
+
+    await click(byText('button', 'Add instance'));
+    await click(byText('button', 'Undo'));
+    expect(all('.instance-row')).toHaveLength(0);
+    await click(byText('button', 'Redo'));
+    const first = container.querySelector<HTMLInputElement>('[aria-label="Instance 1 name"]')!;
+    expect(first.value).toBe('instance1');
+    await change(first, 'organizer');
+    await click(byText('button', 'Add instance'));
+    expect(all('.instance-row input').map((input) => (input as HTMLInputElement).value)).toEqual(['organizer', 'instance1']);
+
+    await click(container.querySelector<HTMLElement>('[aria-label="Remove instance 1"]')!);
+    expect(all('.instance-row input').map((input) => (input as HTMLInputElement).value)).toEqual(['instance1']);
+
+    await click(container.querySelector<HTMLElement>('[aria-label="Remove instance 1"]')!);
+    expect(all('.instance-row')).toHaveLength(0);
+    expect(all('.settings .error')).toHaveLength(0);
+  });
+
   it('shows generated modules in file tabs and falls back when a selected file disappears', async () => {
     await renderApp();
     await click(byText('[role="tab"]', 'Generated code'));
