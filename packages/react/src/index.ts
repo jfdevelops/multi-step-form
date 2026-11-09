@@ -29,6 +29,7 @@ export {
   type ConditionPredicate,
   type CreatedCondition,
   type Reset,
+  type ResolveValidatorInput,
   type Update,
   type UpdateResult,
 } from '@jfdevelops/multi-step-form-core';

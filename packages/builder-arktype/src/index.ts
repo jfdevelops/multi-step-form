@@ -30,9 +30,17 @@ export const arktypeSchemaBuilder = createSchemaBuilder({
   checks(schema, node, ctx) {
     const { lib } = ctx;
     const allowed = [
-      ...(node.nullable ? [{ type: lib.null, test: (value: unknown) => value === null, code: 'value === null' }] : []),
+      ...(node.nullable
+        ? [{ type: lib.null, test: (value: unknown) => value === null, code: 'value === null' }]
+        : []),
       ...(node.optional
-        ? [{ type: lib.undefined, test: (value: unknown) => value === undefined, code: 'value === undefined' }]
+        ? [
+            {
+              type: lib.undefined,
+              test: (value: unknown) => value === undefined,
+              code: 'value === undefined',
+            },
+          ]
         : []),
       ...(node.optional && ctx.allowsEmptyString(node)
         ? [{ type: lib.unit(''), test: (value: unknown) => value === '', code: "value === ''" }]
@@ -61,7 +69,11 @@ export const arktypeSchemaBuilder = createSchemaBuilder({
   },
   // Optional keys are marked with `?`.
   object: (entries, { lib }) =>
-    lib(Object.fromEntries(entries.map((entry) => [entry.optional ? `${entry.key}?` : entry.key, entry.schema]))),
+    lib(
+      Object.fromEntries(
+        entries.map((entry) => [entry.optional ? `${entry.key}?` : entry.key, entry.schema]),
+      ),
+    ),
   nullable: (schema) => schema,
   optional: (schema) => schema,
   refine: (schema, refinements, ctx) =>
@@ -95,4 +107,8 @@ export const arktypeSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [arktypeAdapter] });
  * ```
  */
-export const arktypeAdapter = arktypeSchemaBuilder.createAdapter({ library: 'arktype', label: 'ArkType' });
+export const arktypeAdapter = arktypeSchemaBuilder.createAdapter({
+  library: 'arktype',
+  label: 'ArkType',
+  supportsTypeInference: true,
+});

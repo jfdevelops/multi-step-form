@@ -1,16 +1,9 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { CHECKS_BY_KIND, type SchemaNode } from '../schema.js';
 import { compilePattern } from './checks.js';
-import type {
-  EmittedValidator,
-  ResolvedStepSchema,
-  StepValues,
-  ValidatorAdapter,
-} from './types.js';
+import type { EmittedValidator, ResolvedStepSchema, StepValues, ValidatorAdapter } from './types.js';
 
-export type CreateValidatorAdapterBuildFn<TReturn> = (
-  spec: ResolvedStepSchema,
-) => TReturn;
+export type CreateValidatorAdapterBuildFn<TReturn> = (spec: ResolvedStepSchema) => TReturn;
 
 /**
  * The options for one adapter. `compile` and `emit` receive what the adapter's build callback
@@ -21,6 +14,8 @@ export interface ValidatorAdapterOptions<TBuilt> {
   library: string;
   /** The name shown in a library picker. */
   label: string;
+  /** Opt in when the emitted validator preserves concrete Standard Schema input types. */
+  supportsTypeInference?: boolean;
   /**
    * npm packages the emitted code imports, so an editor can load their types. A function receives
    * `library`, e.g. `(library) => [library]`.
@@ -32,17 +27,12 @@ export interface ValidatorAdapterOptions<TBuilt> {
    */
   supports?(node: SchemaNode): true | string;
   /** Returns the runtime validator. */
-  compile(
-    spec: ResolvedStepSchema,
-    built: TBuilt,
-  ): StandardSchemaV1<StepValues, StepValues>;
+  compile(spec: ResolvedStepSchema, built: TBuilt): StandardSchemaV1<StepValues, StepValues>;
   /** Returns the validator's source code. */
   emit(spec: ResolvedStepSchema, built: TBuilt): EmittedValidator;
 }
 
-export type CreatedValidatorAdapter<TBuilt> = (
-  options: ValidatorAdapterOptions<TBuilt>,
-) => ValidatorAdapter;
+export type CreatedValidatorAdapter<TBuilt> = (options: ValidatorAdapterOptions<TBuilt>) => ValidatorAdapter;
 
 function genericSupport(node: SchemaNode) {
   for (const check of node.checks ?? []) {
@@ -78,22 +68,19 @@ function genericSupport(node: SchemaNode) {
  * });
  * ```
  */
-export function createValidatorAdapter<TBuilt>(
-  build: CreateValidatorAdapterBuildFn<TBuilt>,
-) {
+export function createValidatorAdapter<TBuilt>(build: CreateValidatorAdapterBuildFn<TBuilt>) {
   const createValidatorAdapter: CreatedValidatorAdapter<TBuilt> = ({
     library,
     label,
     packages,
+    supportsTypeInference = false,
     supports,
     compile,
     emit,
   }) => {
     const cache = new WeakMap<ResolvedStepSchema, TBuilt>();
     // `compile` and `emit` are usually called with the same spec; the cache runs `build` once per spec.
-    const built: CreateValidatorAdapterBuildFn<NonNullable<TBuilt>> = (
-      spec,
-    ) => {
+    const built: CreateValidatorAdapterBuildFn<NonNullable<TBuilt>> = (spec) => {
       if (!cache.has(spec)) {
         cache.set(spec, build(spec));
       }
@@ -104,6 +91,7 @@ export function createValidatorAdapter<TBuilt>(
     return {
       library,
       label,
+      supportsTypeInference,
       packages: typeof packages === 'function' ? packages(library) : packages,
       supports(node) {
         const generic = genericSupport(node);

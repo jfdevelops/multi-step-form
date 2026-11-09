@@ -107,7 +107,7 @@ export function buildStepValidator(
   step: StepDefinition,
   registry: FormRegistry,
   settings?: FormSettings,
-): (BuiltValidator & { library: string }) | undefined {
+): (BuiltValidator & { library: string; supportsTypeInference: boolean }) | undefined {
   const library = resolveStepLibrary(step, settings);
   const spec = resolveStepSchema(step, settings);
 
@@ -116,7 +116,12 @@ export function buildStepValidator(
   const adapter = requireAdapter(library, step, registry, 'buildStepValidator');
 
   // The same spec object, so adapters made with createValidatorAdapter build once.
-  return { validator: adapter.compile(spec), ...adapter.emit(spec), library };
+  return {
+    validator: adapter.compile(spec),
+    ...adapter.emit(spec),
+    library,
+    supportsTypeInference: adapter.supportsTypeInference ?? false,
+  };
 }
 
 /** Compiles a step's validator, if it has builder-managed validation. */

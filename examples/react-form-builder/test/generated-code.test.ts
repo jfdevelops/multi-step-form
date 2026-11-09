@@ -27,15 +27,48 @@ const registry = createRegistry({
 
 /** A form using every kind of value and check. */
 function buildForm(builder: FormBuilder) {
-  builder.fields.add({ type: 'string.email', key: 'email', isRequired: true, description: 'We never share it', props: { autoComplete: 'email' } });
-  builder.fields.add({ type: 'string.password', key: 'password', isRequired: true, schema: { kind: 'string', checks: [{ check: 'minLength', value: 8 }, { check: 'pattern', value: '[A-Z]' }] } });
-  builder.fields.add({ type: 'string.password', key: 'confirm', isRequired: true, schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] } });
+  builder.fields.add({
+    type: 'string.email',
+    key: 'email',
+    isRequired: true,
+    description: 'We never share it',
+    props: { autoComplete: 'email' },
+  });
+  builder.fields.add({
+    type: 'string.password',
+    key: 'password',
+    isRequired: true,
+    schema: {
+      kind: 'string',
+      checks: [
+        { check: 'minLength', value: 8 },
+        { check: 'pattern', value: '[A-Z]' },
+      ],
+    },
+  });
+  builder.fields.add({
+    type: 'string.password',
+    key: 'confirm',
+    isRequired: true,
+    schema: { kind: 'string', checks: [{ check: 'equalsField', field: 'password' }] },
+  });
   builder.fields.add({ type: 'string.url', key: 'website' });
-  builder.fields.add({ type: 'number', key: 'age', schema: { kind: 'number', nullable: true, checks: [{ check: 'min', value: 18 }, { check: 'integer' }] } });
+  builder.fields.add({
+    type: 'number',
+    key: 'age',
+    schema: { kind: 'number', nullable: true, checks: [{ check: 'min', value: 18 }, { check: 'integer' }] },
+  });
   builder.fields.add({ type: 'choice', key: 'location', isRequired: true });
   builder.fields.add({ type: 'multiChoice', key: 'tags', isRequired: true });
-  builder.fields.add({ type: 'date', key: 'startsOn', schema: { kind: 'date', checks: [{ check: 'min', value: '2026-01-01' }] } });
-  builder.fields.add({ type: 'object', key: 'equipment', schema: {
+  builder.fields.add({
+    type: 'date',
+    key: 'startsOn',
+    schema: { kind: 'date', checks: [{ check: 'min', value: '2026-01-01' }] },
+  });
+  builder.fields.add({
+    type: 'object',
+    key: 'equipment',
+    schema: {
       kind: 'object',
       properties: [
         { key: 'min', schema: { kind: 'number' } },
@@ -70,14 +103,20 @@ function buildForm(builder: FormBuilder) {
         { key: 'agreed', schema: { kind: 'literal', value: true } },
         { key: 'extra', schema: { kind: 'unknown' } },
       ],
-    } });
+    },
+  });
 }
 
-function check(source: string, packages: readonly string[], modules: readonly GeneratedFile[] = [{ path: 'form.ts', source }]) {
+function check(
+  source: string,
+  packages: readonly string[],
+  modules: readonly GeneratedFile[] = [{ path: 'form.ts', source }],
+) {
   const files = new Map<string, string>();
 
   for (const name of packages) {
-    for (const [path, text] of collectTypes(name, process.cwd())) files.set(path.replace('file://', ''), text);
+    for (const [path, text] of collectTypes(name, process.cwd()))
+      files.set(path.replace('file://', ''), text);
   }
 
   for (const file of modules) {
@@ -103,16 +142,23 @@ function check(source: string, packages: readonly string[], modules: readonly Ge
     getDirectories: () => [],
   });
 
-  const errors = modules.flatMap((file) => [
-    ...service.getSyntacticDiagnostics(`/${file.path}`),
-    ...service.getSemanticDiagnostics(`/${file.path}`),
-  ]).map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
+  const errors = modules
+    .flatMap((file) => [
+      ...service.getSyntacticDiagnostics(`/${file.path}`),
+      ...service.getSemanticDiagnostics(`/${file.path}`),
+    ])
+    .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
   const hover = (name: string) => {
     const file = modules.find((entry) => entry.source.includes(`export const ${name} =`))!;
 
-    return ts.displayPartsToString(
-      service.getQuickInfoAtPosition(`/${file.path}`, file.source.indexOf(`export const ${name}`) + 'export const '.length)?.displayParts,
-    ).replace(/\s+/g, ' ');
+    return ts
+      .displayPartsToString(
+        service.getQuickInfoAtPosition(
+          `/${file.path}`,
+          file.source.indexOf(`export const ${name}`) + 'export const '.length,
+        )?.displayParts,
+      )
+      .replace(/\s+/g, ' ');
   };
 
   return { errors, hover };
@@ -133,6 +179,64 @@ describe('generated code in the editor', () => {
     expect(code.files[0]!.source).not.toContain('export const form =');
     expect(project.hover('createWorkshop')).toContain('readonly ["organizer", "reviewer"]');
   });
+
+  it.each(['zod', 'valibot', 'arktype', 'effect'])(
+    'infers structured defaults from the %s validator without duplicating their types',
+    (library) => {
+      const builder = createFormBuilder({ registry });
+      builder.settings.update({ validator: library });
+      builder.fields.add({
+        type: 'array',
+        key: 'topics',
+        defaultValue: [],
+        schema: { kind: 'array', nullable: true, item: { kind: 'enum', values: ['red', 'green'] } },
+      });
+      builder.fields.add({
+        type: 'choice',
+        key: 'attendance',
+        isRequired: true,
+        props: {
+          options: [
+            { value: 'online', label: 'Online' },
+            { value: 'in_person', label: 'In person' },
+          ],
+        },
+      });
+      builder.fields.add({
+        type: 'object',
+        key: 'preferences',
+        defaultValue: {},
+        schema: { kind: 'object', properties: [{ key: 'note', schema: { kind: 'string', optional: true } }] },
+      });
+      const code = generateCode(builder.toJSON(), { registry });
+      const assertions = `
+const topics: typeof step1.fields.topics.defaultValue = ['red', 'green'];
+const nullableTopics: typeof step1.fields.topics.defaultValue = null;
+// @ts-expect-error The schema restricts the choices.
+const invalidTopics: typeof step1.fields.topics.defaultValue = ['blue'];
+// @ts-expect-error Root optionality does not make a supplied default undefined.
+const missingTopics: typeof step1.fields.topics.defaultValue = undefined;
+const emptyAttendance: typeof step1.fields.attendance.defaultValue = '';
+const attendance: typeof step1.fields.attendance.defaultValue = 'online';
+// @ts-expect-error The initial empty value does not widen the choices to every string.
+const invalidAttendance: typeof step1.fields.attendance.defaultValue = 'other';
+const preferences: typeof step1.fields.preferences.defaultValue = { note: 'Hello' };
+// @ts-expect-error The nested property remains a string.
+const invalidPreferences: typeof step1.fields.preferences.defaultValue = { note: 42 };
+`;
+
+      expect(code.types).toEqual([]);
+      expect(code.source).toContain('ResolveValidatorInput<typeof step1Schema>');
+      expect(code.source).not.toContain('export type Step1Topics');
+      expect(code.source).toContain('export type Step1Values = ResolveValidatorInput<typeof step1Schema>;');
+      expect(code.validatorsSource).not.toContain('ResolveValidatorInput');
+      const files = code.files.map((file) =>
+        file.path === 'steps/step1.ts' ? { ...file, source: file.source + assertions } : file,
+      );
+      expect(check(code.source, code.packages, files).errors).toEqual([]);
+    },
+    60_000,
+  );
 
   it.each(['builtin', 'zod', 'valibot', 'arktype', 'effect', 'yup', 'joi'])(
     'typechecks with %s and infers the form',

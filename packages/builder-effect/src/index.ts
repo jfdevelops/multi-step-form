@@ -34,7 +34,8 @@ export const effectSchemaBuilder = createSchemaBuilder({
 
     return first ? described.check(first, ...rest) : described;
   },
-  object: (entries, { lib }) => lib.Struct(Object.fromEntries(entries.map((entry) => [entry.key, entry.schema]))),
+  object: (entries, { lib }) =>
+    lib.Struct(Object.fromEntries(entries.map((entry) => [entry.key, entry.schema]))),
   nullable: (schema, _node, { lib }) => lib.NullOr(schema),
   optional: (schema, node, { lib, allowsEmptyString }) =>
     lib.optional(allowsEmptyString(node) ? lib.Union([schema, lib.Literal('')]) : schema),
@@ -68,4 +69,8 @@ export const effectSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [effectAdapter] });
  * ```
  */
-export const effectAdapter = effectSchemaBuilder.createAdapter({ library: 'effect', label: 'Effect Schema' });
+export const effectAdapter = effectSchemaBuilder.createAdapter({
+  library: 'effect',
+  label: 'Effect Schema',
+  supportsTypeInference: true,
+});

@@ -6,7 +6,10 @@ import { createSchemaBuilder } from '@jfdevelops/multi-step-form-builder-core';
  * through the variadic shape every overload shares.
  */
 function pipe(lib: typeof v, schema: v.GenericSchema, items: readonly v.GenericPipeItem[]) {
-  const variadic = lib.pipe as unknown as (schema: v.GenericSchema, ...items: v.GenericPipeItem[]) => v.GenericSchema;
+  const variadic = lib.pipe as unknown as (
+    schema: v.GenericSchema,
+    ...items: v.GenericPipeItem[]
+  ) => v.GenericSchema;
 
   return items.length > 0 ? variadic(schema, ...items) : schema;
 }
@@ -30,7 +33,10 @@ export const valibotSchemaBuilder = createSchemaBuilder({
             const predicate = ctx.predicate(check, node);
 
             // An inline function, so the pipe types its input as the string being checked.
-            return ctx.lib.check(ctx.fn((value: string) => predicate.test(value), `(value) => ${predicate.code}`), message);
+            return ctx.lib.check(
+              ctx.fn((value: string) => predicate.test(value), `(value) => ${predicate.code}`),
+              message,
+            );
           },
           pattern: (check, message) => ctx.lib.regex(ctx.pattern(check), message),
         }),
@@ -71,7 +77,8 @@ export const valibotSchemaBuilder = createSchemaBuilder({
     union: (node, { lib, field }) => lib.union(node.options.map(field), node.message),
     unknown: (_node, { lib }) => lib.unknown(),
   },
-  object: (entries, { lib }) => lib.object(Object.fromEntries(entries.map((entry) => [entry.key, entry.schema]))),
+  object: (entries, { lib }) =>
+    lib.object(Object.fromEntries(entries.map((entry) => [entry.key, entry.schema]))),
   nullable: (schema, _node, { lib }) => lib.nullable(schema),
   optional: (schema, node, { lib, allowsEmptyString }) =>
     lib.optional(allowsEmptyString(node) ? lib.union([schema, lib.literal('')]) : schema),
@@ -105,4 +112,8 @@ export const valibotSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [valibotAdapter] });
  * ```
  */
-export const valibotAdapter = valibotSchemaBuilder.createAdapter({ library: 'valibot', label: 'Valibot' });
+export const valibotAdapter = valibotSchemaBuilder.createAdapter({
+  library: 'valibot',
+  label: 'Valibot',
+  supportsTypeInference: true,
+});

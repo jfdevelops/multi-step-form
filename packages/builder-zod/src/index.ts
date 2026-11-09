@@ -40,7 +40,8 @@ export const zodSchemaBuilder = createSchemaBuilder({
     union: (node, { lib, field }) => lib.union(node.options.map(field), node.message),
     unknown: (_node, { lib }) => lib.unknown(),
   },
-  object: (entries, { lib }) => lib.object(Object.fromEntries(entries.map((entry) => [entry.key, entry.schema]))),
+  object: (entries, { lib }) =>
+    lib.object(Object.fromEntries(entries.map((entry) => [entry.key, entry.schema]))),
   nullable: (schema) => schema.nullable(),
   optional: (schema, node, { lib, allowsEmptyString }) =>
     allowsEmptyString(node) ? schema.or(lib.literal('')).optional() : schema.optional(),
@@ -75,4 +76,8 @@ export const zodSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [zodAdapter] });
  * ```
  */
-export const zodAdapter = zodSchemaBuilder.createAdapter({ library: 'zod', label: 'Zod' });
+export const zodAdapter = zodSchemaBuilder.createAdapter({
+  library: 'zod',
+  label: 'Zod',
+  supportsTypeInference: true,
+});

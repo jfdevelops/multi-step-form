@@ -75,3 +75,4 @@ export {
 export * from './steps';
 export * from './utils';
 export * from './storage.js';
+export type { ResolveValidatorInput } from './utils/validator.js';

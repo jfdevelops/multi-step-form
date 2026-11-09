@@ -193,10 +193,7 @@ export interface DefinitionForm {
  * Turns a definition into a configured multi-step form factory: the same thing the generated
  * source code exports as `createForm`.
  */
-export function createFormFromDefinition(
-  definition: FormDefinition,
-  options: CompileDefinitionOptions = {},
-) {
+export function createFormFromDefinition(definition: FormDefinition, options: CompileDefinitionOptions = {}) {
   // The compiled shape is only known at runtime; `DefinitionForm` describes what every form has.
   const defined = defineMultiStepForm(compileDefinition(definition, options) as never) as unknown as {
     configure(options: CompiledConfigureOptions): (options?: { instance?: string }) => DefinitionForm;
@@ -285,7 +282,10 @@ export function fromStepsConfig(
           schema = {
             kind: 'enum',
             values: options.flatMap((option) =>
-              option && typeof option === 'object' && !Array.isArray(option) && typeof option.value === 'string'
+              option &&
+              typeof option === 'object' &&
+              !Array.isArray(option) &&
+              typeof option.value === 'string'
                 ? [option.value]
                 : [],
             ),
@@ -387,7 +387,7 @@ export interface GeneratedCode {
   /** npm packages the module imports, so an editor can load their types. */
   packages: string[];
   steps: GeneratedStep[];
-  /** Exported type aliases for field values TypeScript can't infer from the default value. */
+  /** Explicit fallback aliases for field values whose validator cannot infer their type. */
   types: GeneratedType[];
 }
 
@@ -411,17 +411,16 @@ const PACKAGE_PATTERN = /from '([^']+)'/;
  * in a builder can be committed to an application with full type inference. Also returns each
  * step's validator and the value types on their own, for showing next to the builder.
  */
-export function generateCode(
-  definition: FormDefinition,
-  options: GenerateCodeOptions = {},
-): GeneratedCode {
+export function generateCode(definition: FormDefinition, options: GenerateCodeOptions = {}): GeneratedCode {
   const registry = options.registry ?? createRegistry();
   const settings = definition.settings;
   const importFrom = options.importFrom ?? '@jfdevelops/react-multi-step-form';
   const imports = new Set<string>([`import { defineMultiStepForm } from '${importFrom}';`]);
   const declarations = new Set<string>();
+  const validatorImports = new Set<string>();
   const types: GeneratedType[] = [];
   const validators: string[] = [];
+  const inferredTypes: string[] = [];
   const steps: GeneratedStep[] = [];
   const stepBlocks: string[] = [];
   const stepFiles: GeneratedFile[] = [];
@@ -438,6 +437,11 @@ export function generateCode(
       entries.push(`nameTransformCasing: ${JSON.stringify(step.nameTransformCasing)},`);
     }
 
+    const built = step.validation?.kind === 'code' ? undefined : buildStepValidator(step, registry, settings);
+    const schemaName = `${key}Schema`;
+    const valuesName = `${changeCasing(key, 'pascal')}Values`;
+    let usesInferredValues = false;
+
     const fieldBlocks = step.fields.map((field) => {
       const lines: string[] = [];
       let value = toValueSource(field.schema, field.defaultValue);
@@ -445,13 +449,23 @@ export function generateCode(
       const primitive = field.defaultValue === null || typeof field.defaultValue !== 'object';
 
       if ((needsTypeAnnotation(field.schema) || !matches) && (matches || primitive)) {
-        const name = changeCasing(`${key} ${field.key}`, 'pascal');
-        const type = matches
-          ? toTypeScript(field.schema)
-          : `${toTypeScript(field.schema)} | ${JSON.stringify(field.defaultValue)}`;
+        if (built?.supportsTypeInference) {
+          const typeImport = `import type { ResolveValidatorInput } from '${importFrom}';`;
+          const inferred = `Exclude<${valuesName}[${JSON.stringify(field.key)}], undefined>`;
 
-        types.push({ name, type, stepKey: key, fieldKey: field.key });
-        value = `${value} as ${name}`;
+          imports.add(typeImport);
+          stepImports.add(typeImport);
+          usesInferredValues = true;
+          value = `${value} as ${matches ? inferred : `${inferred} | ${JSON.stringify(field.defaultValue)}`}`;
+        } else {
+          const name = changeCasing(`${key} ${field.key}`, 'pascal');
+          const type = matches
+            ? toTypeScript(field.schema)
+            : `${toTypeScript(field.schema)} | ${JSON.stringify(field.defaultValue)}`;
+
+          types.push({ name, type, stepKey: key, fieldKey: field.key });
+          value = `${value} as ${name}`;
+        }
       }
 
       lines.push(`defaultValue: ${value},`);
@@ -462,7 +476,8 @@ export function generateCode(
       }
       if (field.placeholder !== undefined) lines.push(`placeholder: ${JSON.stringify(field.placeholder)},`);
       if (field.isRequired !== undefined) lines.push(`isRequired: ${field.isRequired},`);
-      if (field.errorMessage !== undefined) lines.push(`errorMessage: ${JSON.stringify(field.errorMessage)},`);
+      if (field.errorMessage !== undefined)
+        lines.push(`errorMessage: ${JSON.stringify(field.errorMessage)},`);
 
       if (field.description !== undefined) lines.push(`description: ${JSON.stringify(field.description)},`);
       if (field.props && Object.keys(field.props).length > 0) {
@@ -476,29 +491,44 @@ export function generateCode(
 
     if (step.validation?.kind === 'code') {
       entries.push(`// validateFields lives in application code (${step.validation.ref}).`);
-    } else {
-      const built = buildStepValidator(step, registry, settings);
+    } else if (built) {
+      const name = `${key}Schema`;
 
-      if (built) {
-        const name = `${key}Schema`;
+      built.imports.forEach((line) => {
+        imports.add(line);
+        validatorImports.add(line);
+        stepImports.add(line);
+      });
+      built.declarations.forEach((line) => {
+        declarations.add(line);
+        stepDeclarations.add(line);
+      });
+      validators.push(`export const ${name} = ${built.code};`);
+      entries.push(`validateFields: ${name},`);
+      generated.library = built.library;
+      generated.validator = { name, code: built.code };
+    }
 
-        built.imports.forEach((line) => { imports.add(line); stepImports.add(line); });
-        built.declarations.forEach((line) => { declarations.add(line); stepDeclarations.add(line); });
-        validators.push(`export const ${name} = ${built.code};`);
-        entries.push(`validateFields: ${name},`);
-        generated.library = built.library;
-        generated.validator = { name, code: built.code };
-      }
+    const inferredType = usesInferredValues
+      ? `export type ${valuesName} = ResolveValidatorInput<typeof ${schemaName}>;`
+      : undefined;
+
+    if (inferredType) {
+      inferredTypes.push(inferredType);
     }
 
     const stepTypes = types.filter((type) => type.stepKey === key);
-    const stepSource = [
-      [...stepImports].join('\n'),
-      ...stepDeclarations,
-      ...stepTypes.map(({ name, type }) => `export type ${name} = ${type};`),
-      ...(generated.validator ? [`export const ${generated.validator.name} = ${generated.validator.code};`] : []),
-      `export const ${key} = defineMultiStepForm.defineStep(${block(entries)});`,
-    ].join('\n\n') + '\n';
+    const stepSource =
+      [
+        [...stepImports].join('\n'),
+        ...stepDeclarations,
+        ...stepTypes.map(({ name, type }) => `export type ${name} = ${type};`),
+        ...(generated.validator
+          ? [`export const ${generated.validator.name} = ${generated.validator.code};`]
+          : []),
+        ...(inferredType ? [inferredType] : []),
+        `export const ${key} = defineMultiStepForm.defineStep(${block(entries)});`,
+      ].join('\n\n') + '\n';
 
     stepFiles.push({ path: `steps/${key}.ts`, source: stepSource });
     steps.push(generated);
@@ -529,17 +559,19 @@ export function generateCode(
     [
       [...imports].join('\n'),
       ...(declarations.size > 0 ? [[...declarations].join('\n\n')] : []),
-      ...(types.length > 0 ? [types.map(({ name, type }) => `export type ${name} = ${type};`).join('\n\n')] : []),
+      ...(types.length > 0
+        ? [types.map(({ name, type }) => `export type ${name} = ${type};`).join('\n\n')]
+        : []),
       ...(validators.length > 0 ? [validators.join('\n\n')] : []),
+      ...(inferredTypes.length > 0 ? [inferredTypes.join('\n\n')] : []),
       factory,
       ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
     ].join('\n\n') + '\n';
 
-  const validatorImports = [...imports].filter((line) => !line.includes('defineMultiStepForm'));
   const validatorsSource =
     validators.length > 0
       ? [
-          validatorImports.join('\n'),
+          [...validatorImports].join('\n'),
           ...(declarations.size > 0 ? [[...declarations].join('\n\n')] : []),
           validators.join('\n\n'),
         ].join('\n\n') + '\n'
@@ -556,13 +588,14 @@ export function generateCode(
     formEntries.push(`instances: ${JSON.stringify(instances)},`);
   }
 
-  const formSource = [
-    `import { defineMultiStepForm } from '${importFrom}';`,
-    ...steps.map((step) => `import { ${step.key} } from './steps/${step.key}.js';`),
-    '',
-    `export const ${factoryName} = defineMultiStepForm(${block(formEntries)}).configure(${configureEntries.length > 0 ? block(configureEntries) : ''});`,
-    ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
-  ].join('\n') + '\n';
+  const formSource =
+    [
+      `import { defineMultiStepForm } from '${importFrom}';`,
+      ...steps.map((step) => `import { ${step.key} } from './steps/${step.key}.js';`),
+      '',
+      `export const ${factoryName} = defineMultiStepForm(${block(formEntries)}).configure(${configureEntries.length > 0 ? block(configureEntries) : ''});`,
+      ...(instances.length === 0 ? [`export const ${instanceName} = ${factoryName}();`] : []),
+    ].join('\n') + '\n';
   const files: GeneratedFile[] = [{ path: 'form.ts', source: formSource }, ...stepFiles];
 
   return { source, files, validatorsSource, packages: [...new Set(packages)], steps, types };

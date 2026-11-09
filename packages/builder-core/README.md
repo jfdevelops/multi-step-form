@@ -174,11 +174,18 @@ const { files, packages } = generateCode(definition, { registry });
 ```
 
 Generated files include `form.ts` as the entry point and one `steps/step1.ts` module per step.
-Each step module contains its validator imports, helper declarations, value types, validator,
+Each step module contains its validator imports, helper declarations, validator, and any fallback value types,
 and `defineMultiStepForm.defineStep({ ... })` call. Step numbers are assigned only by the
 entry point's `steps` map. Help text and choice options live in each field configuration.
 `source` and `toSource` remain available for a standalone module, and `validatorsSource`
 provides the validators alone.
+
+When an adapter sets `supportsTypeInference: true`, defaults reference the validator's input
+type through one inferred `Step1Values = ResolveValidatorInput<typeof step1Schema>` alias
+and indexed field types instead of redeclaring the
+schema's structure. Root `undefined` is excluded from supplied defaults; nullable values and
+initial empty values for required fields are preserved. Zod, Valibot, ArkType, and Effect
+support this. Built-in, Yup, Joi, and custom adapters without this capability retain explicit types.
 
 ## The store
 

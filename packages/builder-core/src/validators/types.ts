@@ -58,6 +58,8 @@ export interface ValidatorAdapter {
   readonly label: string;
   /** npm packages the emitted code imports, so an editor can load their types. */
   readonly packages: readonly string[];
+  /** Whether emitted validators preserve their fields' input types for code generation. */
+  readonly supportsTypeInference?: boolean;
   /** Returns `true`, or a reason the library can't express this node. Called for every node. */
   supports(node: SchemaNode): true | string;
   /** Builds a runtime validator. */
