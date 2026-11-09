@@ -1,11 +1,21 @@
+import { Field, FieldLabel, FieldDescription, FieldError } from '@/components/ui/field';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { FieldOption } from '@jfdevelops/multi-step-form-builder-core';
 import { useFormPreview, type PreviewField } from '@jfdevelops/react-multi-step-form-builder';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { ValueEditor } from './value-editor';
 
 /** The form being built, running as a real multi-step form. */
-export function Preview() {
+export function Preview({ showValidation = false }: { showValidation?: boolean }) {
   const preview = useFormPreview();
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
 
   if (preview.status === 'error') {
     return <p className="hint">The form can’t run yet: {preview.error.message}</p>;
@@ -18,10 +28,14 @@ export function Preview() {
     <div className="preview">
       <ol className="progress">
         {steps.map((step) => (
-          <li key={step.key} data-current={step.key === currentStep.key || undefined} data-complete={step.isComplete || undefined}>
-            <button type="button" onClick={() => goTo(step.index)}>
+          <li
+            key={step.key}
+            data-current={step.key === currentStep.key || undefined}
+            data-complete={step.isComplete || undefined}
+          >
+            <Button variant="outline" type="button" onClick={() => goTo(step.index)}>
               {step.title}
-            </button>
+            </Button>
           </li>
         ))}
       </ol>
@@ -29,33 +43,50 @@ export function Preview() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          next();
+          if (done) {
+            alert('Submitted!');
+          } else {
+            next();
+          }
         }}
       >
         <h3>{currentStep.title}</h3>
         {currentStep.description && <p className="hint">{currentStep.description}</p>}
 
         {currentStep.fields.map((field) => (
-          <PreviewInput key={field.key} field={field} showErrors={currentStep.attempted} />
+          <PreviewInput
+            key={currentStep.key + '.' + field.key}
+            field={field}
+            showErrors={
+              showValidation || currentStep.attempted || touched.has(currentStep.key + '.' + field.key)
+            }
+            onBlur={() => setTouched((current) => new Set(current).add(currentStep.key + '.' + field.key))}
+          />
         ))}
 
         <div className="preview-actions">
-          <button type="button" onClick={previous} disabled={isFirst}>
+          <Button variant="outline" type="button" onClick={previous} disabled={isFirst}>
             Back
-          </button>
-          {isLast ? (
-            <button type="button" disabled={!done} onClick={() => alert('Submitted!')}>
-              Submit
-            </button>
-          ) : (
-            <button type="submit">Next</button>
-          )}
-          <button type="button" onClick={reset}>
+          </Button>
+          <Button className="primary-button" type="submit">
+            {isLast ? 'Submit' : 'Next'}
+          </Button>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              reset();
+              setTouched(new Set());
+            }}
+          >
             Reset
-          </button>
-          <span className={currentStep.isComplete ? 'ok' : 'hint'}>
-            {currentStep.isComplete ? 'Step complete' : 'Step incomplete'}
-          </span>
+          </Button>
+          {currentStep.isComplete && <span className="ok">Step complete</span>}
+          {currentStep.attempted && !currentStep.isComplete && (
+            <span className="hint" role="status">
+              Complete the highlighted fields to continue.
+            </span>
+          )}
         </div>
       </form>
     </div>
@@ -70,7 +101,15 @@ const INPUT_TYPES: Record<string, string> = {
 };
 
 /** Renders a field by its input type, falling back to the schema-driven editor for structured values. */
-function PreviewInput({ field, showErrors }: { field: PreviewField; showErrors: boolean }) {
+function PreviewInput({
+  field,
+  showErrors,
+  onBlur,
+}: {
+  field: PreviewField;
+  showErrors: boolean;
+  onBlur: () => void;
+}) {
   const id = useId();
   const { definition, value, setValue } = field;
   const options = (definition.props?.options ?? []) as unknown as FieldOption[];
@@ -83,7 +122,7 @@ function PreviewInput({ field, showErrors }: { field: PreviewField; showErrors: 
     case 'string.tel':
     case 'string.password':
       input = (
-        <input
+        <Input
           id={id}
           type={INPUT_TYPES[definition.type] ?? 'text'}
           placeholder={definition.placeholder}
@@ -93,30 +132,43 @@ function PreviewInput({ field, showErrors }: { field: PreviewField; showErrors: 
       );
       break;
     case 'string.textarea':
-      input = <textarea id={id} rows={3} placeholder={definition.placeholder} value={String(value ?? '')} onChange={(event) => setValue(event.target.value)} />;
+      input = (
+        <Textarea
+          id={id}
+          rows={3}
+          placeholder={definition.placeholder}
+          value={String(value ?? '')}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      );
       break;
     case 'string.select':
       input = (
-        <select id={id} value={String(value ?? '')} onChange={(event) => setValue(event.target.value)}>
-          <option value="">Choose…</option>
+        <NativeSelect id={id} value={String(value ?? '')} onChange={(event) => setValue(event.target.value)}>
+          <NativeSelectOption value="">Choose…</NativeSelectOption>
           {options.map((option) => (
-            <option key={option.value} value={option.value}>
+            <NativeSelectOption key={option.value} value={option.value}>
               {option.label}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       );
       break;
     case 'string.radio':
       input = (
-        <div role="radiogroup" aria-labelledby={`${id}-label`} className="choices">
+        <RadioGroup
+          value={typeof value === 'string' ? value : ''}
+          onValueChange={setValue}
+          aria-labelledby={id + '-label'}
+          className="choices"
+        >
           {options.map((option) => (
-            <label key={option.value} className="inline">
-              <input type="radio" name={id} checked={value === option.value} onChange={() => setValue(option.value)} />
+            <Label key={option.value} className="inline" htmlFor={id + '-' + option.value}>
+              <RadioGroupItem id={id + '-' + option.value} value={option.value} />
               {option.label}
-            </label>
+            </Label>
           ))}
-        </div>
+        </RadioGroup>
       );
       break;
     case 'array.checkbox': {
@@ -124,44 +176,64 @@ function PreviewInput({ field, showErrors }: { field: PreviewField; showErrors: 
       input = (
         <div className="choices">
           {options.map((option) => (
-            <label key={option.value} className="inline">
-              <input
-                type="checkbox"
+            <Label key={option.value} className="inline">
+              <Checkbox
                 checked={selected.includes(option.value)}
-                onChange={(event) =>
-                  setValue(event.target.checked ? [...selected, option.value] : selected.filter((item) => item !== option.value))
+                onCheckedChange={(checked) =>
+                  setValue(
+                    checked === true
+                      ? [...selected, option.value]
+                      : selected.filter((item) => item !== option.value),
+                  )
                 }
               />
               {option.label}
-            </label>
+            </Label>
           ))}
         </div>
       );
       break;
     }
-    case 'boolean':
     case 'boolean.switch':
-      input = <input id={id} type="checkbox" role={definition.type === 'boolean.switch' ? 'switch' : undefined} checked={value === true} onChange={(event) => setValue(event.target.checked)} />;
+      input = <Switch id={id} checked={value === true} onCheckedChange={setValue} />;
+      break;
+    case 'boolean':
+      input = (
+        <Checkbox
+          id={id}
+          checked={value === true}
+          onCheckedChange={(checked) => setValue(checked === true)}
+        />
+      );
       break;
     default:
-      input = <ValueEditor id={id} schema={{ ...definition.schema, optional: false }} value={value} onChange={setValue} />;
+      input = (
+        <ValueEditor
+          id={id}
+          schema={{ ...definition.schema, optional: false }}
+          value={value}
+          onChange={setValue}
+        />
+      );
   }
 
   return (
-    <div className="preview-field">
+    <Field className="preview-field gap-2" onBlurCapture={onBlur}>
       {field.label && (
-        <label id={`${id}-label`} htmlFor={id}>
+        <FieldLabel id={`${id}-label`} htmlFor={id}>
           {field.label}
-        </label>
+        </FieldLabel>
       )}
       {input}
-      {definition.description && <small className="hint">{definition.description}</small>}
+      {definition.description && (
+        <FieldDescription className="hint">{definition.description}</FieldDescription>
+      )}
       {showErrors &&
         field.errors.map((message) => (
-          <small key={message} className="error">
+          <FieldError key={message} className="error">
             {message}
-          </small>
+          </FieldError>
         ))}
-    </div>
+    </Field>
   );
 }

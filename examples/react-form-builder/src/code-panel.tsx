@@ -1,3 +1,4 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Editor from '@monaco-editor/react';
 import { useBuilderSelector, useGeneratedCode } from '@jfdevelops/react-multi-step-form-builder';
 import { useEffect, useState } from 'react';
@@ -74,55 +75,26 @@ export default function CodePanel({ view }: { view: 'module' | 'validators' | 'd
           : 'Each step’s Standard Schema validator, built with the step’s library. Hover to see its type'}
         {typesLoaded ? '.' : ' (loading types…)'}
       </p>
-      <div role="tablist" aria-label="Generated files" className="tabs file-tabs">
-        {files.map((entry) => (
-          <button
-            key={entry.path}
-            id={`file-tab-${entry.path}`}
-            type="button"
-            role="tab"
-            aria-selected={file.path === entry.path}
-            tabIndex={file.path === entry.path ? 0 : -1}
-            onKeyDown={(event) => {
-              const index = files.indexOf(entry);
-              const last = files.length - 1;
-              const next =
-                event.key === 'ArrowRight'
-                  ? (index + 1) % files.length
-                  : event.key === 'ArrowLeft'
-                    ? (index + last) % files.length
-                    : event.key === 'Home'
-                      ? 0
-                      : event.key === 'End'
-                        ? last
-                        : undefined;
-
-              if (next !== undefined) {
-                event.preventDefault();
-                setSelectedPath(files[next]!.path);
-                event.currentTarget.parentElement
-                  ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-                  [next]?.focus();
-              }
-            }}
-            aria-controls="generated-file-panel"
-            onClick={() => setSelectedPath(entry.path)}
-          >
-            {entry.path}
-          </button>
-        ))}
-      </div>
-      <div id="generated-file-panel" role="tabpanel" aria-labelledby={`file-tab-${file.path}`}>
-        <Editor
-          height="480px"
-          path={`file:///generated/${file.path}`}
-          keepCurrentModel
-          beforeMount={() => syncGeneratedFiles(code.files)}
-          language="typescript"
-          value={file.source}
-          options={EDITOR_OPTIONS}
-        />
-      </div>
+      <Tabs value={file.path} onValueChange={setSelectedPath}>
+        <TabsList aria-label="Generated files" className="file-tabs h-auto">
+          {files.map((entry) => (
+            <TabsTrigger key={entry.path} value={entry.path}>
+              {entry.path}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value={file.path}>
+          <Editor
+            height="480px"
+            path={`file:///generated/${file.path}`}
+            keepCurrentModel
+            beforeMount={() => syncGeneratedFiles(code.files)}
+            language="typescript"
+            value={file.source}
+            options={EDITOR_OPTIONS}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

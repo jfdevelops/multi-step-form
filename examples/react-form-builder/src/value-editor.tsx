@@ -1,3 +1,9 @@
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   getEmptyValue,
   matchesSchema,
@@ -24,26 +30,33 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
   if (schema.nullable) {
     return (
       <div className="nullable">
-        <label className="inline">
-          <input
-            type="checkbox"
+        <Label className="inline">
+          <Checkbox
             checked={value === null}
-            onChange={(event) => onChange(event.target.checked ? null : getEmptyValue(schema))}
+            onCheckedChange={(checked) => onChange(checked === true ? null : getEmptyValue(schema))}
           />
           null
-        </label>
-        {value !== null && <ValueEditor schema={{ ...schema, nullable: false }} value={value} onChange={onChange} id={id} />}
+        </Label>
+        {value !== null && (
+          <ValueEditor schema={{ ...schema, nullable: false }} value={value} onChange={onChange} id={id} />
+        )}
       </div>
     );
   }
 
   switch (schema.kind) {
     case 'string':
-      return <input id={id} value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} />;
+      return (
+        <Input
+          id={id}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      );
 
     case 'number':
       return (
-        <input
+        <Input
           id={id}
           type="number"
           value={typeof value === 'number' ? value : ''}
@@ -53,15 +66,23 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
       );
 
     case 'boolean':
-      return <input id={id} type="checkbox" checked={value === true} onChange={(event) => onChange(event.target.checked)} />;
+      return (
+        <Checkbox
+          id={id}
+          checked={value === true}
+          onCheckedChange={(checked) => onChange(checked === true)}
+        />
+      );
 
     case 'date':
       return (
-        <input
+        <Input
           id={id}
           type="date"
           value={typeof value === 'string' ? value.slice(0, 10) : ''}
-          onChange={(event) => event.target.value && onChange(new Date(`${event.target.value}T00:00:00.000Z`).toISOString())}
+          onChange={(event) =>
+            event.target.value && onChange(new Date(`${event.target.value}T00:00:00.000Z`).toISOString())
+          }
         />
       );
 
@@ -70,14 +91,20 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
 
     case 'enum':
       return (
-        <select id={id} value={String(value ?? '')} onChange={(event) => onChange(schema.values.find((option) => String(option) === event.target.value) ?? '')}>
-          <option value="">— None —</option>
+        <NativeSelect
+          id={id}
+          value={String(value ?? '')}
+          onChange={(event) =>
+            onChange(schema.values.find((option) => String(option) === event.target.value) ?? '')
+          }
+        >
+          <NativeSelectOption value="">— None —</NativeSelectOption>
           {schema.values.map((option) => (
-            <option key={String(option)} value={String(option)}>
+            <NativeSelectOption key={String(option)} value={String(option)}>
               {String(option)}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       );
 
     case 'object': {
@@ -85,7 +112,9 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
 
       return (
         <div className="nested">
-          {schema.properties.length === 0 && <p className="hint">No properties yet. Add some in the value type below.</p>}
+          {schema.properties.length === 0 && (
+            <p className="hint">No properties yet. Add some in the value type below.</p>
+          )}
           {schema.properties.map((property) => {
             const included = current[property.key] !== undefined;
             const set = (next: JsonValue | undefined) => {
@@ -102,11 +131,12 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
                 <span className="nested-key">
                   {property.key}
                   {property.schema.optional && (
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       title="Include"
                       checked={included}
-                      onChange={(event) => set(event.target.checked ? getEmptyValue(property.schema) : undefined)}
+                      onCheckedChange={(checked) =>
+                        set(checked === true ? getEmptyValue(property.schema) : undefined)
+                      }
                     />
                   )}
                 </span>
@@ -133,14 +163,22 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
                 value={item}
                 onChange={(next) => onChange(items.map((current, i) => (i === index ? next : current)))}
               />
-              <button type="button" onClick={() => onChange(items.filter((_, i) => i !== index))}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => onChange(items.filter((_, i) => i !== index))}
+              >
                 Remove
-              </button>
+              </Button>
             </div>
           ))}
-          <button type="button" onClick={() => onChange([...items, getEmptyValue(schema.item)])}>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => onChange([...items, getEmptyValue(schema.item)])}
+          >
             Add item
-          </button>
+          </Button>
         </div>
       );
     }
@@ -152,46 +190,67 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
         <div className="nested">
           {entries.map(([key, item], index) => (
             <div key={index} className="nested-row">
-              <input
+              <Input
                 className="nested-key"
                 value={key}
                 onChange={(event) =>
-                  onChange(Object.fromEntries(entries.map(([k, v], i) => (i === index ? [event.target.value, v] : [k, v]))))
+                  onChange(
+                    Object.fromEntries(
+                      entries.map(([k, v], i) => (i === index ? [event.target.value, v] : [k, v])),
+                    ),
+                  )
                 }
               />
               <ValueEditor
                 schema={schema.value}
                 value={item}
-                onChange={(next) => onChange(Object.fromEntries(entries.map(([k, v], i) => [k, i === index ? next : v])))}
+                onChange={(next) =>
+                  onChange(Object.fromEntries(entries.map(([k, v], i) => [k, i === index ? next : v])))
+                }
               />
-              <button type="button" onClick={() => onChange(Object.fromEntries(entries.filter((_, i) => i !== index)))}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => onChange(Object.fromEntries(entries.filter((_, i) => i !== index)))}
+              >
                 Remove
-              </button>
+              </Button>
             </div>
           ))}
-          <button
+          <Button
+            variant="outline"
             type="button"
-            onClick={() => onChange(Object.fromEntries([...entries, [`key${entries.length + 1}`, getEmptyValue(schema.value)]]))}
+            onClick={() =>
+              onChange(
+                Object.fromEntries([...entries, [`key${entries.length + 1}`, getEmptyValue(schema.value)]]),
+              )
+            }
           >
             Add entry
-          </button>
+          </Button>
         </div>
       );
     }
 
     case 'union': {
-      const selected = Math.max(0, schema.options.findIndex((option) => matchesSchema(option, value)));
+      const selected = Math.max(
+        0,
+        schema.options.findIndex((option) => matchesSchema(option, value)),
+      );
       const option = schema.options[selected];
 
       return (
         <div className="nested">
-          <select value={selected} onChange={(event) => onChange(getEmptyValue(schema.options[Number(event.target.value)]!))}>
+          <NativeSelect
+            value={selected}
+            onChange={(event) => onChange(getEmptyValue(schema.options[Number(event.target.value)]!))}
+          >
             {schema.options.map((candidate, index) => (
-              <option key={index} value={index}>
+              <NativeSelectOption key={index} value={index}>
                 {candidate.kind}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           {option && <ValueEditor schema={option} value={value} onChange={onChange} />}
         </div>
       );
@@ -205,7 +264,7 @@ export function ValueEditor({ schema, value, onChange, id }: ValueEditorProps) {
 /** Free-form JSON, applied when it parses. */
 function JsonEditor({ value, onChange }: { value: JsonValue; onChange: (value: JsonValue) => void }) {
   return (
-    <textarea
+    <Textarea
       rows={3}
       defaultValue={JSON.stringify(value, null, 2)}
       onBlur={(event) => {
