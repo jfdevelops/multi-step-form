@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createSchemaBuilder, createValidatorAdapter } from '@jfdevelops/multi-step-form-builder-core';
+import { createSchemaBuilder } from '@jfdevelops/multi-step-form-builder-core';
 
 /** Builds step schemas with zod (v4). */
 export const zodSchemaBuilder = createSchemaBuilder({
@@ -75,10 +75,4 @@ export const zodSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [zodAdapter] });
  * ```
  */
-export const zodAdapter = createValidatorAdapter(zodSchemaBuilder.buildStepSchema)({
-  library: 'zod',
-  label: 'Zod',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const zodAdapter = zodSchemaBuilder.createAdapter({ library: 'zod', label: 'Zod' });

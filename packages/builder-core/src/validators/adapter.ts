@@ -44,7 +44,7 @@ export type CreatedValidatorAdapter<TBuilt> = (
   options: ValidatorAdapterOptions<TBuilt>,
 ) => ValidatorAdapter;
 
-function genericSupport(node: SchemaNode): true | string {
+function genericSupport(node: SchemaNode) {
   for (const check of node.checks ?? []) {
     if (!CHECKS_BY_KIND[node.kind].includes(check.check)) {
       return `"${check.check}" can't be used on a ${node.kind} value`;
@@ -53,7 +53,9 @@ function genericSupport(node: SchemaNode): true | string {
     if (check.check === 'pattern') {
       const compiled = compilePattern(check);
 
-      if (typeof compiled === 'string') return compiled;
+      if (typeof compiled === 'string') {
+        return compiled;
+      }
     }
   }
 
@@ -92,7 +94,9 @@ export function createValidatorAdapter<TBuilt>(
     const built: CreateValidatorAdapterBuildFn<NonNullable<TBuilt>> = (
       spec,
     ) => {
-      if (!cache.has(spec)) cache.set(spec, build(spec));
+      if (!cache.has(spec)) {
+        cache.set(spec, build(spec));
+      }
 
       return cache.get(spec)!;
     };

@@ -7,6 +7,10 @@ import type {
   SchemaNode,
   SchemaNodeOf,
 } from '../schema.js';
+import {
+  createValidatorAdapter,
+  type ValidatorAdapterOptions,
+} from './adapter.js';
 import { allowsEmptyString } from './checks.js';
 import { createCodegen, type Codegen } from './codegen.js';
 import { createExpr, printExpr, unwrapExpr } from './expr.js';
@@ -18,6 +22,7 @@ import type {
   EqualsRefinement,
   ResolvedStepSchema,
   StepValues,
+  ValidatorAdapter,
 } from './types.js';
 
 /** One check by name. An intersection, since some variants cover several names (e.g. the lengths). */
@@ -158,9 +163,29 @@ export interface BuiltStepSchema {
 }
 
 /**
+ * The options for a schema builder's adapter. `packages` defaults to `[library]`, `compile` to the
+ * built schema and `emit` to the built code.
+ */
+export type SchemaAdapterOptions = Pick<
+  ValidatorAdapterOptions<BuiltStepSchema>,
+  'library' | 'label'
+> &
+  Partial<
+    Omit<ValidatorAdapterOptions<BuiltStepSchema>, 'library' | 'label'>
+  >;
+
+/** What `createSchemaBuilder` returns. Calling it builds a step's schema. */
+export type CreatedSchemaBuilder = BuildStepSchemaFn & {
+  /** The same function, for readability at the call site. */
+  buildStepSchema: BuildStepSchemaFn;
+  /** Returns a validator adapter that builds with this schema builder. */
+  createAdapter: (options: SchemaAdapterOptions) => ValidatorAdapter;
+};
+
+/**
  * Describes how one library expresses the schema tree. Returns a function, also available as
  * `.buildStepSchema`, that builds a step's schema with the library together with the source code
- * that produces it.
+ * that produces it. `.createAdapter` turns it into a validator adapter.
  *
  * ```ts
  * const zodSchemaBuilder = createSchemaBuilder({
@@ -170,7 +195,7 @@ export interface BuiltStepSchema {
  *   …
  * });
  *
- * const createZodAdapter = createValidatorAdapter(zodSchemaBuilder.buildStepSchema);
+ * export const zodAdapter = zodSchemaBuilder.createAdapter({ library: 'zod', label: 'Zod' });
  * ```
  */
 export function createSchemaBuilder<
@@ -178,7 +203,9 @@ export function createSchemaBuilder<
   const TKinds extends SchemaKindBuilders<TLib>,
   TObject,
   TRefined,
->(definition: SchemaBuilderDefinition<TLib, TKinds, TObject, TRefined>) {
+>(
+  definition: SchemaBuilderDefinition<TLib, TKinds, TObject, TRefined>,
+): CreatedSchemaBuilder {
   const buildStepSchema: BuildStepSchemaFn = (spec) => {
     const codegen = createCodegen();
 
@@ -267,8 +294,17 @@ export function createSchemaBuilder<
     };
   };
 
-  // Callable itself, and as `.buildStepSchema` for readability at the adapter.
+  const createStepAdapter = createValidatorAdapter(buildStepSchema);
+
+  // Callable itself, and as `.buildStepSchema` for adapters that need their own options.
   return Object.assign(buildStepSchema, {
     buildStepSchema,
+    createAdapter: (options: SchemaAdapterOptions) =>
+      createStepAdapter({
+        packages: (library) => [library],
+        compile: (_spec, built) => built.schema,
+        emit: (_spec, built) => built,
+        ...options,
+      }),
   });
 }

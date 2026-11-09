@@ -97,11 +97,11 @@ A step is validated with the form's default library, its own library, or not at 
 
 `createSchemaBuilder` describes how a library expresses the schema tree, one function per kind.
 Calls on `ctx.lib` run the real library and record the same calls as source code, so the runtime
-validator and the exported code can't drift apart. `createValidatorAdapter` turns the builder into
-an adapter; the build runs once per step and `compile` and `emit` share it.
+validator and the exported code can't drift apart. `createAdapter` turns the builder into an
+adapter; the build runs once per step and the runtime validator and the generated code share it.
 
 ```ts
-import { createSchemaBuilder, createValidatorAdapter } from '@jfdevelops/multi-step-form-builder-core';
+import { createSchemaBuilder } from '@jfdevelops/multi-step-form-builder-core';
 import { z } from 'zod';
 
 export const zodSchemaBuilder = createSchemaBuilder({
@@ -123,14 +123,11 @@ export const zodSchemaBuilder = createSchemaBuilder({
   standard: (schema) => schema,
 });
 
-export const zodAdapter = createValidatorAdapter(zodSchemaBuilder.buildStepSchema)({
-  library: 'zod',
-  label: 'Zod',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const zodAdapter = zodSchemaBuilder.createAdapter({ library: 'zod', label: 'Zod' });
 ```
+
+`packages`, `compile`, `emit` and `supports` can be passed to override the defaults. Adapters that
+don't use a schema builder call `createValidatorAdapter(build)` with all options.
 
 Validators must be synchronous Standard Schemas: multi-step form completeness is checked
 synchronously. Every adapter in this repo runs the same conformance suite.

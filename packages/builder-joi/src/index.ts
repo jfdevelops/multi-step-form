@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { createSchemaBuilder, createValidatorAdapter, isUrl } from '@jfdevelops/multi-step-form-builder-core';
+import { createSchemaBuilder, isUrl } from '@jfdevelops/multi-step-form-builder-core';
 
 /** The message key for a value of the wrong type, by kind. */
 const BASE_MESSAGE_KEY: Partial<Record<string, string>> = {
@@ -121,10 +121,4 @@ export const joiSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [joiAdapter] });
  * ```
  */
-export const joiAdapter = createValidatorAdapter(joiSchemaBuilder.buildStepSchema)({
-  library: 'joi',
-  label: 'Joi',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const joiAdapter = joiSchemaBuilder.createAdapter({ library: 'joi', label: 'Joi' });

@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { createSchemaBuilder, createValidatorAdapter } from '@jfdevelops/multi-step-form-builder-core';
+import { createSchemaBuilder } from '@jfdevelops/multi-step-form-builder-core';
 
 /**
  * `v.pipe` is overloaded per number of items, which a list of checks can't pick, so it's called
@@ -105,10 +105,4 @@ export const valibotSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [valibotAdapter] });
  * ```
  */
-export const valibotAdapter = createValidatorAdapter(valibotSchemaBuilder.buildStepSchema)({
-  library: 'valibot',
-  label: 'Valibot',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const valibotAdapter = valibotSchemaBuilder.createAdapter({ library: 'valibot', label: 'Valibot' });

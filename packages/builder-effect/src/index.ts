@@ -1,5 +1,5 @@
 import { Schema } from 'effect';
-import { createSchemaBuilder, createValidatorAdapter } from '@jfdevelops/multi-step-form-builder-core';
+import { createSchemaBuilder } from '@jfdevelops/multi-step-form-builder-core';
 
 /** Builds step schemas with Effect (v4), wrapped with `Schema.toStandardSchemaV1`. */
 export const effectSchemaBuilder = createSchemaBuilder({
@@ -68,10 +68,4 @@ export const effectSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [effectAdapter] });
  * ```
  */
-export const effectAdapter = createValidatorAdapter(effectSchemaBuilder.buildStepSchema)({
-  library: 'effect',
-  label: 'Effect Schema',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const effectAdapter = effectSchemaBuilder.createAdapter({ library: 'effect', label: 'Effect Schema' });

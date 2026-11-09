@@ -106,6 +106,7 @@ export {
   type CheckOf,
   type BuiltKind,
   type BuiltStepSchema,
+  type CreatedSchemaBuilder,
   type KindSchema,
   type ObjectEntry,
   type SchemaBuilderContext,

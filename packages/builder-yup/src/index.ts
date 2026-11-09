@@ -1,7 +1,6 @@
 import * as yup from 'yup';
 import {
   createSchemaBuilder,
-  createValidatorAdapter,
   printExpr,
   unwrapExpr,
 } from '@jfdevelops/multi-step-form-builder-core';
@@ -204,10 +203,4 @@ export const yupSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [yupAdapter] });
  * ```
  */
-export const yupAdapter = createValidatorAdapter(yupSchemaBuilder.buildStepSchema)({
-  library: 'yup',
-  label: 'Yup',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const yupAdapter = yupSchemaBuilder.createAdapter({ library: 'yup', label: 'Yup' });

@@ -1,5 +1,5 @@
 import { type } from 'arktype';
-import { createSchemaBuilder, createValidatorAdapter } from '@jfdevelops/multi-step-form-builder-core';
+import { createSchemaBuilder } from '@jfdevelops/multi-step-form-builder-core';
 
 interface NarrowContext {
   reject(issue: { message: string; path?: string[] }): false;
@@ -95,10 +95,4 @@ export const arktypeSchemaBuilder = createSchemaBuilder({
  * const registry = createRegistry({ validators: [arktypeAdapter] });
  * ```
  */
-export const arktypeAdapter = createValidatorAdapter(arktypeSchemaBuilder.buildStepSchema)({
-  library: 'arktype',
-  label: 'ArkType',
-  packages: (library) => [library],
-  compile: (_spec, built) => built.schema,
-  emit: (_spec, built) => built,
-});
+export const arktypeAdapter = arktypeSchemaBuilder.createAdapter({ library: 'arktype', label: 'ArkType' });
