@@ -43,11 +43,13 @@ export function Preview({ showValidation = false }: { showValidation?: boolean }
       <form
         onSubmit={(event) => {
           event.preventDefault();
+
           if (done) {
             alert('Submitted!');
-          } else {
-            next();
+            return;
           }
+
+          next();
         }}
       >
         <h3>{currentStep.title}</h3>

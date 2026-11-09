@@ -26,7 +26,7 @@ import { InstanceSettings } from './instance-settings';
 export function FormSettingsSheet() {
   const { settings, casings, libraries, issues, update } = useFormSettings();
   const id = useId();
-  const hasStorage = settings.storageKey !== undefined;
+  const hasStorage = Boolean(settings.storageKey);
 
   return (
     <Sheet>
@@ -135,7 +135,9 @@ export function FormSettingsSheet() {
                     disabled={!hasStorage}
                     value={settings.storageKey ?? ''}
                     placeholder="form-progress"
-                    onChange={(event) => update({ storageKey: event.target.value })}
+                    onChange={(event) =>
+                      update({ storageKey: event.target.value || undefined })
+                    }
                   />
                   <p className="hint">Use a unique key for each form to keep saved progress separate.</p>
                 </div>

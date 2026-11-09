@@ -162,12 +162,12 @@ function SchemaNodeEditor({
           ))}
         </div>
       )}
-      {schema.kind === 'object' && (
+      {section === 'data' && schema.kind === 'object' && (
         <Button variant="outline" type="button" onClick={() => editor.addProperty(path)}>
           Add property
         </Button>
       )}
-      {schema.kind === 'union' && (
+      {section === 'data' && schema.kind === 'union' && (
         <Button variant="outline" type="button" onClick={() => editor.addOption(path)}>
           Add option
         </Button>

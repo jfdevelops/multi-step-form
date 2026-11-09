@@ -126,6 +126,30 @@ describe('useFormPreview', () => {
     expect(preview().status).toBe('error');
   });
 
+  it('sends next on the last step back to the first incomplete step', async () => {
+    const builder = createFormBuilder();
+    builder.settings.update({ validator: 'builtin' });
+    builder.fields.add({ type: 'string', key: 'name', isRequired: true });
+    builder.steps.add({ title: 'Second', fields: [{ type: 'string', key: 'city' }] });
+    const preview = await renderHook(builder, () => useFormPreview());
+    const ready = () => {
+      const state = preview();
+      if (state.status !== 'ready') throw state.error;
+      return state;
+    };
+
+    await act(async () => ready().goTo(1));
+    expect(ready().isLast).toBe(true);
+    expect(ready().currentStep.isComplete).toBe(true);
+
+    await act(async () => {
+      expect(ready().next()).toBe(false);
+    });
+
+    expect(ready().currentStep.index).toBe(0);
+    expect(ready().currentStep.attempted).toBe(true);
+  });
+
   it('keeps entered values by step id and lets new defaults win', async () => {
     const builder = createFormBuilder();
     builder.settings.update({ validator: 'builtin' });

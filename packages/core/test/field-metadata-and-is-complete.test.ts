@@ -306,14 +306,12 @@ describe('defineMultiStepForm.defineStep', () => {
         return values.attendees > 0;
       },
     });
-    if (false) {
-      // @ts-expect-error A field must declare its default value.
-      defineMultiStepForm.defineStep({ title: 'Invalid', fields: { name: { isRequired: true } } });
-      // @ts-expect-error A standalone step accepts an object, not a callback.
-      defineMultiStepForm.defineStep(() => contact);
-      // @ts-expect-error A standalone step takes no step identifier.
-      defineMultiStepForm.defineStep(contact, 'step1');
-    }
+    // @ts-expect-error A field must declare its default value.
+    defineMultiStepForm.defineStep({ title: 'Invalid', fields: { name: { isRequired: true } } });
+    // @ts-expect-error A standalone step accepts an object, not a callback.
+    defineMultiStepForm.defineStep(() => contact);
+    // @ts-expect-error A standalone step takes no step identifier.
+    defineMultiStepForm.defineStep(contact, 'step1');
 
     const form = defineMultiStepForm({ steps: { step1: contact, step2: contact } }).configure()();
 

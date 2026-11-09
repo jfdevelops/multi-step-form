@@ -384,7 +384,19 @@ export function useFormPreview(): FormPreviewState {
         return false;
       }
 
-      setStepIndex(Math.min(index + 1, steps.length - 1));
+      if (index >= steps.length - 1) {
+        const incomplete = steps.findIndex((step) => !step.isComplete);
+
+        if (incomplete >= 0) {
+          setAttempted((current) => new Set(current).add(incomplete));
+          setStepIndex(incomplete);
+          return false;
+        }
+
+        return true;
+      }
+
+      setStepIndex(index + 1);
       return true;
     },
     previous: () => setStepIndex(Math.max(index - 1, 0)),
