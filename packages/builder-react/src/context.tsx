@@ -8,7 +8,7 @@ import {
   type BuilderSnapshot,
   type DragSource,
   type DropTarget,
-  type FormBuilder,
+  type FormBuilder as CoreFormBuilder,
   type FormBuilderOptions,
   type ShortcutMap,
 } from '@jfdevelops/multi-step-form-builder-core';
@@ -26,7 +26,7 @@ import {
 import { resolveDrop, type DragEntityLike } from './dnd.js';
 
 interface BuilderContextValue {
-  builder: FormBuilder;
+  builder: CoreFormBuilder;
   shortcuts?: ShortcutMap;
 }
 
@@ -35,7 +35,7 @@ const BuilderContext = createContext<BuilderContextValue | null>(null);
 type DragDropProviderProps = ComponentProps<typeof DragDropProvider>;
 
 export interface FormBuilderProps {
-  builder: FormBuilder;
+  builder: CoreFormBuilder;
   /** Overrides or disables keyboard shortcuts on the canvas. */
   shortcuts?: ShortcutMap;
   /** Passed to dnd-kit's `DragDropProvider`, e.g. custom `sensors` or `plugins`. */
@@ -109,7 +109,7 @@ function useBuilderContext(hook: string) {
  * Creates a builder once for the lifetime of the component. Options are read on the first render
  * only.
  */
-export function useFormBuilder(options?: FormBuilderOptions): FormBuilder {
+export function useFormBuilder(options?: FormBuilderOptions): CoreFormBuilder {
   const [builder] = useState(() => createFormBuilder(options));
 
   useEffect(() => () => builder.destroy(), [builder]);
@@ -128,7 +128,7 @@ export function useShortcuts() {
 }
 
 /** Subscribes to a builder's snapshot without needing `<FormBuilder>`. */
-export function useFormBuilderSnapshot(builder: FormBuilder) {
+export function useFormBuilderSnapshot(builder: CoreFormBuilder) {
   return useSyncExternalStore(
     builder.subscribe,
     builder.getSnapshot,
