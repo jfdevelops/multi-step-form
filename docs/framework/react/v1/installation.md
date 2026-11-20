@@ -21,30 +21,78 @@ design forms. The builder can export definitions as application source code.
 
 For an existing React application:
 
-```bash
+```npm
+npm i @jfdevelops/react-multi-step-form
+```
+
+```pnpm
 pnpm add @jfdevelops/react-multi-step-form
+```
+
+```yarn
+yarn add @jfdevelops/react-multi-step-form
+```
+
+```bun
+bun add @jfdevelops/react-multi-step-form
 ```
 
 For an application without React:
 
-```bash
+```npm
+npm i @jfdevelops/multi-step-form-core
+```
+
+```pnpm
 pnpm add @jfdevelops/multi-step-form-core
+```
+
+```yarn
+yarn add @jfdevelops/multi-step-form-core
+```
+
+```bun
+bun add @jfdevelops/multi-step-form-core
 ```
 
 For TanStack Form integration, install the React runtime and adapter:
 
-```bash
+```npm
+npm i @jfdevelops/react-multi-step-form @jfdevelops/react-multi-step-form-tanstack
+```
+
+```pnpm
 pnpm add @jfdevelops/react-multi-step-form @jfdevelops/react-multi-step-form-tanstack
+```
+
+```yarn
+yarn add @jfdevelops/react-multi-step-form @jfdevelops/react-multi-step-form-tanstack
+```
+
+```bun
+bun add @jfdevelops/react-multi-step-form @jfdevelops/react-multi-step-form-tanstack
 ```
 
 The adapter exposes native TanStack Form APIs. Configure it through
 `formLibrary: tanstackForm()` and explicitly choose validation timing in
-`formOptions`; see the [integration guide](../../../../packages/react-tanstack-form/docs/integration.mdx).
+`formOptions`; see the [integration guide](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/packages/react-tanstack-form/docs/integration.mdx).
 
 ## Install a form editor
 
-```bash
+```npm
+npm i @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
+```
+
+```pnpm
 pnpm add @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
+```
+
+```yarn
+yarn add @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
+```
+
+```bun
+bun add @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
 ```
 
 The React builder supports React 18 and 19. Its components provide behavior and
