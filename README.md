@@ -4,8 +4,7 @@ Type-safe primitives for building multi-step forms in TypeScript. The project pr
 framework-agnostic core package and React bindings, with typed fields, validation, independent
 form instances, optional browser persistence, and per-step state.
 
-> The current releases are beta versions. Review the migration guides before upgrading from an
-> alpha release.
+The runtime and builder packages are available as stable 1.0 releases.
 
 ## Packages
 
@@ -38,7 +37,7 @@ import { defineMultiStepForm } from '@jfdevelops/react-multi-step-form';
 
 const form = defineMultiStepForm({
   steps: {
-    contact: {
+    step1: {
       title: 'Contact details',
       fields: {
         email: {
@@ -49,7 +48,7 @@ const form = defineMultiStepForm({
           errorMessage: 'Enter a valid email address',
         },
       },
-      isComplete: ({ email }) => email.includes('@'),
+      isComplete: ({ email }: { email: string }) => email.includes('@'),
     },
   },
 })
@@ -57,7 +56,7 @@ const form = defineMultiStepForm({
     storage: { key: 'registration-form' },
   })();
 
-export const ContactStep = form.stepSchema.value.contact.createComponent({
+export const ContactStep = form.stepSchema.value.step1.createComponent({
   render: ({ Field }) => (
     <Field name='email'>
       {({ defaultValue, label, onInputChange, placeholder }) => (
@@ -94,6 +93,13 @@ the instance remains in memory.
 
 ## Documentation
 
+- [Documentation index](./docs/README.md)
+- [Installation and package selection](./docs/framework/react/v1/installation.md)
+- [React quick start](./docs/framework/react/v1/quick-start.md)
+- [Build a React form editor](./docs/framework/react/v1/guides/form-builder.md)
+- [Create and export definitions](./docs/framework/core/v1/guides/definitions.md)
+- [Builder validators](./docs/framework/core/v1/guides/validators.md)
+- [Builder persistence](./docs/framework/core/v1/guides/persistence.md)
 - [Core documentation](./packages/core/docs/README.md)
   - [Instances, storage, field metadata, and completion](./packages/core/docs/instances-and-storage.mdx)
   - [Step state](./packages/core/docs/step-state.mdx)

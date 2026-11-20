@@ -16,11 +16,11 @@ importers:
         specifier: ^2.29.7
         version: 2.29.7(@types/node@24.9.1)
       '@jfdevelops/cli':
-        specifier: 0.7.0
-        version: 0.7.0
+        specifier: 0.9.0
+        version: 0.9.0
       '@jfdevelops/skills':
-        specifier: 0.1.1
-        version: 0.1.1
+        specifier: 0.2.0
+        version: 0.2.0
       '@types/node':
         specifier: ^24.5.0
         version: 24.9.1
@@ -1421,8 +1421,8 @@ packages:
     resolution: {integrity: sha512-ZT55BDLV0yv0RBm2czMiZ+SqCGO7AvmOM3G/w2xhVPH+te0aKgFjmBvGlL1dH+ql2tgGO3MVrbb3jCKyvpgnxA==}
     engines: {node: 20 || >=22}
 
-  '@jfdevelops/cli@0.7.0':
-    resolution: {integrity: sha512-o2PU6P3Jv0CCC3Qdy5fiEWU64Hd27zGjz0cJ2620pK7HMM95oauY2ytqb46L6eQPdhfflw+z4Mfa6L/KdM6Dcw==}
+  '@jfdevelops/cli@0.9.0':
+    resolution: {integrity: sha512-K0nA0u3fC51SM0ob8hAEPBytZY3iTGFMZa9njUy2M0vUspPx74R5/rJQlumqvT2cF0gvLEAi6fBjDG6fU6k7Ag==}
     engines: {node: '>=22.12.0'}
     hasBin: true
 
@@ -1434,8 +1434,8 @@ packages:
     resolution: {integrity: sha512-aJRJKSmjaNFf/S/Y0cmYDgWfjFhnb0hFkVOUBWU9x7hCdQRV2P5RGaEY5FxvEtQTeVLrJiKNedBffss2dlIP+Q==}
     engines: {node: '>=22'}
 
-  '@jfdevelops/skills@0.1.1':
-    resolution: {integrity: sha512-H2DRxhWkwdOryJi1IqCQB44e3pYLUmYqxboxsHlUZege4fSzJ+oHoGkJCWzZT7hiR960T2K9IPdwnarHELzC4A==}
+  '@jfdevelops/skills@0.2.0':
+    resolution: {integrity: sha512-TuO7WkNLKdNTFSCcvZMrOipJDVAls6mAjzUsRjdL2mfZrXS/mVXKeJCe0AbWkTdz8EEgPyjqLwR1T6N9Lm24DQ==}
     engines: {node: '>=22'}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -5803,7 +5803,7 @@ snapshots:
     dependencies:
       '@isaacs/balanced-match': 4.0.1
 
-  '@jfdevelops/cli@0.7.0':
+  '@jfdevelops/cli@0.9.0':
     dependencies:
       '@clack/prompts': 1.8.1
       '@jfdevelops/skills': 0.1.0
@@ -5820,7 +5820,7 @@ snapshots:
 
   '@jfdevelops/skills@0.1.0': {}
 
-  '@jfdevelops/skills@0.1.1': {}
+  '@jfdevelops/skills@0.2.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -7034,7 +7034,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.8
       estree-walker: 2.0.2
-      picomatch: 4.0.5
+      picomatch: 4.0.7
     optionalDependencies:
       rollup: 4.62.4
 
@@ -9161,7 +9161,7 @@ snapshots:
   unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@22.18.12)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.20.6)(yaml@2.9.1)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       webpack-virtual-modules: 0.6.2
     optionalDependencies:
       esbuild: 0.28.2

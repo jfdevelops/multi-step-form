@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generator": {
     "package": "@jfdevelops/cli",
-    "version": "0.7.0"
+    "version": "0.9.0"
   },
   "project": {
     "name": "@jfdevelops/multi-step-form",
@@ -15,8 +15,53 @@
       "options": {}
     },
     {
+      "path": "examples/react-form-builder",
+      "kind": "app",
+      "options": {}
+    },
+    {
       "path": "examples/react-tanstack-form",
       "kind": "app",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-arktype",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-core",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-effect",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-joi",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-react",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-valibot",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-yup",
+      "kind": "library",
+      "options": {}
+    },
+    {
+      "path": "packages/builder-zod",
+      "kind": "library",
       "options": {}
     },
     {
@@ -37,11 +82,47 @@
   ],
   "addons": [
     {
+      "name": "@jfdevelops/create-error",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-arktype",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-core",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-effect",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-joi",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-valibot",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-yup",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/multi-step-form-builder-zod",
+      "options": {}
+    },
+    {
       "name": "@jfdevelops/multi-step-form-core",
       "options": {}
     },
     {
       "name": "@jfdevelops/react-multi-step-form",
+      "options": {}
+    },
+    {
+      "name": "@jfdevelops/react-multi-step-form-builder",
       "options": {}
     },
     {
@@ -80,8 +161,17 @@
       "required": true,
       "source": {
         "package": "@jfdevelops/skills",
-        "version": "0.1.1",
+        "version": "0.2.0",
         "path": "./skills/jf-coding-conventions"
+      }
+    },
+    {
+      "name": "jf-docs",
+      "required": true,
+      "source": {
+        "package": "@jfdevelops/skills",
+        "version": "0.2.0",
+        "path": "./skills/jf-docs"
       }
     },
     {
@@ -89,7 +179,7 @@
       "required": true,
       "source": {
         "package": "@jfdevelops/skills",
-        "version": "0.1.1",
+        "version": "0.2.0",
         "path": "./skills/jf-git"
       }
     },
@@ -98,7 +188,7 @@
       "required": true,
       "source": {
         "package": "@jfdevelops/skills",
-        "version": "0.1.1",
+        "version": "0.2.0",
         "path": "./skills/jf-naming-conventions"
       }
     }
@@ -111,6 +201,14 @@
         "name": "jf-coding-conventions"
       },
       "sha256": "6b6453d70c6668af56e11012bf9743abca4815bd0cb4d940a918128913cd1dcb"
+    },
+    {
+      "path": ".agents/skills/jf-docs/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-docs"
+      },
+      "sha256": "de7e386750435dce2ede1d7413d09f7900f33694500dbd3a170d77b8e862646b"
     },
     {
       "path": ".agents/skills/jf-git/SKILL.md",
@@ -159,6 +257,14 @@
         "name": "jf-coding-conventions"
       },
       "sha256": "cd8184f448d4bb38964fd7d28713a8926db25f47ed93d402bad328e61050f602"
+    },
+    {
+      "path": ".claude/skills/jf-docs/SKILL.md",
+      "owner": {
+        "type": "skill",
+        "name": "jf-docs"
+      },
+      "sha256": "c32e325dd582a60122392c1317435226a49b42dadd88d1a4548384dda7c7e783"
     },
     {
       "path": ".claude/skills/jf-git/SKILL.md",
