@@ -98,4 +98,4 @@ generation use the provider's builder registry.
 
 - [Save builder definitions](../../../core/v1/guides/persistence.md)
 - [Understand source generation](../../../core/v1/guides/definitions.md)
-- [Explore the complete editor example](../../../../../examples/react-form-builder/README.md)
+- [Explore the complete editor example](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/examples/react-form-builder/README.md)

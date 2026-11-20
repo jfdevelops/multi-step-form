@@ -14,9 +14,16 @@ guides remain available for advanced instance, storage, and migration topics.
 
 ## Contributing
 
-Public pages live under `framework/<framework>/v<major>/`. Use `title`,
-`description`, and `order` frontmatter, relative Markdown links, and fenced
-examples imported from public packages. There is currently no docs site,
-generated navigation, generated API reference, or docs-specific check command.
-Do not hand-write an API reference. Verify examples against package exports and
-tests, check relative links, and run the repository's required pre-commit checks.
+Public pages live under `docs/framework/<framework>/v<major>/` from the repository root.
+Run the docs commands from this repository:
+
+```sh
+pnpm docs:generate
+pnpm docs:check
+```
+
+The generator derives `docs/docs.json` and per-directory `meta.json` navigation from
+page frontmatter. Generated files stay ignored; the website runs these commands
+after checking out its pinned repository commit.
+
+Generation skips the API reference. The public guides cover core and React; package-local advanced guides are linked to pinned repository files.

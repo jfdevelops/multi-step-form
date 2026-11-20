@@ -71,7 +71,7 @@ separate.
 Calling `.configure()` returns a factory. With no `instances` option, calling
 the factory without arguments creates or retrieves the default instance. Named
 instances let one definition serve independent workflows; see the
-[instance and storage guide](../../../../packages/core/docs/instances-and-storage.mdx).
+[instance and storage guide](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/packages/core/docs/instances-and-storage.mdx).
 
 ## Extend the React integration
 
@@ -79,11 +79,11 @@ The optional instance builders follow this order:
 `.withOverrides(...)`, `.withForm(...)`, then `.withContext()`.
 Use overrides for initial values, a shared form component for layout, and context
 for hooks that need the active instance. The
-[React integration guide](../../../../packages/react/docs/instances-and-storage.mdx)
+[React integration guide](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/packages/react/docs/instances-and-storage.mdx)
 shows provider wiring and navigation.
 
 ## Next steps
 
-- [Use TanStack Form inside a step](../../../../packages/react-tanstack-form/docs/integration.mdx)
-- [Add per-step state](../../../../packages/core/docs/step-state.mdx)
+- [Use TanStack Form inside a step](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/packages/react-tanstack-form/docs/integration.mdx)
+- [Add per-step state](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/packages/core/docs/step-state.mdx)
 - [Build a form editor](guides/form-builder.md)
