@@ -22,7 +22,9 @@
     "typecheck:packages": "pnpm -r --filter \"@jfdevelops/*\" typecheck",
     "precommit": "node scripts/pre-commit.mjs",
     "prepare": "husky",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "docs:generate": "jfdevelops-docs generate --skip-reference --package packages/core --name \"Multi Step Form\"",
+    "docs:check": "jfdevelops-docs check --package packages/core --name \"Multi Step Form\""
   },
   "keywords": [],
   "author": "",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
     "@jfdevelops/cli": "0.9.0",
+    "@jfdevelops/docs": "0.2.0",
     "@jfdevelops/skills": "0.2.0",
     "@types/node": "^24.5.0",
     "glob": "^13.0.0",

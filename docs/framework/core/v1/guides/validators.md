@@ -27,8 +27,20 @@ In this guide you will:
 
 Each package starts with `@jfdevelops/multi-step-form-`. For example:
 
-```bash
+```npm
+npm i @jfdevelops/multi-step-form-builder-core @jfdevelops/multi-step-form-builder-zod zod
+```
+
+```pnpm
 pnpm add @jfdevelops/multi-step-form-builder-core @jfdevelops/multi-step-form-builder-zod zod
+```
+
+```yarn
+yarn add @jfdevelops/multi-step-form-builder-core @jfdevelops/multi-step-form-builder-zod zod
+```
+
+```bun
+bun add @jfdevelops/multi-step-form-builder-core @jfdevelops/multi-step-form-builder-zod zod
 ```
 
 ## Register the adapter

@@ -4,6 +4,22 @@ on:
   workflow_call:
 
 jobs:
+  docs:
+    name: Generate and check docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm docs:generate
+      - run: pnpm docs:check
+
   core:
     name: Core Build & Test
     runs-on: ubuntu-latest
