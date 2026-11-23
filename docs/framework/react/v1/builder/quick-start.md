@@ -1,7 +1,7 @@
 ---
 title: Build a form editor
 description: Compose a headless React palette and canvas around a shared builder instance.
-order: 10
+order: 20
 ---
 
 The React builder supplies editor behavior, drag and drop, and accessibility
@@ -13,24 +13,53 @@ In this guide you will:
 - Render a palette and editable canvas.
 - Add inspection, preview, and code export.
 
+## Start with an editable design
+
+Install the [builder packages](installation.md). For a useful initial canvas,
+create `initial-definition.ts`:
+
+```ts
+import { createDefinitionBuilder } from '@jfdevelops/multi-step-form-builder-core';
+
+export const initialDefinition = createDefinitionBuilder()
+  .settings({ validator: 'builtin' })
+  .step({ title: 'Contact' }, (step) => {
+    step.field({ type: 'string.email', key: 'email', isRequired: true });
+  })
+  .build();
+```
+
+This design starts with an email field and schema-based completion. You can also
+start empty, but preview will report an error until each step has a field.
+
 ## Render a palette and canvas
 
 ```tsx
 import {
+  AddStepButton,
   Canvas,
   CanvasField,
   DragHandle,
   FormBuilder,
   Palette,
   PaletteItem,
+  StepList,
+  StepTab,
   useFormBuilder,
 } from '@jfdevelops/react-multi-step-form-builder';
+import { initialDefinition } from './initial-definition';
 
 export function WorkshopBuilder() {
-  const builder = useFormBuilder();
+  const builder = useFormBuilder({ initial: initialDefinition });
 
   return (
     <FormBuilder builder={builder}>
+      <StepList>
+        {({ steps }) => steps.map((step) => (
+          <StepTab key={step.id} step={step}>{step.title}</StepTab>
+        ))}
+      </StepList>
+      <AddStepButton>Add step</AddStepButton>
       <Palette>
         {({ items }) =>
           items.map((item) => (
@@ -58,6 +87,14 @@ export function WorkshopBuilder() {
 `useFormBuilder` keeps one builder for the component's lifetime. `FormBuilder`
 provides it to descendants and sets up drag and drop. Palette items can be
 activated by click, keyboard, or dragging. The canvas shows the active step.
+
+Select a canvas field to inspect it. Add a second step with Add step, activate
+it, and add another palette field. Returning to the first tab preserves its
+definition. Reorder fields with their handles or the editor actions.
+
+`useFormBuilder` reads its options on the first render and destroys its builder
+when the owning component unmounts. Use commands to edit it or `builder.load`
+to switch documents. Do not call `createFormBuilder` on every render.
 
 ## Add editor controls
 
@@ -91,11 +128,13 @@ source, and imported package names. Check its `error` before presenting export
 actions. Use `files` when exporting separate `form.ts` and step modules.
 
 Pass a registry through `useFormBuilder({ registry })` to enable custom fields
-or [validator adapters](../../../core/v1/guides/validators.md). Preview and
+or [validator adapters](validation.md). Preview and
 generation use the provider's builder registry.
 
 ## Next steps
 
-- [Save builder definitions](../../../core/v1/guides/persistence.md)
-- [Understand source generation](../../../core/v1/guides/definitions.md)
-- [Explore the complete editor example](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/examples/react-form-builder/README.md)
+- [Add an inspector](inspector.md)
+- [Add history and clipboard controls](selection-and-history.md)
+- [Render live preview](preview.md)
+- [Export the design](code-generation.md)
+- [Save builder definitions](persistence.md)

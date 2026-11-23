@@ -1,7 +1,7 @@
 ---
 title: Save builder definitions
 description: Persist editable definitions and restore them into a builder with the same registry.
-order: 30
+order: 140
 ---
 
 Builder persistence saves the form being designed. Configure it separately from
@@ -67,7 +67,48 @@ Validate data received from outside your application before treating it as a
 definition. Storage and registry configuration are separate: restoring JSON does
 not restore executable callbacks or adapter implementations.
 
+## Implement a revision-aware save boundary
+
+```ts
+import type {
+  BuilderStorage,
+  FormDefinition,
+} from '@jfdevelops/multi-step-form-builder-core';
+
+type DefinitionRepository = {
+  load: (id: string) => Promise<FormDefinition | undefined>;
+  save: (definition: FormDefinition, baseRevision: number) => Promise<{ revision: number }>;
+};
+
+export function createDefinitionStorage(repository: DefinitionRepository): BuilderStorage {
+  return {
+    load: (id) => repository.load(id),
+    save: (definition, context) => repository.save(definition, context.baseRevision),
+  };
+}
+```
+
+The repository is your application boundary: implement its requests and runtime
+response validation with the client you already use. On the server, compare the
+submitted base revision to the stored revision before writing atomically. Reject
+a stale write and return a useful conflict response rather than silently replacing
+another author's work. The builder passes the revision; the storage service must
+enforce the comparison.
+
+## Restore and dispose deliberately
+
+`loadFromStorage(formId)` replaces the current definition when found. Decide how
+to handle unsaved edits before switching documents. `load(definition)` replaces
+the document and clears history; it is appropriate for opening another form,
+not for updating one property after each input event.
+
+Outside React, call `builder.destroy()` when the owning editor is disposed to
+release its timers and subscriptions. `useFormBuilder` owns that cleanup for the
+builder it creates. Do not destroy a shared builder merely because one panel
+unmounts while another panel still uses it.
+
 ## Next steps
 
 - [Create and export definitions](definitions.md)
-- [Choose a builder validator](validators.md)
+- [Choose a builder validator](validation.md)
+- [Configure runtime answer storage separately](settings.md)
