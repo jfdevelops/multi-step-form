@@ -1,7 +1,7 @@
 ---
 title: Choose a builder validator
 description: Register a schema adapter and select validation for an entire form or an individual step.
-order: 20
+order: 80
 ---
 
 Builder adapters compile the same schema description into runtime validation and
@@ -15,6 +15,21 @@ In this guide you will:
 - Select validation per form or per step.
 
 ## Choose an adapter
+
+For schema-based completion without an additional dependency, select the built-in
+adapter explicitly:
+
+```ts
+import { createFormBuilder } from '@jfdevelops/multi-step-form-builder-core';
+
+const builtinBuilder = createFormBuilder();
+builtinBuilder.settings.update({ validator: 'builtin' });
+```
+
+An adapter being available does not enable validation by itself. A form with no
+default validator and no step-level validation considers its steps complete.
+The checks on field schemas become completion rules when schema validation is
+selected.
 
 | Adapter package suffix | Library peer | Export |
 | --- | --- | --- |
@@ -89,7 +104,29 @@ generated modules. Their defaults use indexed field types from an inferred
 step-values alias. Built-in, Yup, Joi, and custom adapters without that capability
 use explicit fallback value types.
 
+## Choose a validation mode
+
+| Step configuration | Behavior |
+| --- | --- |
+| No `validation` | Inherit the form's selected validator, or run without validation |
+| `{ kind: 'schema' }` | Compile field schemas with the form's validator selection |
+| `{ kind: 'schema', library: 'zod' }` | Use the named registered adapter for this step |
+| `{ kind: 'none' }` | Disable validation for this step, including inherited validation |
+| `{ kind: 'code', ref: 'contact.validate' }` | Identify logic supplied by application code |
+
+`StepValidation` and `useStepValidation` expose these choices to a React settings
+panel. A code-owned rule can be shown in the editor but cannot be edited as a
+schema tree. See [code-owned compilation](code-generation.md#handle-code-owned-logic-explicitly)
+for restoring that logic at runtime.
+
+## Distinguish definition issues from answer errors
+
+An invalid field key or missing registry adapter is a problem in the designed
+form. An email that fails a check is a problem with a test answer. Show definition
+issues in the editor and answer errors in preview. Neither replaces server
+validation of submitted production answers.
+
 ## Next steps
 
 - [Create and export definitions](definitions.md)
-- [Build a React editor](../../../react/v1/guides/form-builder.md)
+- [Build a React editor](quick-start.md)

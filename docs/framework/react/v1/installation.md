@@ -75,35 +75,16 @@ bun add @jfdevelops/react-multi-step-form @jfdevelops/react-multi-step-form-tans
 
 The adapter exposes native TanStack Form APIs. Configure it through
 `formLibrary: tanstackForm()` and explicitly choose validation timing in
-`formOptions`; see the [integration guide](https://github.com/jfdevelops/multi-step-form/blob/3005838d05ef1ea26b616e0c4feec6a046ddc09b/packages/react-tanstack-form/docs/integration.mdx).
+`formOptions`; see the [integration guide](guides/tanstack-form.md).
 
 ## Install a form editor
 
-```npm
-npm i @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
-```
-
-```pnpm
-pnpm add @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
-```
-
-```yarn
-yarn add @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
-```
-
-```bun
-bun add @jfdevelops/multi-step-form-builder-core @jfdevelops/react-multi-step-form-builder
-```
-
-The React builder supports React 18 and 19. Its components provide behavior and
-accessibility wiring; supply your application's layout and styles.
-
-The built-in validator requires no separate validator package. To use a schema
-library, install its builder adapter and peer dependency as described in
-[Choose a builder validator](../../core/v1/guides/validators.md).
+The builder has its own [documentation section](builder/overview.md), including
+[installation](builder/installation.md), a [React quick start](builder/quick-start.md),
+and guides for authoring, previewing, exporting, and saving definitions.
 
 ## Next steps
 
 - [Create a React form](quick-start.md)
-- [Build a form editor](guides/form-builder.md)
-- [Create and export definitions](../../core/v1/guides/definitions.md)
+- [Build a form editor](builder/quick-start.md)
+- [Create and export definitions](builder/definitions.md)

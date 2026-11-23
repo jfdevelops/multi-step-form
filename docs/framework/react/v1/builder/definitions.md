@@ -1,7 +1,7 @@
 ---
-title: Create and export definitions
+title: Definitions and runtime compilation
 description: Build a JSON form definition and turn it into a runtime form or typed TypeScript modules.
-order: 10
+order: 30
 ---
 
 The builder core edits serializable form definitions without depending on a UI
@@ -33,6 +33,22 @@ const definition = createDefinitionBuilder()
 Each step callback scopes fields to that step. The result is a `FormDefinition`
 containing steps, fields, settings, and schema descriptions. A field's schema
 describes its value; its input type describes its presentation.
+
+## Understand the saved document
+
+| Part | Meaning |
+| --- | --- |
+| `schemaVersion` | Definition document format version |
+| `id` | Stable form identity used by storage |
+| `revision` | Save revision used for concurrency |
+| `meta` | Optional title and description for the designed form |
+| `settings` | Runtime defaults, instance names, and validation choice |
+| `steps` | Ordered editor steps, each with fields in display order |
+
+The definition contains JSON data. The builder snapshot additionally contains
+selection, history availability, issues, registry, and save status. Use
+`builder.toJSON()` for the saved artifact; do not serialize the whole snapshot.
+JSON does not include registry callbacks or code-owned validation implementations.
 
 ## Edit a definition
 
@@ -95,6 +111,7 @@ as a standalone module, and `validatorsSource` contains the validators alone.
 
 ## Next steps
 
-- [Choose a builder validator](validators.md)
+- [Choose a builder validator](validation.md)
 - [Save builder definitions](persistence.md)
-- [Build a React editor](../../../react/v1/guides/form-builder.md)
+- [Build a React editor](quick-start.md)
+- [Explore source export options](code-generation.md)
